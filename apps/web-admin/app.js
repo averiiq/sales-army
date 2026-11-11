@@ -1034,48 +1034,73 @@ class AdminPortal {
   }
 
   async fetchSettingsFromSupabase() {
-    if (!this.supabaseClient) return;
-    try {
-      const { data, error } = await this.supabaseClient
-        .from('platform_settings')
-        .select('*');
+    let loaded = false;
+    if (this.supabaseClient) {
+      try {
+        const { data, error } = await this.supabaseClient
+          .from('platform_settings')
+          .select('*');
 
-      if (!error && Array.isArray(data)) {
-        for (const row of data) {
-          if (row.id === 'pricing_and_plans' && row.data) {
-            if (row.data.plans) {
-              this.plans = { ...this.plans, ...row.data.plans };
-              this.saveData(STORAGE_KEYS.PLANS, this.plans);
+        if (!error && Array.isArray(data) && data.length > 0) {
+          for (const row of data) {
+            if (row.id === 'pricing_and_plans' && row.data) {
+              if (row.data.plans) {
+                this.plans = { ...this.plans, ...row.data.plans };
+                this.saveData(STORAGE_KEYS.PLANS, this.plans);
+              }
+              if (row.data.printerOptions && Array.isArray(row.data.printerOptions)) {
+                this.printerOptions = row.data.printerOptions;
+                this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions);
+              }
+              if (row.data.subscriptionAddons && Array.isArray(row.data.subscriptionAddons)) {
+                this.subscriptionAddons = row.data.subscriptionAddons;
+                this.saveData(STORAGE_KEYS.SUBSCRIPTION_ADDONS, this.subscriptionAddons);
+              }
+              if (row.data.coupons && Array.isArray(row.data.coupons)) {
+                this.coupons = row.data.coupons;
+                this.saveData(STORAGE_KEYS.COUPONS, this.coupons);
+              }
             }
-            if (row.data.printerOptions && Array.isArray(row.data.printerOptions)) {
-              this.printerOptions = row.data.printerOptions;
-              this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions);
+            if (row.id === 'remote_config' && row.data) {
+              this.remoteConfig = { ...this.remoteConfig, ...row.data };
+              this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig);
             }
-            if (row.data.subscriptionAddons && Array.isArray(row.data.subscriptionAddons)) {
-              this.subscriptionAddons = row.data.subscriptionAddons;
-              this.saveData(STORAGE_KEYS.SUBSCRIPTION_ADDONS, this.subscriptionAddons);
+            if (row.id === 'broadcast' && row.data) {
+              this.broadcast = { ...this.broadcast, ...row.data };
+              this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast);
             }
-            if (row.data.coupons && Array.isArray(row.data.coupons)) {
-              this.coupons = row.data.coupons;
-              this.saveData(STORAGE_KEYS.COUPONS, this.coupons);
+            if (row.id === 'general_settings' && row.data) {
+              this.settings = { ...this.settings, ...row.data };
+              this.saveData(STORAGE_KEYS.SETTINGS, this.settings);
             }
           }
-          if (row.id === 'remote_config' && row.data) {
-            this.remoteConfig = { ...this.remoteConfig, ...row.data };
-            this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig);
-          }
-          if (row.id === 'broadcast' && row.data) {
-            this.broadcast = { ...this.broadcast, ...row.data };
-            this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast);
-          }
-          if (row.id === 'general_settings' && row.data) {
-            this.settings = { ...this.settings, ...row.data };
-            this.saveData(STORAGE_KEYS.SETTINGS, this.settings);
+          loaded = true;
+        }
+      } catch (err) {
+        console.warn('Supabase fetchSettings error:', err);
+      }
+    }
+
+    if (!loaded) {
+      try {
+        const res = await fetch('/api/platform/all', { headers: this.getAuthHeaders() });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            const d = json.data;
+            if (d.plans) { this.plans = { ...this.plans, ...d.plans }; this.saveData(STORAGE_KEYS.PLANS, this.plans); }
+            if (d.printerOptions) { this.printerOptions = d.printerOptions; this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions); }
+            if (d.subscriptionAddons) { this.subscriptionAddons = d.subscriptionAddons; this.saveData(STORAGE_KEYS.SUBSCRIPTION_ADDONS, this.subscriptionAddons); }
+            if (d.coupons) { this.coupons = d.coupons; this.saveData(STORAGE_KEYS.COUPONS, this.coupons); }
+            if (d.remoteConfig) { this.remoteConfig = { ...this.remoteConfig, ...d.remoteConfig }; this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig); }
+            if (d.broadcast) { this.broadcast = { ...this.broadcast, ...d.broadcast }; this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast); }
+            if (d.settings) { this.settings = { ...this.settings, ...d.settings }; this.saveData(STORAGE_KEYS.SETTINGS, this.settings); }
+            loaded = true;
           }
         }
+      } catch (err) {
+        console.warn('Fallback /api/platform/all notice:', err);
       }
-    } catch (err) {
-      console.warn('Supabase fetchSettings error:', err);
     }
   }
 
@@ -1333,21 +1358,43 @@ class AdminPortal {
   }
 
   async syncToSupabase(settingId, data) {
-    if (!this.supabaseClient) return;
-    try {
-      const { error } = await this.supabaseClient.from('platform_settings').upsert({
-        id: settingId,
-        data: data,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) throw error;
+    let cloudSynced = false;
+    if (this.supabaseClient) {
+      try {
+        const { error } = await this.supabaseClient.from('platform_settings').upsert({
+          id: settingId,
+          data: data,
+          updated_at: new Date().toISOString(),
+        });
+        if (!error) cloudSynced = true;
+      } catch (err) {
+        console.warn('Direct Supabase write notice:', err);
+      }
+    }
+
+    if (!cloudSynced) {
+      try {
+        const res = await fetch('/api/platform/settings', {
+          method: 'POST',
+          headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ id: settingId, data })
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) cloudSynced = true;
+        }
+      } catch (err) {
+        console.warn('Server settings sync notice:', err);
+      }
+    }
+
+    if (cloudSynced) {
       console.log(`⚡ Supabase: Saved platform_settings/${settingId} to cloud`);
       this.updateCloudStatus(true);
-    } catch (err) {
-      console.warn('Supabase sync error:', err);
+    } else {
       this.updateCloudStatus(false);
-      this.showToast(`❌ Cloud write (${settingId}) failed: ${err.message || err}`, '☁️');
-      throw err;
+      this.showToast(`❌ Cloud write (${settingId}) failed.`, '☁️');
+      throw new Error(`Cloud write (${settingId}) failed`);
     }
   }
 

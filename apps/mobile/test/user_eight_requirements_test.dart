@@ -14,7 +14,7 @@ void main() {
   group('Verification of 8 User Requirements', () {
     // 1. Inhand Cash option on Dashboard Upper Left
     testWidgets('1. Inhand Cash is displayed prominently in dashboard upper left bar', (tester) async {
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -34,7 +34,7 @@ void main() {
 
     // 2. Expenses option in Profile
     testWidgets('2. Expenses option is present in Profile & Settings', (tester) async {
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -57,7 +57,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -86,7 +86,7 @@ void main() {
 
     // 4. All pages, no popups (CreateShopScreen, LedgerReportScreen, GstTaxSummaryScreen)
     testWidgets('4. Reports and Shop Create open as full-screen Scaffold pages', (tester) async {
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       // Verify LedgerReportScreen is a full Scaffold page
       await tester.pumpWidget(
@@ -123,7 +123,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -145,7 +145,7 @@ void main() {
 
     // 6. Dark theme option
     testWidgets('6. Dark theme toggle updates AppState themeMode', (tester) async {
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
       expect(appState.isDarkMode, false);
 
       appState.toggleTheme();
@@ -159,7 +159,7 @@ void main() {
 
     // 7. Inventory Round Product Add Button
     testWidgets('7. InventoryTab has a circular FloatingActionButton with + icon', (tester) async {
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -187,7 +187,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -219,7 +219,7 @@ void main() {
     });
 
     testWidgets('9. Order page Add button is circular (shape: BoxShape.circle)', (tester) async {
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(

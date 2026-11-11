@@ -8,3 +8,4 @@ scripts/
 Dockerfile
 render.yaml
 .wrangler/
+node_modules

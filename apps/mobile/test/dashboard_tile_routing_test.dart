@@ -1,0 +1,229 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:salesarmy/core/navigation/main_shell.dart';
+import 'package:salesarmy/features/dashboard/presentation/screens/distributor_dashboard.dart';
+import 'package:salesarmy/features/orders/data/models/order_model.dart';
+import 'package:salesarmy/core/services/app_state.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
+  group('Dashboard Tile Routing & Shell Navigation Tests', () {
+    testWidgets('1. DistributorDashboard tiles route correctly via onNavigateRoute and onNavigateTab', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final appState = AppState(loadMockData: true);
+      await appState.createOrder(
+        OrderModel(
+          orderId: 'ORD-ROUTING-001',
+          shopId: 'shop_001',
+          createdByUid: 'demo_user_01',
+          status: 'pending',
+          items: const [],
+          subtotal: 1500,
+          totalGst: 0,
+          grandTotal: 1500,
+          placedAt: DateTime.now(),
+        ),
+      );
+
+      String? capturedRoute;
+      int? capturedTabIndex;
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: appState,
+          child: MaterialApp(
+            home: Scaffold(
+              body: DistributorDashboard(
+                onNavigateRoute: (r) => capturedRoute = r,
+                onNavigateTab: (idx) => capturedTabIndex = idx,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Test 1: Tap 'Collect' on Market Dues Alert
+      expect(find.text('Collect'), findsOneWidget);
+      await tester.tap(find.text('Collect'));
+      await tester.pumpAndSettle();
+      expect(capturedRoute, equals('collections'));
+
+      // Test 2: Tap 'Restock' on Low Stock Alert
+      expect(find.text('Restock'), findsOneWidget);
+      await tester.tap(find.text('Restock'));
+      await tester.pumpAndSettle();
+      expect(capturedRoute, equals('inventory'));
+
+      // Test 3: Tap 'View Orders' on Pending Orders Alert
+      expect(find.text('View Orders'), findsOneWidget);
+      await tester.tap(find.text('View Orders'));
+      await tester.pumpAndSettle();
+      expect(capturedRoute, equals('orders'));
+
+      // Test 4: Tap 'View All' on Recent Invoices
+      final viewAllOrders = find.text('View All');
+      expect(viewAllOrders, findsWidgets);
+      await tester.tap(viewAllOrders.first, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(capturedRoute, equals('orders'));
+
+      // Test 5: Tap 'Create Bill' quick action tile redirects to billing
+      expect(find.text('Create Bill'), findsOneWidget);
+      await tester.tap(find.text('Create Bill'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(capturedRoute, equals('billing'));
+
+      // Test 6: Tap 'Collect Dues' quick action tile redirects to collections
+      expect(find.text('Collect Dues'), findsOneWidget);
+      await tester.tap(find.text('Collect Dues'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(capturedRoute, equals('collections'));
+    });
+
+    testWidgets('2. MainShell shows top & bottom navbar only on Home with animated slide on other pages', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final appState = AppState(loadMockData: true);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: appState,
+          child: MaterialApp(
+            home: MainShell(onSignOut: () {}),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify MainShell is mounted on Home tab
+      expect(find.byType(DistributorDashboard), findsOneWidget);
+
+      // Verify top AppBar is present on Home page
+      expect(find.byType(AppBar), findsOneWidget);
+
+      // Verify bottom nav items exist and navbar is fully visible on Home
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Parties'), findsOneWidget);
+      expect(find.text('Bill'), findsOneWidget);
+      expect(find.text('Orders'), findsOneWidget);
+      expect(find.text('Collection'), findsOneWidget);
+
+      final animatedAlignFinder = find.byType(AnimatedAlign);
+      expect(animatedAlignFinder, findsOneWidget);
+      final AnimatedAlign initialAlign = tester.widget(animatedAlignFinder);
+      expect(initialAlign.heightFactor, equals(1.0));
+
+      final animatedSlideFinder = find.byType(AnimatedSlide);
+      expect(animatedSlideFinder, findsOneWidget);
+      final AnimatedSlide initialSlide = tester.widget(animatedSlideFinder);
+      expect(initialSlide.offset, equals(Offset.zero));
+
+      // 1. Navigate to Orders tab from bottom bar
+      await tester.tap(find.text('Orders'));
+      await tester.pumpAndSettle();
+
+      // Top AppBar is removed on non-home pages
+      expect(find.byType(AppBar), findsNothing);
+
+      // Bottom navbar is slid down and collapsed
+      final AnimatedAlign ordersAlign = tester.widget(animatedAlignFinder);
+      expect(ordersAlign.heightFactor, equals(0.0));
+      final AnimatedSlide ordersSlide = tester.widget(animatedSlideFinder);
+      expect(ordersSlide.offset, equals(const Offset(0, 1.0)));
+
+      // Tap 'Back to Dashboard' to return to Home
+      expect(find.text('Back to Dashboard'), findsOneWidget);
+      await tester.tap(find.text('Back to Dashboard'));
+      await tester.pumpAndSettle();
+
+      // Returned to Home: Top AppBar and bottom navbar are restored
+      expect(find.byType(AppBar), findsOneWidget);
+      final AnimatedAlign restoredAlign = tester.widget(animatedAlignFinder);
+      expect(restoredAlign.heightFactor, equals(1.0));
+
+      // 2. Navigate to Collection tab
+      await tester.tap(find.text('Collection'));
+      await tester.pumpAndSettle();
+
+      // Top AppBar is null on Collection
+      expect(find.byType(AppBar), findsNothing);
+      final AnimatedAlign collAlign = tester.widget(animatedAlignFinder);
+      expect(collAlign.heightFactor, equals(0.0));
+
+      // Return via 'Back to Dashboard'
+      expect(find.text('Back to Dashboard'), findsOneWidget);
+      await tester.tap(find.text('Back to Dashboard'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppBar), findsOneWidget);
+
+      // 3. Navigate to Parties tab
+      await tester.tap(find.text('Parties'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppBar), findsNothing);
+      final AnimatedAlign partiesAlign = tester.widget(animatedAlignFinder);
+      expect(partiesAlign.heightFactor, equals(0.0));
+
+      // Return to Home via back icon button
+      final backIcon = find.byIcon(Icons.arrow_back_rounded);
+      expect(backIcon, findsWidgets);
+      await tester.tap(backIcon.first);
+      await tester.pumpAndSettle();
+
+      // Back on Home
+      expect(find.byType(AppBar), findsOneWidget);
+    });
+
+    testWidgets('3. Delivery role routes Orders/Deliveries correctly in MainShell', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final appState = AppState(loadMockData: true);
+      // Switch active role to Delivery Staff
+      appState.setActiveRole('Delivery Staff');
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: appState,
+          child: MaterialApp(
+            home: MainShell(onSignOut: () {}),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // For Delivery role, Bill and Collection tabs must NOT be present in bottom nav
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Parties'), findsOneWidget);
+      expect(find.text('Orders'), findsOneWidget);
+      expect(find.text('Bill'), findsNothing);
+      expect(find.text('Collection'), findsNothing);
+
+      // Tap 'Trip Route' action pill on Delivery hero card
+      expect(find.text('Trip Route'), findsOneWidget);
+      await tester.tap(find.text('Trip Route'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Should have switched to the Orders/Deliveries tab
+      expect(find.text('Orders'), findsWidgets);
+    });
+  });
+}

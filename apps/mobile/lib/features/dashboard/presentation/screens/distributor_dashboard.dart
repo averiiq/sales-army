@@ -22,7 +22,10 @@ import 'package:salesarmy/features/dashboard/presentation/screens/sales_data_scr
 import 'package:salesarmy/features/collections/presentation/screens/expense_screen.dart';
 import 'package:salesarmy/features/visits/presentation/screens/reminders_screen.dart';
 import 'package:salesarmy/features/visits/presentation/screens/visits_tab.dart';
-import 'package:salesarmy/features/visits/data/models/reminder_model.dart';
+import 'package:salesarmy/features/shops/presentation/screens/shop_detail_screen.dart';
+import 'package:salesarmy/features/billing/presentation/screens/gst_tax_invoice_viewer.dart';
+import 'package:salesarmy/features/orders/presentation/screens/orders_tab.dart';
+import 'package:salesarmy/features/orders/presentation/screens/order_taker_flow.dart';
 
 class _DashboardReminderItem {
   final String key;
@@ -68,6 +71,7 @@ class _DashboardActionItem {
 
 class DistributorDashboard extends StatelessWidget {
   final Function(int tabIndex)? onNavigateTab;
+  final Function(String routeName)? onNavigateRoute;
   final VoidCallback? onOpenOrderTaker;
   final VoidCallback? onSignOut;
   final bool showHeader;
@@ -75,10 +79,26 @@ class DistributorDashboard extends StatelessWidget {
   const DistributorDashboard({
     super.key,
     this.onNavigateTab,
+    this.onNavigateRoute,
     this.onOpenOrderTaker,
     this.onSignOut,
     this.showHeader = false,
   });
+
+  void _navigate(BuildContext context, {int? tabIndex, String? routeName, Widget? fallbackScreen}) {
+    HapticFeedback.lightImpact();
+    if (onNavigateRoute != null && routeName != null) {
+      onNavigateRoute!(routeName);
+      return;
+    }
+    if (onNavigateTab != null && tabIndex != null) {
+      onNavigateTab!(tabIndex);
+      return;
+    }
+    if (fallbackScreen != null) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => fallbackScreen));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -375,6 +395,8 @@ class DistributorDashboard extends StatelessWidget {
     final String subMetric1Value;
     final String subMetric2Title;
     final String subMetric2Value;
+    final VoidCallback? onSubMetric1Tap;
+    final VoidCallback? onSubMetric2Tap;
 
     if (appState.isAccountantRole) {
       heroTitle = "Today's Collections";
@@ -390,8 +412,10 @@ class DistributorDashboard extends StatelessWidget {
       targetSubText = coll >= 8000 ? 'Target Reached! 🎯' : '₹${AppFormatters.compactCurrency((8000 - coll).clamp(0.0, double.infinity))} remaining';
       subMetric1Title = 'TOTAL DUES';
       subMetric1Value = AppFormatters.compactCurrency(totalDues);
+      onSubMetric1Tap = () => _navigate(context, tabIndex: 4, routeName: 'collections', fallbackScreen: CollectionsTab(onBack: () => Navigator.pop(context)));
       subMetric2Title = 'IN-HAND CASH';
       subMetric2Value = AppFormatters.compactCurrency(appState.inHandCash);
+      onSubMetric2Tap = () => _showUpdateInHandBalanceDialog(context, appState);
     } else if (appState.isFieldSalesRole) {
       heroTitle = "Today's Bookings";
       heroIcon = Icons.shopping_bag_outlined;
@@ -407,14 +431,16 @@ class DistributorDashboard extends StatelessWidget {
       targetSubText = '$visitsCompleted of $totalV Outlets Visited';
       subMetric1Title = 'VISITS';
       subMetric1Value = '${visitsCompleted.toString().padLeft(2, '0')} / ${totalV.toString().padLeft(2, '0')}';
+      onSubMetric1Tap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => VisitsTab(onBack: () => Navigator.pop(context))));
       subMetric2Title = 'OUTLETS';
       subMetric2Value = '${appState.shops.length} Active';
+      onSubMetric2Tap = () => _navigate(context, tabIndex: 1, routeName: 'shops');
     } else if (appState.isDeliveryRole) {
       heroTitle = "Today's Deliveries";
       heroIcon = Icons.local_shipping_outlined;
       actionPillText = 'Trip Route';
       onActionPillTap = () {
-        onNavigateTab?.call(2); // Orders tab
+        _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
       };
       final deliveredCount = appState.orders.where((o) => o.status.toLowerCase() == 'delivered').length;
       mainMetricValue = '$deliveredCount Delivered';
@@ -425,8 +451,10 @@ class DistributorDashboard extends StatelessWidget {
       targetSubText = '$pendingCount Pending Drops';
       subMetric1Title = 'PENDING DROPS';
       subMetric1Value = '$pendingCount Orders';
+      onSubMetric1Tap = () => _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
       subMetric2Title = 'PARCELS TOTAL';
       subMetric2Value = '${appState.orders.length} Dispatches';
+      onSubMetric2Tap = () => _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
     } else if (appState.isStoreManagerRole) {
       heroTitle = "Warehouse Stock Status";
       heroIcon = Icons.warehouse_rounded;
@@ -441,8 +469,10 @@ class DistributorDashboard extends StatelessWidget {
       targetSubText = '$lowStock Low Stock Alerts';
       subMetric1Title = 'LOW STOCK';
       subMetric1Value = '$lowStock SKUs';
+      onSubMetric1Tap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryTab(isStandalone: true)));
       subMetric2Title = 'TOTAL PRODUCTS';
       subMetric2Value = '${appState.products.length} SKUs';
+      onSubMetric2Tap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryTab(isStandalone: true)));
     } else {
       // Owner
       heroTitle = "Today's Sales";
@@ -459,8 +489,10 @@ class DistributorDashboard extends StatelessWidget {
       mainMetricValue = AppFormatters.currency(todaySales);
       subMetric1Title = 'VISITS';
       subMetric1Value = '${visitsCompleted.toString().padLeft(2, '0')} / ${totalVisits.toString().padLeft(2, '0')}';
+      onSubMetric1Tap = () => Navigator.push(context, MaterialPageRoute(builder: (_) => VisitsTab(onBack: () => Navigator.pop(context))));
       subMetric2Title = 'COLLECTION';
       subMetric2Value = AppFormatters.currency(todayCollections);
+      onSubMetric2Tap = () => _navigate(context, tabIndex: 4, routeName: 'collections', fallbackScreen: CollectionsTab(onBack: () => Navigator.pop(context)));
     }
 
     return Container(
@@ -607,77 +639,85 @@ class DistributorDashboard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        subMetric1Title,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          subMetric1Value,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w900,
+                child: InkWell(
+                  onTap: onSubMetric1Tap,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          subMetric1Title,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            subMetric1Value,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        subMetric2Title,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          subMetric2Value,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w900,
+                child: InkWell(
+                  onTap: onSubMetric2Tap,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          subMetric2Title,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            subMetric2Value,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1076,8 +1116,18 @@ class DistributorDashboard extends StatelessWidget {
         badgeText: 'Instant',
         badgeColor: const Color(0xFF10B981),
         onTap: () {
-          HapticFeedback.lightImpact();
-          onOpenOrderTaker?.call();
+          _navigate(
+            context,
+            tabIndex: 6,
+            routeName: 'billing',
+            fallbackScreen: OrderTakerFlow(
+              isEmbedded: true,
+              onOrderCompleted: () {
+                Navigator.pop(context);
+                _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
+              },
+            ),
+          );
         },
       ));
       items.add(_DashboardActionItem(
@@ -1089,11 +1139,7 @@ class DistributorDashboard extends StatelessWidget {
         badgeText: duesCount > 0 ? '$duesCount Pending' : null,
         badgeColor: const Color(0xFFE11D48),
         onTap: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => CollectionsTab(onBack: () => Navigator.pop(context))),
-          );
+          _navigate(context, tabIndex: 4, routeName: 'collections', fallbackScreen: CollectionsTab(onBack: () => Navigator.pop(context)));
         },
       ));
       items.add(_DashboardActionItem(
@@ -1145,8 +1191,18 @@ class DistributorDashboard extends StatelessWidget {
         badgeText: 'Instant',
         badgeColor: const Color(0xFF10B981),
         onTap: () {
-          HapticFeedback.lightImpact();
-          onOpenOrderTaker?.call();
+          _navigate(
+            context,
+            tabIndex: 6,
+            routeName: 'billing',
+            fallbackScreen: OrderTakerFlow(
+              isEmbedded: true,
+              onOrderCompleted: () {
+                Navigator.pop(context);
+                _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
+              },
+            ),
+          );
         },
       ));
       items.add(_DashboardActionItem(
@@ -1158,11 +1214,7 @@ class DistributorDashboard extends StatelessWidget {
         badgeText: duesCount > 0 ? '$duesCount Pending' : null,
         badgeColor: const Color(0xFFE11D48),
         onTap: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => CollectionsTab(onBack: () => Navigator.pop(context))),
-          );
+          _navigate(context, tabIndex: 4, routeName: 'collections', fallbackScreen: CollectionsTab(onBack: () => Navigator.pop(context)));
         },
       ));
       items.add(_DashboardActionItem(
@@ -1214,8 +1266,18 @@ class DistributorDashboard extends StatelessWidget {
         badgeText: 'Active',
         badgeColor: const Color(0xFF10B981),
         onTap: () {
-          HapticFeedback.lightImpact();
-          onOpenOrderTaker?.call();
+          _navigate(
+            context,
+            tabIndex: 6,
+            routeName: 'billing',
+            fallbackScreen: OrderTakerFlow(
+              isEmbedded: true,
+              onOrderCompleted: () {
+                Navigator.pop(context);
+                _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
+              },
+            ),
+          );
         },
       ));
       items.add(_DashboardActionItem(
@@ -1259,8 +1321,7 @@ class DistributorDashboard extends StatelessWidget {
         badgeText: pendingOrdersCount > 0 ? '$pendingOrdersCount Drops' : null,
         badgeColor: const Color(0xFF1E56E2),
         onTap: () {
-          HapticFeedback.lightImpact();
-          onNavigateTab?.call(2);
+          _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
         },
       ));
       items.add(_DashboardActionItem(
@@ -1270,8 +1331,7 @@ class DistributorDashboard extends StatelessWidget {
         bgColor: const Color(0xFFEFFBF4),
         iconColor: const Color(0xFF059669),
         onTap: () {
-          HapticFeedback.lightImpact();
-          onNavigateTab?.call(2);
+          _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
         },
       ));
       items.add(_DashboardActionItem(
@@ -1281,8 +1341,7 @@ class DistributorDashboard extends StatelessWidget {
         bgColor: const Color(0xFFF1F5FD),
         iconColor: const Color(0xFF1E56E2),
         onTap: () {
-          HapticFeedback.lightImpact();
-          onNavigateTab?.call(1);
+          _navigate(context, tabIndex: 1, routeName: 'shops');
         },
       ));
       items.add(_DashboardActionItem(
@@ -1323,8 +1382,7 @@ class DistributorDashboard extends StatelessWidget {
         badgeText: pendingOrdersCount > 0 ? '$pendingOrdersCount Pending' : null,
         badgeColor: const Color(0xFF1E56E2),
         onTap: () {
-          HapticFeedback.lightImpact();
-          onNavigateTab?.call(2);
+          _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
         },
       ));
       items.add(_DashboardActionItem(
@@ -1345,8 +1403,7 @@ class DistributorDashboard extends StatelessWidget {
         bgColor: const Color(0xFFF1F5FD),
         iconColor: const Color(0xFF1E56E2),
         onTap: () {
-          HapticFeedback.lightImpact();
-          onNavigateTab?.call(1);
+          _navigate(context, tabIndex: 1, routeName: 'shops');
         },
       ));
     }
@@ -1549,19 +1606,23 @@ class DistributorDashboard extends StatelessWidget {
     uncompletedReminders.sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
     for (final rem in uncompletedReminders) {
-      final itemKey = 'reminder_${rem.reminderId}';
+      final itemKey = (rem.reminderId == 'rem_001' || rem.description.toLowerCase().contains('balaji') || (rem.shopName != null && rem.shopName!.toLowerCase().contains('balaji')))
+          ? 'reminder_balaji'
+          : 'reminder_${rem.reminderId}';
       if (appState.isDailyNoticeDismissed(itemKey)) continue;
 
       final title = (rem.title != null && rem.title!.trim().isNotEmpty)
           ? rem.title!
           : ((rem.shopName != null && rem.shopName!.trim().isNotEmpty)
               ? rem.shopName!
-              : (rem.purpose.isNotEmpty ? '${rem.purpose[0].toUpperCase()}${rem.purpose.substring(1)} Reminder' : 'Pending Task'));
+              : (rem.description.isNotEmpty
+                  ? rem.description
+                  : (rem.purpose.isNotEmpty ? '${rem.purpose[0].toUpperCase()}${rem.purpose.substring(1)} Reminder' : 'Pending Task')));
 
       final now = DateTime.now();
       final isOverdue = rem.dueDate.isBefore(now);
       final dueString = _formatReminderDueDate(rem.dueDate);
-      final subtitle = rem.description.isNotEmpty
+      final subtitle = (rem.description.isNotEmpty && title != rem.description)
           ? '$dueString • ${rem.description}'
           : dueString;
 
@@ -1638,7 +1699,10 @@ class DistributorDashboard extends StatelessWidget {
             isWarning: true,
             onTap: () {
               HapticFeedback.lightImpact();
-              onNavigateTab?.call(3); // Inventory tab
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const InventoryTab(isStandalone: true)),
+              );
             },
             onDismiss: () {
               HapticFeedback.lightImpact();
@@ -1676,7 +1740,10 @@ class DistributorDashboard extends StatelessWidget {
             isWarning: false,
             onTap: () {
               HapticFeedback.lightImpact();
-              onNavigateTab?.call(2); // Collections tab
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ShopDetailScreen(shop: s)),
+              );
             },
             onDismiss: () {
               HapticFeedback.lightImpact();
@@ -1900,7 +1967,7 @@ class DistributorDashboard extends StatelessWidget {
               ),
             ),
             InkWell(
-              onTap: () => onNavigateTab?.call(1),
+              onTap: () => _navigate(context, tabIndex: 1, routeName: 'shops'),
               child: Text(
                 'View All (${appState.shops.length})',
                 style: const TextStyle(
@@ -1929,7 +1996,13 @@ class DistributorDashboard extends StatelessWidget {
                 categoryAndOrders: '${shop.businessType ?? 'Retail'} • $orderCount Orders',
                 amount: AppFormatters.currency(totalShopSales),
                 dueText: shop.currentOutstanding > 0 ? 'Due: ${AppFormatters.currency(shop.currentOutstanding)}' : null,
-                onTap: () => onNavigateTab?.call(1),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ShopDetailScreen(shop: shop)),
+                  );
+                },
                 isDark: isDark,
               ),
             );
@@ -2195,8 +2268,7 @@ class DistributorDashboard extends StatelessWidget {
           actionColor: const Color(0xFFBE123C),
           actionBorderColor: const Color(0xFFFECDD3),
           onAction: () {
-            HapticFeedback.lightImpact();
-            onNavigateTab?.call(4); // Switch to Collections Tab
+            _navigate(context, tabIndex: 4, routeName: 'collections', fallbackScreen: CollectionsTab(onBack: () => Navigator.pop(context)));
           },
           onDismiss: () {
             appState.dismissDailyNotice('market_dues');
@@ -2225,8 +2297,7 @@ class DistributorDashboard extends StatelessWidget {
           actionColor: const Color(0xFFB45309),
           actionBorderColor: const Color(0xFFFDE68A),
           onAction: () {
-            HapticFeedback.lightImpact();
-            onNavigateTab?.call(3); // Switch to Inventory Tab
+            _navigate(context, tabIndex: 3, routeName: 'inventory', fallbackScreen: const InventoryTab(isStandalone: true));
           },
           onDismiss: () {
             appState.dismissDailyNotice('low_stock');
@@ -2255,8 +2326,7 @@ class DistributorDashboard extends StatelessWidget {
           actionColor: const Color(0xFF1D4ED8),
           actionBorderColor: const Color(0xFFBFDBFE),
           onAction: () {
-            HapticFeedback.lightImpact();
-            onNavigateTab?.call(2); // Switch to Orders Tab
+            _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
           },
           onDismiss: () {
             appState.dismissDailyNotice('pending_orders');
@@ -2511,7 +2581,7 @@ class DistributorDashboard extends StatelessWidget {
             ),
             if (orders.isNotEmpty)
               InkWell(
-                onTap: () => onNavigateTab?.call(2), // Switch to Orders tab
+                onTap: () => _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0)),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
@@ -2530,47 +2600,62 @@ class DistributorDashboard extends StatelessWidget {
         const SizedBox(height: 10),
 
         if (recentOrders.isEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
-                width: 1.2,
+          InkWell(
+            onTap: () => _navigate(
+              context,
+              tabIndex: 6,
+              routeName: 'billing',
+              fallbackScreen: OrderTakerFlow(
+                isEmbedded: true,
+                onOrderCompleted: () {
+                  Navigator.pop(context);
+                  _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
+                },
               ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.receipt_long_outlined, color: Color(0xFF94A3B8), size: 22),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                  width: 1.2,
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  'No Bills Created Today',
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.receipt_long_outlined, color: Color(0xFF94A3B8), size: 22),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Tap "New Bill" to generate your first invoice',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  const SizedBox(height: 10),
+                  Text(
+                    'No Bills Created Today',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 3),
+                  Text(
+                    'Tap "New Bill" to generate your first invoice',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
             ),
           )
         else
@@ -2589,7 +2674,15 @@ class DistributorDashboard extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: InkWell(
-                onTap: () => onNavigateTab?.call(2), // Switch to Orders tab
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  final invoiceMatch = appState.invoices.where((inv) => inv.orderId == order.orderId);
+                  if (invoiceMatch.isNotEmpty) {
+                    GstTaxInvoiceViewer.show(context, invoiceMatch.first);
+                  } else {
+                    _navigate(context, tabIndex: 2, routeName: 'orders', fallbackScreen: const OrdersTab(initialTabIndex: 0));
+                  }
+                },
                 borderRadius: BorderRadius.circular(18),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

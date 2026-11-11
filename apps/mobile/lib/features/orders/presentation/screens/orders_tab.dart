@@ -17,7 +17,8 @@ import 'package:salesarmy/features/orders/presentation/screens/order_taker_flow.
 class OrdersTab extends StatefulWidget {
   final int initialTabIndex;
   final VoidCallback? onTakeNewOrder;
-  const OrdersTab({super.key, this.initialTabIndex = 0, this.onTakeNewOrder});
+  final VoidCallback? onBack;
+  const OrdersTab({super.key, this.initialTabIndex = 0, this.onTakeNewOrder, this.onBack});
 
   @override
   State<OrdersTab> createState() => _OrdersTabState();
@@ -457,9 +458,49 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           gradient: AppTheme.getOrdersGradient(isDark),
         ),
-        child: Column(
-          children: [
-            // Sub-Tabs Bar (Role-Tailored & Dynamically Filtered)
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              if (widget.onBack != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                  child: Row(
+                    children: [
+                      Material(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            widget.onBack?.call();
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              boxShadow: AppTheme.softShadow(blur: 6, dy: 1),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.arrow_back_rounded, size: 16, color: isDark ? Colors.white : const Color(0xFF334155)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Back to Dashboard',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF334155)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              // Sub-Tabs Bar (Role-Tailored & Dynamically Filtered)
             Builder(
               builder: (ctx) {
                 final canBill = (appState.isOwnerRole || (appState.canAccessModule('billing') && !appState.isFieldSalesRole)) &&
@@ -641,7 +682,8 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   // ==========================================

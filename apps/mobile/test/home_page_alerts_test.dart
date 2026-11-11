@@ -8,7 +8,7 @@ import 'package:salesarmy/core/services/app_state.dart';
 void main() {
   group('Home Page Top Alerts Hub Tests', () {
     testWidgets('DistributorDashboard renders all operational alerts at the top below navbar', (tester) async {
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
       // Add a pending order to trigger the pending orders alert
       await appState.createOrder(
         OrderModel(

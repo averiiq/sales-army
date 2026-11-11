@@ -158,7 +158,7 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               // 1. Optional Back Bar
-              if (widget.onBack != null && Navigator.canPop(context))
+              if (widget.onBack != null)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),

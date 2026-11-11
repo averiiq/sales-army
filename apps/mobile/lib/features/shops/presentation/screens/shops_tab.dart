@@ -5,15 +5,15 @@ import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
 import 'package:salesarmy/core/utils/formatters.dart';
 import 'package:salesarmy/core/utils/app_image_helper.dart';
-import 'package:salesarmy/core/utils/responsive_helper.dart';
 import 'package:salesarmy/features/shops/presentation/screens/shop_detail_screen.dart';
 import 'package:salesarmy/features/shops/presentation/dialogs/add_shop_dialog.dart';
 import 'package:salesarmy/core/theme/app_theme.dart';
 
 class ShopsTab extends StatefulWidget {
   final Function(ShopModel)? onStartOrderForShop;
+  final VoidCallback? onBack;
 
-  const ShopsTab({super.key, this.onStartOrderForShop});
+  const ShopsTab({super.key, this.onStartOrderForShop, this.onBack});
 
   @override
   State<ShopsTab> createState() => _ShopsTabState();
@@ -70,45 +70,74 @@ class _ShopsTabState extends State<ShopsTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Capsule Search Input
-                      Container(
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                        ),
-                        child: TextField(
-                          onChanged: (val) => setState(() => _searchQuery = val),
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            fontWeight: FontWeight.w500,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Search shop name, owner, phone, or area...',
-                            hintStyle: TextStyle(
-                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                              fontSize: 13,
+                      // Capsule Search Input (with optional back button)
+                      Row(
+                        children: [
+                          if (widget.onBack != null) ...[
+                            Material(
+                              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  widget.onBack!();
+                                },
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Icon(Icons.arrow_back_rounded, color: isDark ? Colors.white : const Color(0xFF0F172A), size: 20),
+                                ),
+                              ),
                             ),
-                            prefixIcon: Icon(
-                              Icons.search_rounded,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                              size: 20,
+                            const SizedBox(width: 8),
+                          ],
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              ),
+                              child: TextField(
+                                onChanged: (val) => setState(() => _searchQuery = val),
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Search shop name, owner, phone, or area...',
+                                  hintStyle: TextStyle(
+                                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                    fontSize: 13,
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.search_rounded,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                    size: 20,
+                                  ),
+                                  suffixIcon: _searchQuery.isNotEmpty
+                                      ? IconButton(
+                                          icon: Icon(
+                                            Icons.clear_rounded,
+                                            size: 18,
+                                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                          ),
+                                          onPressed: () => setState(() => _searchQuery = ''),
+                                        )
+                                      : null,
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                ),
+                              ),
                             ),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: Icon(
-                                      Icons.clear_rounded,
-                                      size: 18,
-                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                    ),
-                                    onPressed: () => setState(() => _searchQuery = ''),
-                                  )
-                                : null,
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           ),
-                        ),
+                        ],
                       ),
                       const SizedBox(height: 12),
 

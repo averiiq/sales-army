@@ -14,7 +14,7 @@ void main() {
 
   group('Daily Reminders, In-Hand Cash, and Milestone Banner Tests', () {
     test('AppState tracks daily dismissals and resets on a new date', () async {
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
       const testId = 'sales_milestone_20l';
 
       expect(appState.isDailyNoticeDismissed(testId), isFalse);
@@ -41,7 +41,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -85,7 +85,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -122,7 +122,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final appState = AppState();
+      final appState = AppState(loadMockData: true);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(

@@ -18,6 +18,7 @@ class OrderTakerFlow extends StatefulWidget {
   final ShopModel? initialShop;
   final Map<String, int>? initialCart;
   final VoidCallback onOrderCompleted;
+  final VoidCallback? onBack;
 
   final bool isEmbedded;
 
@@ -26,6 +27,7 @@ class OrderTakerFlow extends StatefulWidget {
     this.initialShop,
     this.initialCart,
     required this.onOrderCompleted,
+    this.onBack,
     this.isEmbedded = false,
   });
 
@@ -824,18 +826,58 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                   ),
               ],
             ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          HapticFeedback.lightImpact();
-          await Future.delayed(const Duration(milliseconds: 500));
-          setState(() {});
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
-          child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            HapticFeedback.lightImpact();
+            await Future.delayed(const Duration(milliseconds: 500));
+            setState(() {});
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
+            child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.isEmbedded && widget.onBack != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Material(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            widget.onBack?.call();
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              boxShadow: AppTheme.softShadow(blur: 6, dy: 1),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.arrow_back_rounded, size: 16, color: isDark ? Colors.white : const Color(0xFF334155)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Back to Dashboard',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF334155)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
 
 
@@ -1660,6 +1702,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
         ),
       ),
     ),
+  ),
       bottomNavigationBar: totalCartItems > 0
           ? SafeArea(
               child: Builder(
