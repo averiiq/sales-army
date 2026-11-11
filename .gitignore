@@ -57,3 +57,7 @@ node_modules/
 functions/lib/
 .env.*
 !.env.example
+
+# Cloudflare Wrangler
+.wrangler/
+
