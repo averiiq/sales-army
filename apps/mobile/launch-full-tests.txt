@@ -1,0 +1,1239 @@
+00:00 +0: loading C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/admin_panel_governance_test.dart
+00:00 +0: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/admin_panel_governance_test.dart: Admin Panel End-to-End Governance Tests 1. Remote Feature Flags govern all 10 mobile modules seamlessly
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:00 +1: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/admin_panel_governance_test.dart: Admin Panel End-to-End Governance Tests 2. Global Maintenance Mode remotely locks down app with custom ETA and notice
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:00 +2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/admin_panel_governance_test.dart: Admin Panel End-to-End Governance Tests 3. Version Shield enforces minimum app version and settings from Admin Panel
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:00 +3: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/admin_panel_governance_test.dart: Admin Panel End-to-End Governance Tests 4. Tenant Account Freeze / Suspension blocks business activities
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:00 +4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/admin_panel_governance_test.dart: Admin Panel End-to-End Governance Tests 5. In-App Broadcast Center delivers real-time notifications and alerts
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:00 +5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/admin_panel_governance_test.dart: Admin Panel End-to-End Governance Tests 6. SMS Gateway & Auth Policies are governed remotely by Admin Panel
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:00 +6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/admin_panel_governance_test.dart: Admin Panel End-to-End Governance Tests 7. Admin Sync Bundle generates valid export with tenant, pricing, and config nodes
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:00 +7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/app_image_helper_test.dart: AppImageHelper Tests isLocalFile returns true for local file paths and false for web URLs
+00:00 +8: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/app_image_helper_test.dart: AppImageHelper Tests getImageProvider returns NetworkImage for URLs and FileImage for local files
+00:00 +9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/app_image_helper_test.dart: AppImageHelper Tests buildImage builds widget without throwing
+00:03 +10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/authentication_security_test.dart: fixed OTPs and demo passwords cannot authenticate without a verified backend
+00:03 +11: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/authentication_security_test.dart: Google failure never offers fabricated accounts or dispatches a login callback
+Google Sign-In note: Bad state: Provider unavailable
+00:07 +12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/bank_accounts_limit_test.dart: Bank Accounts Maximum 3 Limit Tests Initial bank accounts has 2 accounts and canAddBankAccount is true
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:07 +13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/bank_accounts_limit_test.dart: Bank Accounts Maximum 3 Limit Tests Adding 3rd bank account succeeds and fills all slots
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:07 +14: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/bank_accounts_limit_test.dart: Bank Accounts Maximum 3 Limit Tests Adding 4th bank account is blocked by max 3 limit
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:07 +15: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/bank_accounts_limit_test.dart: Bank Accounts Maximum 3 Limit Tests Removing an account frees a slot and allows adding a new account
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:07 +16: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/bank_accounts_limit_test.dart: Bank Accounts Maximum 3 Limit Tests Removing primary account automatically promotes another account to primary
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:08 +17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/card_and_list_view_toggle_test.dart: Orders & Inventory Card vs List View Toggle Tests OrdersTab allows toggling between Card and List views
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:11 +18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/card_and_list_view_toggle_test.dart: Orders & Inventory Card vs List View Toggle Tests InventoryTab allows toggling between Grid Card and List views
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:13 +19: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/cross_module_financial_and_inventory_sync_test.dart: Cross-Module Financial & Inventory Synchronization Tests 1. Invoice generation deducts inventory stock and updates shop outstanding and ledger
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:13 +20: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/cross_module_financial_and_inventory_sync_test.dart: Cross-Module Financial & Inventory Synchronization Tests 2. Cash payment collection reduces dues, increments In-Hand Cash, and reconciles unpaid invoice
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:13 +21: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/cross_module_financial_and_inventory_sync_test.dart: Cross-Module Financial & Inventory Synchronization Tests 3. Stock inward purchase increments product stock and decrements cash if paid in cash
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:13 +22: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/cross_module_financial_and_inventory_sync_test.dart: Cross-Module Financial & Inventory Synchronization Tests 4. Field expense reduces In-Hand Cash and deletion restores balance
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:13 +23: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/cross_module_financial_and_inventory_sync_test.dart: Cross-Module Financial & Inventory Synchronization Tests 5. Sales Return restores inventory stock, applies shop credit, and records credit note
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:13 +24: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/cross_module_financial_and_inventory_sync_test.dart: Cross-Module Financial & Inventory Synchronization Tests 6. Bill deletion reverses unpaid dues, restores inventory, and cancels linked order
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:15 +25: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/daily_reminders_dismissible_test.dart: Daily Reminders, In-Hand Cash, and Milestone Banner Tests AppState tracks daily dismissals and resets on a new date
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:16 +26: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/daily_reminders_dismissible_test.dart: Daily Reminders, In-Hand Cash, and Milestone Banner Tests In-Hand Cash bar is swipeable, dismissible with X, and hidden when dismissed today
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:18 +27: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/distributor_profile_modal_test.dart: DistributorProfileModal renders all sections matching Screenshots 1 to 5
+00:19 +27: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/daily_reminders_dismissible_test.dart: Daily Reminders, In-Hand Cash, and Milestone Banner Tests 20 Lakh Sales Milestone banner is swipeable and dismissible with X button
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:19 +28: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/distributor_profile_modal_test.dart: DistributorProfileModal renders all sections matching Screenshots 1 to 5
+00:20 +28: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/daily_reminders_dismissible_test.dart: Daily Reminders, In-Hand Cash, and Milestone Banner Tests Pending reminders section and individual items are swipeable and dismissible
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:20 +29: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/distributor_profile_modal_test.dart: DistributorProfileModal renders all sections matching Screenshots 1 to 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+00:26 +30: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/enterprise_notifications_and_popup_test.dart: Enterprise Notification & In-App Popup Suite 1. AppState notification operations: add, mark read, unread count, delete, clear
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:26 +31: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/enterprise_notifications_and_popup_test.dart: Enterprise Notification & In-App Popup Suite 2. receiveRemoteNotification and sendAdminBroadcast
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:26 +32: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/enterprise_notifications_and_popup_test.dart: Enterprise Notification & In-App Popup Suite 3. InAppNotificationBanner slides into overlay with rootNavigatorKey
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:27 +33: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/enterprise_notifications_and_popup_test.dart: Enterprise Notification & In-App Popup Suite 4. NotificationCenterModal displays category chips and filters notifications
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:28 +34: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 1: OrdersTab has pending orders, direct Deliver to completed, and Cancel action
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:31 +35: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 2: CollectionsTab renders separate UPI/Razorpay and Record Collection buttons and filters in real-time
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:33 +36: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 3: Merged Profile & Business Details view with Unique User ID and 1-tap copy
+00:33 +37: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 3: Merged Profile & Business Details view with Unique User ID and 1-tap copy
+00:33 +38: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 3: Merged Profile & Business Details view with Unique User ID and 1-tap copy
+00:33 +39: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 3: Merged Profile & Business Details view with Unique User ID and 1-tap copy
+00:33 +40: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 3: Merged Profile & Business Details view with Unique User ID and 1-tap copy
+00:33 +40: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/frontend_features_test.dart: SalesArmy AppState Business Logic Tests Registering new shop increases count and updates state
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:33 +41: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 3: Merged Profile & Business Details view with Unique User ID and 1-tap copy
+00:33 +41: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/frontend_features_test.dart: SalesArmy AppState Business Logic Tests Adding product updates product catalog and low stock count
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:33 +42: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 3: Merged Profile & Business Details view with Unique User ID and 1-tap copy
+00:33 +42: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/frontend_features_test.dart: SalesArmy AppState Business Logic Tests Recording payment reduces shop outstanding and creates ledger entry
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:33 +43: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 3: Merged Profile & Business Details view with Unique User ID and 1-tap copy
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:34 +44: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 4: Hardware peripheral toggle retained and Auto-fill Business Address populates fields
+00:35 +44: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - AppState & TenantModel AppState defaults isGstBillingEnabled to true and toggles correctly
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:35 +45: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 4: Hardware peripheral toggle retained and Auto-fill Business Address populates fields
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:36 +46: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - AppState & TenantModel TenantModel serialization preserves isGstBillingEnabled
+00:36 +47: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 5: 7-column invoice table is wrapped in horizontal scroll with min-width constraint and FittedBox
+══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════════════════════════════
+The following ProviderNotFoundException was thrown building GstTaxInvoiceViewer(dirty):
+Error: Could not find the correct Provider<AppState> above this GstTaxInvoiceViewer Widget
+
+This happens because you used a `BuildContext` that does not include the provider
+of your choice. There are a few common scenarios:
+
+- You added a new provider in your `main.dart` and performed a hot-reload.
+  To fix, perform a hot-restart.
+
+- The provider you are trying to read is in a different route.
+
+  Providers are "scoped". So if you insert of provider inside a route, then
+  other routes will not be able to access that provider.
+
+- You used a `BuildContext` that is an ancestor of the provider you are trying to read.
+
+  Make sure that GstTaxInvoiceViewer is under your MultiProvider/Provider<AppState>.
+  This usually happens when you are creating a provider and trying to read it immediately.
+
+  For example, instead of:
+
+  ```
+  Widget build(BuildContext context) {
+    return Provider<Example>(
+      create: (_) => Example(),
+      // Will throw a ProviderNotFoundError, because `context` is associated
+      // to the widget that is the parent of `Provider<Example>`
+      child: Text(context.watch<Example>().toString()),
+    );
+  }
+  ```
+
+  consider using `builder` like so:
+
+  ```
+  Widget build(BuildContext context) {
+    return Provider<Example>(
+      create: (_) => Example(),
+      // we use `builder` to obtain a new `BuildContext` that has access to the provider
+      builder: (context, child) {
+        // No longer throws
+        return Text(context.watch<Example>().toString());
+      }
+    );
+  }
+  ```
+
+If none of these solutions work, consider asking for help on StackOverflow:
+https://stackoverflow.com/questions/tagged/flutter
+
+The relevant error-causing widget was:
+  GstTaxInvoiceViewer
+  GstTaxInvoiceViewer:file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/lib/features/billing/presentation/screens/gst_tax_invoice_viewer.dart:20:23
+
+When the exception was thrown, this was the stack:
+#0      Provider._inheritedElementOf (package:provider/src/provider.dart:377:7)
+#1      Provider.of (package:provider/src/provider.dart:327:30)
+#2      WatchContext.watch (package:provider/src/provider.dart:727:21)
+#3      GstTaxInvoiceViewer.build (package:salesarmy/features/billing/presentation/screens/gst_tax_invoice_viewer.dart:276:30)
+#4      StatelessElement.build (package:flutter/src/widgets/framework.dart:5902:49)
+#5      ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5830:15)
+#6      Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#7      ComponentElement._firstBuild (package:flutter/src/widgets/framework.dart:5812:5)
+#8      ComponentElement.mount (package:flutter/src/widgets/framework.dart:5806:5)
+...     Normal element mounting (214 frames)
+#222    Element.inflateWidget (package:flutter/src/widgets/framework.dart:4600:20)
+#223    MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7277:36)
+#224    Element.updateChild (package:flutter/src/widgets/framework.dart:4072:18)
+#225    Element.updateChildren (package:flutter/src/widgets/framework.dart:4268:32)
+#226    MultiChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7308:17)
+#227    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#228    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#229    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#230    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#231    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#232    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#233    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#234    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#235    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#236    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#237    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#238    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#239    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#240    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#241    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#242    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#243    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#244    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#245    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#246    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#247    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#248    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#249    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#250    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#251    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#252    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#253    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#254    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#255    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#256    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#257    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#258    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#259    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#260    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#261    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#262    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7135:14)
+#263    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#264    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7135:14)
+#265    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#266    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#267    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#268    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#269    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#270    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#271    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#272    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#273    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#274    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#275    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#276    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#277    BuildScope._tryRebuild (package:flutter/src/widgets/framework.dart:2763:15)
+#278    BuildScope._flushDirtyElements (package:flutter/src/widgets/framework.dart:2820:11)
+#279    BuildOwner.buildScope (package:flutter/src/widgets/framework.dart:3124:18)
+#280    AutomatedTestWidgetsFlutterBinding.drawFrame (package:flutter_test/src/binding.dart:2432:19)
+#281    RendererBinding._handlePersistentFrameCallback (package:flutter/src/rendering/binding.dart:558:5)
+#282    SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1430:15)
+#283    SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1345:9)
+#284    AutomatedTestWidgetsFlutterBinding.pump.<anonymous closure> (package:flutter_test/src/binding.dart:2261:9)
+#287    TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#288    AutomatedTestWidgetsFlutterBinding.pump (package:flutter_test/src/binding.dart:2250:27)
+#289    WidgetTester.pumpAndSettle.<anonymous closure> (package:flutter_test/src/widget_tester.dart:719:23)
+#292    TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#293    WidgetTester.pumpAndSettle (package:flutter_test/src/widget_tester.dart:712:27)
+#294    main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart:343:20)
+<asynchronous suspension>
+#295    testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#296    TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 5 frames from dart:async and package:stack_trace)
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "GST Tax Invoice": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart:346:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart line 346
+The test description was:
+  Scope 5: 7-column invoice table is wrapped in horizontal scroll with min-width constraint and
+  FittedBox
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following message was thrown:
+Multiple exceptions (2) were detected during the running of the current test, and at least one was
+unexpected.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:37 +47 -1: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - OrdersTab UI OrdersTab shows GST Bills tab and billing options when isGstBillingEnabled is true
+00:37 +47 -1: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 5: 7-column invoice table is wrapped in horizontal scroll with min-width constraint and FittedBox [E]
+  Test failed. See exception logs above.
+  The test description was: Scope 5: 7-column invoice table is wrapped in horizontal scroll with min-width constraint and FittedBox
+  
+00:38 +47 -1: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - OrdersTab UI OrdersTab shows GST Bills tab and billing options when isGstBillingEnabled is true
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:38 +48 -1: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - OrdersTab UI OrdersTab hides GST Bills tab and billing options when isGstBillingEnabled is false
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:39 +49 -1: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - Settings Switch MainShell settings sheet allows toggling GST Billing
+00:44 +49 -1: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/hardware_settings_modal_test.dart: HardwareSettingsModal renders Settings & Gateway matching all 5 screenshots
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "rzp_live_8K9vLmQ19284j": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/hardware_settings_modal_test.dart:91:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/hardware_settings_modal_test.dart line 91
+The test description was:
+  HardwareSettingsModal renders Settings & Gateway matching all 5 screenshots
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:44 +49 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - Settings Switch MainShell settings sheet allows toggling GST Billing
+00:44 +49 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/hardware_settings_modal_test.dart: HardwareSettingsModal renders Settings & Gateway matching all 5 screenshots [E]
+  Test failed. See exception logs above.
+  The test description was: HardwareSettingsModal renders Settings & Gateway matching all 5 screenshots
+  
+00:46 +49 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - Settings Switch MainShell settings sheet allows toggling GST Billing
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:46 +50 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/home_page_alerts_test.dart: Home Page Top Alerts Hub Tests DistributorDashboard renders all operational alerts at the top below navbar
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:48 +51 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/inventory_tab_test.dart: InventoryTab UI renders search bar, alert banner, stats, filter chips and products
+00:50 +51 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests AppState.signOutSession() resets credentials, role, staff and tenant state
+Cloud-First Sync Complete: All data fetched from central database for tenant tenant_abc
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:50 +52 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/inventory_tab_test.dart: InventoryTab UI renders search bar, alert banner, stats, filter chips and products
+00:50 +52 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests AppState.setActiveRole presets correct permissions for all 5 enterprise roles
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:50 +53 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/inventory_tab_test.dart: InventoryTab UI renders search bar, alert banner, stats, filter chips and products
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:50 +54 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests MainShell renders active role badge in top AppBar
+00:52 +54 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/inventory_tab_test.dart: Tapping FAB opens Add Inventory Product modal sheet with clean inputs and GST preview
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:52 +55 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests MainShell renders active role badge in top AppBar
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:56 +56 -2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Renders only the three requested login options: Email/Password, Email OTP, and Google
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: not null
+  Actual: <null>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart:46:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart line 46
+The test description was:
+  Renders only the three requested login options: Email/Password, Email OTP, and Google
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:57 +56 -3: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests ProfileAndSettingsScreen displays Active Role chip and confirms sign out
+00:57 +56 -3: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Renders only the three requested login options: Email/Password, Email OTP, and Google [E]
+  Test failed. See exception logs above.
+  The test description was: Renders only the three requested login options: Email/Password, Email OTP, and Google
+  
+00:57 +56 -3: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests ProfileAndSettingsScreen displays Active Role chip and confirms sign out
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:57 +57 -3: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Sign-In button opens Google Account Chooser bottom sheet and authenticates with RBAC
+01:04 +57 -3: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests LoginScreen authenticates and dispatches onRoleLogin via Google account chooser
+Native Google Sign-In error: TimeoutException after 0:02:00.000000: Future not completed
+Google Sign-In note: TimeoutException after 0:02:00.000000: Future not completed
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Vikram Singhania (Billing & Accounts)": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart:206:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart line 206
+The test description was:
+  LoginScreen authenticates and dispatches onRoleLogin via Google account chooser
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:04 +57 -4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Sign-In button opens Google Account Chooser bottom sheet and authenticates with RBAC
+01:04 +57 -4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests LoginScreen authenticates and dispatches onRoleLogin via Google account chooser [E]
+  Test failed. See exception logs above.
+  The test description was: LoginScreen authenticates and dispatches onRoleLogin via Google account chooser
+  
+01:06 +58 -4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Sign-In button opens Google Account Chooser bottom sheet and authenticates with RBAC
+01:06 +58 -4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/manage_custom_gst_slabs_test.dart: Manage Custom GST Slabs and Billing Application Tests AppState manages GST slabs lifecycle (add, query, delete)
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:06 +59 -4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Sign-In button opens Google Account Chooser bottom sheet and authenticates with RBAC
+01:06 +60 -4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Sign-In button opens Google Account Chooser bottom sheet and authenticates with RBAC
+Native Google Sign-In error: TimeoutException after 0:02:00.000000: Future not completed
+Google Sign-In note: TimeoutException after 0:02:00.000000: Future not completed
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Sign in with Google": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart:95:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart line 95
+The test description was:
+  Google Sign-In button opens Google Account Chooser bottom sheet and authenticates with RBAC
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:06 +60 -5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/manage_custom_gst_slabs_test.dart: Manage Custom GST Slabs and Billing Application Tests Add Custom GST modal is simple, clean, and has extra presets/sliders removed
+01:06 +60 -5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Sign-In button opens Google Account Chooser bottom sheet and authenticates with RBAC [E]
+  Test failed. See exception logs above.
+  The test description was: Google Sign-In button opens Google Account Chooser bottom sheet and authenticates with RBAC
+  
+01:09 +60 -5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/manage_custom_gst_slabs_test.dart: Manage Custom GST Slabs and Billing Application Tests Add Custom GST modal is simple, clean, and has extra presets/sliders removed
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:09 +61 -5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Account Chooser supports Super Admin console login
+01:12 +62 -5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Account Chooser supports Super Admin console login
+01:12 +63 -5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Account Chooser supports Super Admin console login
+01:12 +64 -5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Account Chooser supports Super Admin console login
+Native Google Sign-In error: TimeoutException after 0:02:00.000000: Future not completed
+Google Sign-In note: TimeoutException after 0:02:00.000000: Future not completed
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown running a test:
+The finder "Found 0 widgets with text "SalesArmy Platform Admin": []" (used in a call to "tap()")
+could not find any matching widgets.
+
+When the exception was thrown, this was the stack:
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2095:7)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart:135:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  Google Account Chooser supports Super Admin console login
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:12 +64 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Account Chooser supports Super Admin console login [E]
+  Test failed. See exception logs above.
+  The test description was: Google Account Chooser supports Super Admin console login
+  
+01:14 +64 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 1. ResetAccountDialog enforces typing "RESET" and AppState resets data
+01:15 +64 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_pending_payments_collections_test.dart: Orders and Pending Payments on Collections Page Tests 1. addOrder without invoice increments shop outstanding and adds ORDER ledger entry
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:15 +65 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 1. ResetAccountDialog enforces typing "RESET" and AppState resets data
+01:15 +65 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_pending_payments_collections_test.dart: Orders and Pending Payments on Collections Page Tests 2. getShopOutstandingDue computes pending orders even if shop currentOutstanding is 0
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:15 +66 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 1. ResetAccountDialog enforces typing "RESET" and AppState resets data
+01:15 +66 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_pending_payments_collections_test.dart: Orders and Pending Payments on Collections Page Tests 3. recordPayment reconciles matching order and reduces shop balance
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:15 +67 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 1. ResetAccountDialog enforces typing "RESET" and AppState resets data
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:17 +68 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_pending_payments_collections_test.dart: Orders and Pending Payments on Collections Page Tests 4. CollectionsTab renders 3 tabs including Pending Orders and shows order card
+01:18 +68 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 2. All major dialogs are full-screen Scaffold pages
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:18 +69 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_pending_payments_collections_test.dart: Orders and Pending Payments on Collections Page Tests 4. CollectionsTab renders 3 tabs including Pending Orders and shows order card
+01:19 +69 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 3. GST rates can be added and removed dynamically in AppState and UI
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:19 +70 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_pending_payments_collections_test.dart: Orders and Pending Payments on Collections Page Tests 4. CollectionsTab renders 3 tabs including Pending Orders and shows order card
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:19 +71 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 4. Sync and backup displays 12 PM & 10 PM schedule and mobile vault status
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:19 +72 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 5 & 9. Plans screen renders 3 tiers and monthly/yearly 20% discount toggle
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:19 +73 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 6. All 4 graphical report screens generate comprehensive CSV data
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:21 +74 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: OrdersTab UI renders Orders tab at index 0 without Order Taker subtab
+01:22 +74 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 7. Orders tab order card displays Collect Payment button and triggers dialog
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:22 +75 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: OrdersTab UI renders Orders tab at index 0 without Order Taker subtab
+01:22 +75 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/nine_enterprise_features_test.dart: Verification of 9 Enterprise Features 8. Shop Report button is completely removed from order cards
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:22 +76 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: OrdersTab UI renders Orders tab at index 0 without Order Taker subtab
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:23 +77 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: LedgerReportModal renders Download Orders Report matching Images 4 and 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:24 +78 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delete_button_test.dart: Order Cancel Button Tests Order card renders Cancel button at the top after shop name and cancels order on confirmation
+01:24 +78 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: OrdersTab renders GST Bills tab at index 1 with top buttons removed
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:24 +79 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delete_button_test.dart: Order Cancel Button Tests Order card renders Cancel button at the top after shop name and cancels order on confirmation
+01:25 +79 -6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: GstTaxInvoiceViewer renders full dialog matching Screenshots 1, 2 and 3
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════════════════════════════
+The following ProviderNotFoundException was thrown building GstTaxInvoiceViewer(dirty):
+Error: Could not find the correct Provider<AppState> above this GstTaxInvoiceViewer Widget
+
+This happens because you used a `BuildContext` that does not include the provider
+of your choice. There are a few common scenarios:
+
+- You added a new provider in your `main.dart` and performed a hot-reload.
+  To fix, perform a hot-restart.
+
+- The provider you are trying to read is in a different route.
+
+  Providers are "scoped". So if you insert of provider inside a route, then
+  other routes will not be able to access that provider.
+
+- You used a `BuildContext` that is an ancestor of the provider you are trying to read.
+
+  Make sure that GstTaxInvoiceViewer is under your MultiProvider/Provider<AppState>.
+  This usually happens when you are creating a provider and trying to read it immediately.
+
+  For example, instead of:
+
+  ```
+  Widget build(BuildContext context) {
+    return Provider<Example>(
+      create: (_) => Example(),
+      // Will throw a ProviderNotFoundError, because `context` is associated
+      // to the widget that is the parent of `Provider<Example>`
+      child: Text(context.watch<Example>().toString()),
+    );
+  }
+  ```
+
+  consider using `builder` like so:
+
+  ```
+  Widget build(BuildContext context) {
+    return Provider<Example>(
+      create: (_) => Example(),
+      // we use `builder` to obtain a new `BuildContext` that has access to the provider
+      builder: (context, child) {
+        // No longer throws
+        return Text(context.watch<Example>().toString());
+      }
+    );
+  }
+  ```
+
+If none of these solutions work, consider asking for help on StackOverflow:
+https://stackoverflow.com/questions/tagged/flutter
+
+The relevant error-causing widget was:
+  GstTaxInvoiceViewer
+  GstTaxInvoiceViewer:file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart:149:17
+
+When the exception was thrown, this was the stack:
+#0      Provider._inheritedElementOf (package:provider/src/provider.dart:377:7)
+#1      Provider.of (package:provider/src/provider.dart:327:30)
+#2      WatchContext.watch (package:provider/src/provider.dart:727:21)
+#3      GstTaxInvoiceViewer.build (package:salesarmy/features/billing/presentation/screens/gst_tax_invoice_viewer.dart:276:30)
+#4      StatelessElement.build (package:flutter/src/widgets/framework.dart:5902:49)
+#5      ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5830:15)
+#6      Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#7      ComponentElement._firstBuild (package:flutter/src/widgets/framework.dart:5812:5)
+#8      ComponentElement.mount (package:flutter/src/widgets/framework.dart:5806:5)
+...     Normal element mounting (25 frames)
+#33     Element.inflateWidget (package:flutter/src/widgets/framework.dart:4600:20)
+#34     MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7277:36)
+#35     MultiChildRenderObjectElement.mount (package:flutter/src/widgets/framework.dart:7292:32)
+...     Normal element mounting (362 frames)
+#397    Element.inflateWidget (package:flutter/src/widgets/framework.dart:4600:20)
+#398    MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7277:36)
+#399    MultiChildRenderObjectElement.mount (package:flutter/src/widgets/framework.dart:7292:32)
+...     Normal element mounting (467 frames)
+#866    Element.inflateWidget (package:flutter/src/widgets/framework.dart:4600:20)
+#867    Element.updateChild (package:flutter/src/widgets/framework.dart:4066:20)
+#868    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#869    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#870    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#871    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#872    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#873    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#874    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#875    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#876    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#877    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#878    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#879    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#880    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#881    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#882    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#883    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#884    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#885    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#886    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#887    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#888    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#889    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#890    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#891    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#892    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#893    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#894    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#895    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#896    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#897    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#898    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#899    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#900    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#901    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#902    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#903    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#904    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#905    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#906    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#907    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#908    ProxyElement.update (package:flutter/src/widgets/framework.dart:6162:5)
+#909    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#910    _RawViewElement._updateChild (package:flutter/src/widgets/view.dart:488:16)
+#911    _RawViewElement.update (package:flutter/src/widgets/view.dart:575:5)
+#912    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#913    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#914    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#915    StatelessElement.update (package:flutter/src/widgets/framework.dart:5908:5)
+#916    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#917    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5854:16)
+#918    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5995:11)
+#919    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#920    StatefulElement.update (package:flutter/src/widgets/framework.dart:6020:5)
+#921    Element.updateChild (package:flutter/src/widgets/framework.dart:4050:15)
+#922    RootElement._rebuild (package:flutter/src/widgets/binding.dart:2091:16)
+#923    RootElement.update (package:flutter/src/widgets/binding.dart:2069:5)
+#924    RootElement.performRebuild (package:flutter/src/widgets/binding.dart:2083:7)
+#925    Element.rebuild (package:flutter/src/widgets/framework.dart:5542:7)
+#926    BuildScope._tryRebuild (package:flutter/src/widgets/framework.dart:2763:15)
+#927    BuildScope._flushDirtyElements (package:flutter/src/widgets/framework.dart:2820:11)
+#928    BuildOwner.buildScope (package:flutter/src/widgets/framework.dart:3124:18)
+#929    AutomatedTestWidgetsFlutterBinding.drawFrame (package:flutter_test/src/binding.dart:2432:19)
+#930    RendererBinding._handlePersistentFrameCallback (package:flutter/src/rendering/binding.dart:558:5)
+#931    SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1430:15)
+#932    SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1345:9)
+#933    AutomatedTestWidgetsFlutterBinding.pump.<anonymous closure> (package:flutter_test/src/binding.dart:2261:9)
+#936    TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#937    AutomatedTestWidgetsFlutterBinding.pump (package:flutter_test/src/binding.dart:2250:27)
+#938    WidgetTester.pumpWidget.<anonymous closure> (package:flutter_test/src/widget_tester.dart:598:22)
+#941    TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#942    WidgetTester.pumpWidget (package:flutter_test/src/widget_tester.dart:595:27)
+#943    main.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart:146:18)
+#944    testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:29)
+<asynchronous suspension>
+#945    TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 5 frames from dart:async and package:stack_trace)
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "GST Tax Invoice": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart:156:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart line 156
+The test description was:
+  GstTaxInvoiceViewer renders full dialog matching Screenshots 1, 2 and 3
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following message was thrown:
+Multiple exceptions (2) were detected during the running of the current test, and at least one was
+unexpected.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:25 +79 -7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delete_button_test.dart: Order Cancel Button Tests Order card renders Cancel button at the top after shop name and cancels order on confirmation
+01:25 +79 -7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: GstTaxInvoiceViewer renders full dialog matching Screenshots 1, 2 and 3 [E]
+  Test failed. See exception logs above.
+  The test description was: GstTaxInvoiceViewer renders full dialog matching Screenshots 1, 2 and 3
+  
+01:27 +79 -7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delete_button_test.dart: Order Cancel Button Tests Order card renders Cancel button at the top after shop name and cancels order on confirmation
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:27 +80 -7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: CollectionsTab renders Territory Balance and Shop Dues matching Screenshot 5
+01:27 +80 -7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delete_button_test.dart: Order Cancel Button Tests List view also displays cancel button for orders
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:27 +81 -7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: CollectionsTab renders Territory Balance and Shop Dues matching Screenshot 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "6 Shops Due": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart:198:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart line 198
+The test description was:
+  CollectionsTab renders Territory Balance and Shop Dues matching Screenshot 5
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:28 +81 -8: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: CollectionsTab renders Territory Balance and Shop Dues matching Screenshot 5 [E]
+  Test failed. See exception logs above.
+  The test description was: CollectionsTab renders Territory Balance and Shop Dues matching Screenshot 5
+  
+01:28 +81 -8: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: LedgerReportModal renders All Shops Ledger matching Screenshots 1 and 2
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:28 +82 -8: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: LedgerReportModal renders Individual Shop Khata matching Screenshot 3
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:29 +83 -8: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: Collect Outstanding Payment modal renders matching Screenshot 4
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: at least one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Collect": []>
+   Which: means none were found but some were expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart:329:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart line 329
+The test description was:
+  Collect Outstanding Payment modal renders matching Screenshot 4
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:31 +83 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/orders_and_reports_test.dart: Collect Outstanding Payment modal renders matching Screenshot 4 [E]
+  Test failed. See exception logs above.
+  The test description was: Collect Outstanding Payment modal renders matching Screenshot 4
+  
+01:31 +83 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: AppState - Order Delivery Status and In-Hand Balances Tests updateOrderStatus updates status to delivered and records deliveredAt
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:32 +84 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: AppState - Order Delivery Status and In-Hand Balances Tests updateInHandAndAccountBalances updates balances and totalLiquidBalance
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:32 +85 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: MainShell 5-Option Bottom Navbar Tests MainShell displays exactly 5 bottom navbar options: Home, Parties, Bill, Orders, Collection
+01:36 +85 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/payment_preferences_dynamic_qr_test.dart: PaymentPreferencesScreen starts clean with no dummy UPI ID or dummy Merchant Name
+⚡ AppState: Loaded persisted tenant profile:  | UPI:  | Photo: false
+⚡ AppState: Persisted tenant locally:  (Selxo Distributor)
+01:36 +86 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: MainShell 5-Option Bottom Navbar Tests MainShell displays exactly 5 bottom navbar options: Home, Parties, Bill, Orders, Collection
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:37 +87 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/payment_preferences_dynamic_qr_test.dart: Entering UPI ID displays the Dynamic QR generator section without amount functionality
+⚡ AppState: Loaded persisted tenant profile: My Wholesale Agency | UPI: testmerchant@okhdfcbank | Photo: false
+⚡ AppState: Persisted tenant locally: My Wholesale Agency (Selxo Distributor)
+01:37 +88 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: Estimated Bill & Sales Data Screen Widget Tests EstimatedBillDialog renders rough quotation banner, share and convert buttons
+01:38 +88 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/payment_preferences_dynamic_qr_test.dart: Switching to Static mode shows Static QR upload option
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:38 +89 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: Estimated Bill & Sales Data Screen Widget Tests EstimatedBillDialog renders rough quotation banner, share and convert buttons
+01:39 +89 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/payment_preferences_dynamic_qr_test.dart: Saving preferences persists UPI ID, QR mode, and syncs PrinterService
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+01:39 +90 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: Estimated Bill & Sales Data Screen Widget Tests EstimatedBillDialog renders rough quotation banner, share and convert buttons
+01:39 +90 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/payment_preferences_dynamic_qr_test.dart: Static QR and UPI ID persist across app restarts and cloud tenant updates
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: myfirm@okhdfcbank | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: myfirm@okhdfcbank | Photo: false
+⚡ AppState: Persisted tenant locally: Updated Firm Name from Cloud (Updated Owner)
+01:40 +91 -9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: Estimated Bill & Sales Data Screen Widget Tests EstimatedBillDialog renders rough quotation banner, share and convert buttons
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Estimated Bill": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart:131:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart line 131
+The test description was:
+  EstimatedBillDialog renders rough quotation banner, share and convert buttons
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:40 +91 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/payment_preferences_dynamic_qr_test.dart: GST Tax Invoice displays dynamic QR with exact bill amount when configured
+01:40 +91 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: Estimated Bill & Sales Data Screen Widget Tests EstimatedBillDialog renders rough quotation banner, share and convert buttons [E]
+  Test failed. See exception logs above.
+  The test description was: EstimatedBillDialog renders rough quotation banner, share and convert buttons
+  
+01:40 +91 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/payment_preferences_dynamic_qr_test.dart: GST Tax Invoice displays dynamic QR with exact bill amount when configured
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: superstore@okaxis | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+01:40 +92 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/order_delivery_and_sales_data_test.dart: Estimated Bill & Sales Data Screen Widget Tests SalesDataScreen renders analytics header and tabs
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:43 +93 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterSettingsModel Tests Default model has reasonable thermal defaults
+01:43 +94 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterSettingsModel Tests columnsCount returns 48 for 80mm and 32 for 58mm
+01:43 +95 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterSettingsModel Tests Serialization toMap and fromMap works seamlessly
+01:43 +96 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterSettingsModel Tests copiesCount correctly parses string-based printCopies field
+01:43 +97 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterSettingsModel Tests copyWith updates specific fields accurately
+01:43 +98 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests formatTestReceipt formats correctly for 58mm & 80mm
+01:43 +99 -10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests formatInvoiceReceipt includes seller, buyer, GSTIN and totals breakdown
+01:43 +99 -11: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests formatInvoiceReceipt includes seller, buyer, GSTIN and totals breakdown [E]
+  Expected: <true>
+    Actual: <false>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test\printer_service_and_settings_test.dart 175:7   main.<fn>.<fn>
+  
+01:43 +99 -11: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests formatEstimateReceipt generates clean quotation layout
+01:43 +99 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests formatEstimateReceipt generates clean quotation layout [E]
+  Expected: <true>
+    Actual: <false>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test\printer_service_and_settings_test.dart 193:7   main.<fn>.<fn>
+  
+01:43 +99 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests formatOrderReceipt generates order dispatch layout
+01:43 +100 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests Network socket validator succeeds on valid ip and port
+01:45 +101 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests Bluetooth scan returns known POS printers and handles selection
+01:46 +102 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/profile_and_settings_unified_test.dart: ProfileAndSettingsScreen renders single-page Blinkit-style account screen without tabs
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:48 +103 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/printer_service_and_settings_test.dart: PrinterService ESC/POS Formatting & Printing Tests Direct print executions succeed when connected
+01:49 +104 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/profile_and_settings_unified_test.dart: Interactive modals: Plan, Support, Company Profile, and GST Details
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:51 +105 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/profile_and_settings_unified_test.dart: Backwards compatibility: ProfileScreen and SettingsScreen wrappers render unified screen
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+01:53 +106 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests OrderTakerFlow renders Book Order and Review & Bill buttons
+02:03 +106 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/profile_and_settings_unified_test.dart: Banking & Hardware contains Payment & Preferences and Printer
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:03 +107 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests OrderTakerFlow renders Book Order and Review & Bill buttons
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:03 +108 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests Booking Order Only creates order in pending status without immediate invoice
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:06 +108 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/purchase_expense_notification_test.dart: Purchase, Expense & Notification System Tests 1. Adding a paid cash purchase deducts cash and increments inventory stock
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:06 +109 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests Booking Order Only creates order in pending status without immediate invoice
+02:06 +109 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/purchase_expense_notification_test.dart: Purchase, Expense & Notification System Tests 2. Deleting a purchase reverts inventory stock and refunds cash balance
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:06 +110 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests Booking Order Only creates order in pending status without immediate invoice
+02:06 +110 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/purchase_expense_notification_test.dart: Purchase, Expense & Notification System Tests 3. Adding expense deducts from balance and deleting expense refunds balance
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:06 +111 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests Booking Order Only creates order in pending status without immediate invoice
+02:06 +111 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/purchase_expense_notification_test.dart: Purchase, Expense & Notification System Tests 4. Notification management: add, mark read, mark all read, delete, clear
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:06 +112 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests Booking Order Only creates order in pending status without immediate invoice
+02:11 +113 -12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 1. LoginScreen renders modern 3-tab segmented control and dynamic role preview
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Mobile OTP": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart:30:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart line 30
+The test description was:
+  1. LoginScreen renders modern 3-tab segmented control and dynamic role preview
+════════════════════════════════════════════════════════════════════════════════════════════════════
+02:14 +113 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests OrdersTab shows View Bill for billed order and Generate Bill for unbilled order
+02:14 +113 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 1. LoginScreen renders modern 3-tab segmented control and dynamic role preview [E]
+  Test failed. See exception logs above.
+  The test description was: 1. LoginScreen renders modern 3-tab segmented control and dynamic role preview
+  
+02:14 +113 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests OrdersTab shows View Bill for billed order and Generate Bill for unbilled order
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:14 +114 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 2. Profile screen strictly hides sensitive owner actions for non-owner roles (RBAC)
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:15 +115 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests CompleteAndBillOrderModal bills existing order and updates status to confirmed
+02:17 +115 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 3. Profile screen renders complete management suite for Owner role
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:17 +116 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests CompleteAndBillOrderModal bills existing order and updates status to confirmed
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:19 +117 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 4. Free Tier displays PRO / GROW+ badges and triggers upgrade sheet
+02:19 +117 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/proper_order_taking_and_bill_generation_test.dart: Proper FMCG Order Taking and Bill Generation Flow Tests AppState sync methods create, bill, record payment, and cancel invoices correctly
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:19 +118 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 4. Free Tier displays PRO / GROW+ badges and triggers upgrade sheet
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:24 +119 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_clean_removal_and_consistency_test.dart: RBAC Strict Removal & Visual Consistency Tests OrdersTab completely omits unauthorized sub-tabs for Delivery Staff
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:25 +120 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 5. DistributorDashboard applies RBAC by strictly removing unauthorized features with zero LOCKED badges
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:27 +121 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_clean_removal_and_consistency_test.dart: RBAC Strict Removal & Visual Consistency Tests OrdersTab shows Orders for Field Sales but omits Bill and Order Taker
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:28 +122 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 6. MainShell bottom nav completely removes unauthorized tabs for Delivery Staff (zero locked badges)
+02:28 +122 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_clean_removal_and_consistency_test.dart: RBAC Strict Removal & Visual Consistency Tests OrdersTab shows Orders and Bill for Owner with Order Taker cleanly removed
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:29 +123 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 6. MainShell bottom nav completely removes unauthorized tabs for Delivery Staff (zero locked badges)
+02:33 +123 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_clean_removal_and_consistency_test.dart: RBAC Strict Removal & Visual Consistency Tests ShopsTab omits Add Shop FAB and renders Directions for Delivery Staff
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:33 +124 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_and_subscription_gating_test.dart: Enterprise RBAC & Subscription Feature Gating Tests 6. MainShell bottom nav completely removes unauthorized tabs for Delivery Staff (zero locked badges)
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:33 +125 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_clean_removal_and_consistency_test.dart: RBAC Strict Removal & Visual Consistency Tests ShopDetailScreen omits financial icons, Bills tab, and Take Order for Delivery Staff
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:34 +126 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/rbac_clean_removal_and_consistency_test.dart: RBAC Strict Removal & Visual Consistency Tests Profile quick cards completely omit unauthorized modules
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:37 +127 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: Add Bank Account Popup UI Redesign Tests Add Bank Account dialog renders live card preview, quick bank chips, and confirm account number field
+02:39 +127 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/sales_return_inventory_restock_test.dart: processSalesReturn automatically increases inventory stock and credits shop balance
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:39 +128 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: Add Bank Account Popup UI Redesign Tests Add Bank Account dialog renders live card preview, quick bank chips, and confirm account number field
+02:42 +128 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/sales_return_inventory_restock_test.dart: showSalesReturnDialog renders controls and live restock preview
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:42 +129 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: Add Bank Account Popup UI Redesign Tests Add Bank Account dialog renders live card preview, quick bank chips, and confirm account number field
+02:43 +129 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: Security & Subscription Enforcement Tests Privilege Escalation: Standard delivery agent cannot toggle Super Admin mode
+Security Warning: Unauthorized attempt to enable Super Admin Console by role: distributor
+Cloud-First Sync Complete: All data fetched from central database for tenant tenant_abc
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:43 +130 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: Add Bank Account Popup UI Redesign Tests Add Bank Account dialog renders live card preview, quick bank chips, and confirm account number field
+02:43 +130 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: Security & Subscription Enforcement Tests Super Admin role allows activating and deactivating Super Admin mode
+Cloud-First Sync Complete: All data fetched from central database for tenant tenant_platform
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:43 +131 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: Add Bank Account Popup UI Redesign Tests Add Bank Account dialog renders live card preview, quick bank chips, and confirm account number field
+02:43 +131 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: Security & Subscription Enforcement Tests Plan Limit Enforcement: Adding shops beyond maxShops is blocked
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+02:43 +132 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: Add Bank Account Popup UI Redesign Tests Add Bank Account dialog renders live card preview, quick bank chips, and confirm account number field
+02:43 +132 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: Security & Subscription Enforcement Tests Subscription Lifecycle: Orders blocked when subscription is PAUSED, CANCELLED, or EXPIRED
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+02:43 +133 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: Add Bank Account Popup UI Redesign Tests Add Bank Account dialog renders live card preview, quick bank chips, and confirm account number field
+02:43 +133 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: Security & Subscription Enforcement Tests Super Admin Sync: updateTenantStatus, purgeCashHistory, and resetUserAccount mutate state safely
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:43 +134 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: Add Bank Account Popup UI Redesign Tests Add Bank Account dialog renders live card preview, quick bank chips, and confirm account number field
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:47 +135 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Standard agent sees ACCOUNT ACTIVE badge; settings modal hides Super Admin console tile
+02:52 +135 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: My Business Reminders Option & Screen Redesign Tests My Business screen displays Reminders option and navigates to RemindersScreen
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:52 +136 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Standard agent sees ACCOUNT ACTIVE badge; settings modal hides Super Admin console tile
+Cloud-First Sync Complete: All data fetched from central database for tenant tenant_agent_1
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:53 +137 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/reminders_and_bank_account_redesign_test.dart: My Business Reminders Option & Screen Redesign Tests RemindersScreen displays KPI cards, filters, search, toggle complete, and snooze
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+02:54 +138 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal
+02:58 +138 -13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/splash_screen_test.dart: SplashScreen UI & Flow Tests Renders SalesArmy brand elements, tagline, and progress indicator
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "SALES TODAY  •  STRONGER TOMORROW": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/splash_screen_test.dart:20:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/splash_screen_test.dart line 20
+The test description was:
+  Renders SalesArmy brand elements, tagline, and progress indicator
+════════════════════════════════════════════════════════════════════════════════════════════════════
+02:58 +138 -14: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal
+02:58 +138 -14: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/splash_screen_test.dart: SplashScreen UI & Flow Tests Renders SalesArmy brand elements, tagline, and progress indicator [E]
+  Test failed. See exception logs above.
+  The test description was: Renders SalesArmy brand elements, tagline, and progress indicator
+  
+02:59 +139 -14: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal
+03:01 +140 -14: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal
+03:01 +140 -14: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart: Staff & RBAC Domain Tests AppState.canAccessModule respects active staff role permissions
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:01 +141 -14: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal
+03:01 +141 -15: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal
+03:01 +141 -15: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart: Staff & RBAC Domain Tests AppState staff CRUD and active staff synchronization [E]
+  Bad state: Staff Seats Limit Reached: Your current Startup plan permits up to 1 staff seat(s). Please upgrade your subscription plan in Super Admin or Settings to add additional staff.
+  package:salesarmy/core/services/app_state.dart 3519:7  AppState.addStaff
+  test\staff_rbac_and_notifications_test.dart 97:22      main.<fn>.<fn>
+  
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:01 +141 -15: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart: Notifications & Reminders Tests AppState notification mark as read and unread count
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:01 +142 -15: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal
+03:01 +142 -15: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart: Notifications & Reminders Tests AppState reminder add, complete, and delete
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:01 +143 -15: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal
+Cloud-First Sync Complete: All data fetched from central database for tenant tenant_admin
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.single (dart:core/iterable.dart:694:25)
+#1      WidgetController.element (package:flutter_test/src/controller.dart:888:30)
+#2      WidgetController.ensureVisible (package:flutter_test/src/controller.dart:2389:32)
+#3      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart:248:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  Super Admin user sees Switch to Super Admin Console in settings modal
+════════════════════════════════════════════════════════════════════════════════════════════════════
+03:02 +143 -16: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart: Notifications & Reminders Tests VisitsTab renders 3 tabs including Reminders and switches tabs
+03:02 +143 -16: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Super Admin user sees Switch to Super Admin Console in settings modal [E]
+  Test failed. See exception logs above.
+  The test description was: Super Admin user sees Switch to Super Admin Console in settings modal
+  
+03:03 +143 -16: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/security_and_subscription_audit_test.dart: MainShell UI Security & Status Widget Tests Suspended/Paused subscription renders top alert banner on MainShell
+Cloud-First Sync Complete: All data fetched from central database for tenant tenant_paused
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:03 +144 -16: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart: Notifications & Reminders Tests VisitsTab renders 3 tabs including Reminders and switches tabs
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:03 +145 -16: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart: Notifications & Reminders Tests NotificationCenterModal renders notifications and marks read
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: at least one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Tap to view full details": []>
+   Which: means none were found but some were expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart:204:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart line 204
+The test description was:
+  NotificationCenterModal renders notifications and marks read
+════════════════════════════════════════════════════════════════════════════════════════════════════
+03:04 +145 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/staff_rbac_and_notifications_test.dart: Notifications & Reminders Tests NotificationCenterModal renders notifications and marks read [E]
+  Test failed. See exception logs above.
+  The test description was: NotificationCenterModal renders notifications and marks read
+  
+03:05 +145 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+03:06 +145 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_plan_audit_test.dart: Comprehensive SaaS Plan & Subscription Deep Audit Tests 1. Default Signup Plan is Startup Tier with 14-Day Free Trial
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+03:06 +146 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+03:06 +146 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_plan_audit_test.dart: Comprehensive SaaS Plan & Subscription Deep Audit Tests 2. Startup Plan Quota: Adding staff beyond 1 is blocked
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+03:06 +147 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+03:06 +147 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_plan_audit_test.dart: Comprehensive SaaS Plan & Subscription Deep Audit Tests 3. Startup Plan Quota: Adding products beyond 50 is blocked
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+03:06 +148 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+03:06 +148 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_plan_audit_test.dart: Comprehensive SaaS Plan & Subscription Deep Audit Tests 4. Startup Plan Quota: Adding shops beyond 200 is blocked
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+03:06 +149 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+03:06 +149 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_plan_audit_test.dart: Comprehensive SaaS Plan & Subscription Deep Audit Tests 5. Upgrading to Grow Plan expands quotas to 200 products, 5 staff, 1000 shops
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+03:06 +150 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+03:06 +150 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_plan_audit_test.dart: Comprehensive SaaS Plan & Subscription Deep Audit Tests 6. Upgrading to Enterprise Plan unlocks unlimited scale and fleet features
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+03:06 +151 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+03:06 +151 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_plan_audit_test.dart: Comprehensive SaaS Plan & Subscription Deep Audit Tests 7. Freemium Guarantee: Core Invoicing and Rough Bills are never restricted
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+03:06 +152 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:08 +153 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole renders royal blue header, KPI cards, revenue, and subscribers matching screenshots
+03:09 +153 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 2. Checkout renders coupons and shipping but requires server verification before activation
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:09 +154 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole renders royal blue header, KPI cards, revenue, and subscribers matching screenshots
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:10 +155 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Download SaaS Reports modal matching Screenshot 2
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:11 +156 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:11 +157 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_portal_route_test.dart: Super Admin Login & Route Separation Tests LoginScreen does NOT contain SaaS Super Admin login option
+03:12 +157 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Delete Cash History modal matching Screenshots 4 & 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:12 +158 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_portal_route_test.dart: Super Admin Login & Route Separation Tests LoginScreen does NOT contain SaaS Super Admin login option
+03:13 +158 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Reset User Account modal matching Screenshot 3
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:13 +159 -17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_portal_route_test.dart: Super Admin Login & Route Separation Tests LoginScreen does NOT contain SaaS Super Admin login option
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown running a test:
+The finder "Found 0 widgets with text "1-Tap Access": []" (used in a call to "tap()") could not find
+any matching widgets.
+
+When the exception was thrown, this was the stack:
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2095:7)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure>.<anonymous closure> (file:///C:/Users/somve/Desktop/projects/client%20projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_portal_route_test.dart:27:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  LoginScreen does NOT contain SaaS Super Admin login option
+════════════════════════════════════════════════════════════════════════════════════════════════════
+03:13 +159 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole switches tabs to Subscriber, Features, and Plans with filter pills
+03:13 +159 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_portal_route_test.dart: Super Admin Login & Route Separation Tests LoginScreen does NOT contain SaaS Super Admin login option [E]
+  Test failed. See exception logs above.
+  The test description was: LoginScreen does NOT contain SaaS Super Admin login option
+  
+03:14 +159 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_portal_route_test.dart: Super Admin Login & Route Separation Tests SuperAdminPortalPage renders dedicated Super Admin gateway and logs in
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+Cloud-First Sync Complete: All data fetched from central database for tenant platform_tenant
+03:14 +160 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole switches tabs to Subscriber, Features, and Plans with filter pills
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:16 +161 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Plan tab renders Card 1, Card 2, Card 3 matching Screenshots 2, 3, 4
+03:16 +162 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Plan tab renders Card 1, Card 2, Card 3 matching Screenshots 2, 3, 4
+03:16 +163 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Plan tab renders Card 1, Card 2, Card 3 matching Screenshots 2, 3, 4
+03:16 +164 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Plan tab renders Card 1, Card 2, Card 3 matching Screenshots 2, 3, 4
+03:17 +164 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/tenant_persistence_and_profile_details_test.dart: AppState Offline & Multi-Storage Persistence updateTenant saves to SharedPreferences and notifies listeners
+⚡ AppState: Loaded persisted tenant profile: Updated Enterprise FMCG | UPI: null | Photo: true
+⚡ AppState: Persisted tenant locally: Updated Enterprise FMCG (Vikram Sharma)
+03:17 +165 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Plan tab renders Card 1, Card 2, Card 3 matching Screenshots 2, 3, 4
+03:17 +165 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/tenant_persistence_and_profile_details_test.dart: AppState Offline & Multi-Storage Persistence AppState reloads saved tenant profile from SharedPreferences on new startup
+⚡ AppState: Loaded persisted tenant profile: Apex Beverages & Foods | UPI: null | Photo: true
+03:17 +166 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Plan tab renders Card 1, Card 2, Card 3 matching Screenshots 2, 3, 4
+03:17 +166 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/tenant_persistence_and_profile_details_test.dart: AppState Offline & Multi-Storage Persistence Profile image and logo persist across app restarts and cloud sync merges
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: true
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: true
+⚡ AppState: Persisted tenant locally: Cloud Updated Firm (Cloud Owner)
+⚡ AppState: Persisted tenant locally: Cloud Updated Firm (Cloud Owner)
+03:17 +167 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Plan tab renders Card 1, Card 2, Card 3 matching Screenshots 2, 3, 4
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:17 +168 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/tenant_persistence_and_profile_details_test.dart: ProfileAndSettingsScreen UI Display Renders representative name and firm name in hero container
+⚡ AppState: Loaded persisted tenant profile: Kaveri Provisions | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: Kaveri Provisions (Kaveri Ammal)
+03:19 +169 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Edit SaaS & Printer Pricing modal, recalculates annual, and saves pricing matching Screenshot 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:19 +170 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/tenant_persistence_and_profile_details_test.dart: ProfileAndSettingsScreen UI Display Header elements sequential order and plan & subscription card has spacing before tiles
+⚡ AppState: Loaded persisted tenant profile: Kaveri Provisions | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: Kaveri Provisions (Kaveri Ammal)
+03:19 +171 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole pauses and deletes coupons, and creates new coupon
+03:21 +171 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/theme_mode_toggle_test.dart: Light & Dark Theme Functionality Tests AppState initial theme is light and toggles to dark and back
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:21 +172 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole pauses and deletes coupons, and creates new coupon
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:21 +173 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/theme_mode_toggle_test.dart: Light & Dark Theme Functionality Tests AppState setThemeMode explicitly sets dark and light mode
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:22 +174 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Setting tab allows toggling maintenance mode and triggering backup
+03:22 +174 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/theme_mode_toggle_test.dart: Light & Dark Theme Functionality Tests AppState loads theme from SharedPreferences on initialization
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:22 +175 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Setting tab allows toggling maintenance mode and triggering backup
+03:22 +176 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Setting tab allows toggling maintenance mode and triggering backup
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:23 +177 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/theme_mode_toggle_test.dart: Light & Dark Theme Functionality Tests ProfileAndSettingsScreen displays Dark Mode toggle and switches state
+03:24 +178 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/theme_mode_toggle_test.dart: Light & Dark Theme Functionality Tests ProfileAndSettingsScreen displays Dark Mode toggle and switches state
+03:24 +179 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/theme_mode_toggle_test.dart: Light & Dark Theme Functionality Tests ProfileAndSettingsScreen displays Dark Mode toggle and switches state
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:25 +180 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Features tab renders SMS, Payment Gateway, and Company Details cards with interactive controls
+03:27 +181 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/theme_mode_toggle_test.dart: Light & Dark Theme Functionality Tests MainShell adapts navigation and shell styling in dark mode
+03:27 +182 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/theme_mode_toggle_test.dart: Light & Dark Theme Functionality Tests MainShell adapts navigation and shell styling in dark mode
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:28 +183 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Features tab renders Remote Feature Kill Switches card and toggles live modules
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:30 +184 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 1. Inhand Cash is displayed prominently in dashboard upper left bar
+03:31 +184 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 1. Default coupons contain all Web Admin shared coupon codes
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:31 +185 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 1. Inhand Cash is displayed prominently in dashboard upper left bar
+03:32 +185 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 2. Applying Web Admin coupons updates appliedCoupon and computes accurate discounts
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:32 +186 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 1. Inhand Cash is displayed prominently in dashboard upper left bar
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:32 +187 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 3. Unique User ID follows SA-USR-XXXX convention used in Web Admin
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:32 +188 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 2. Expenses option is present in Profile & Settings
+03:33 +188 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 4. exportAdminSyncBundle outputs complete format compatible with Web Admin
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:33 +188 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 2. Expenses option is present in Profile & Settings
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:33 +189 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 4. exportAdminSyncBundle outputs complete format compatible with Web Admin
+03:33 +190 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 3. Reports screen provides download options for Khata, Orders, and GST
+03:33 +190 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 5. importAdminSyncBundle correctly ingests Web Admin bundle payload
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:33 +191 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 3. Reports screen provides download options for Khata, Orders, and GST
+03:33 +191 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 6. Remote feature flags kill switches disable mobile modules via canAccessModule
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:33 +192 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 3. Reports screen provides download options for Khata, Orders, and GST
+03:34 +192 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 7. Emergency broadcast banner can be dynamically dispatched and dismissed
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:34 +193 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 3. Reports screen provides download options for Khata, Orders, and GST
+03:34 +193 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 8. Full remote app control payload roundtrips through export/importAdminSyncBundle
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:34 +194 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 3. Reports screen provides download options for Khata, Orders, and GST
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:34 +195 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 4. Reports and Shop Create open as full-screen Scaffold pages
+03:34 +195 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 9. Remote kill switch immediately disables purchases, expenses, reports, and thermal printing
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:34 +196 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 4. Reports and Shop Create open as full-screen Scaffold pages
+03:34 +196 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 10. Web Admin subscriber tenant governance controls mobile subscription tier and status
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+03:34 +197 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 4. Reports and Shop Create open as full-screen Scaffold pages
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:34 +198 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 5. CreateShopScreen has camera/gallery photo upload and preview
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:35 +199 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 6. Dark theme toggle updates AppState themeMode
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:35 +200 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 7. InventoryTab has a circular FloatingActionButton with + icon
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:35 +201 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/widget_test.dart: SalesArmy Basic Widget Sanity Test
+03:36 +202 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 8. OrderTakerFlow opens variant & quantity selector with 5kg / 10kg options
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:37 +203 -18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/user_eight_requirements_test.dart: Verification of 8 User Requirements 9. Order page Add button is circular (shape: BoxShape.circle)
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+03:39 +204 -18: Some tests failed.
+
+Failing tests:
+  C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/five_requirements_verification_test.dart: User 5 Strict Requirements Complete Verification Tests Scope 5: 7-column invoice table is wrapped in horizontal scroll with min-width constraint and FittedBox
+  C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/hardware_settings_modal_test.dart: HardwareSettingsModal renders Settings & Gateway matching all 5 screenshots
+  C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_logout_rbac_flow_test.dart: Login, Logout & RBAC Architectural Tests LoginScreen authenticates and dispatches onRoleLogin via Google account chooser
+  C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/login_options_comprehensive_test.dart: LoginScreen Minimal Three-Option Verification Google Account Chooser supports Super Admin console login
+  ... and 14 more

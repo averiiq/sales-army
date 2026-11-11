@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: salesarmy-web-admin
+    env: node
+    plan: free
+    rootDir: apps/web-admin
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENABLE_DEMO_AUTH
+        value: "true"
+      - key: PORT
+        value: "3000"
+

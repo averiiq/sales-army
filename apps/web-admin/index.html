@@ -1,0 +1,3186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SalesArmy - Super Admin Portal & SaaS Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=5.0.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2318181B'/><path d='M30 50L45 65L75 35' stroke='white' stroke-width='10' fill='none' stroke-linecap='round'/></svg>">
+</head>
+<body>
+
+  <!-- ============================================== -->
+  <!-- AUTHENTICATION GATE (Super Admin Login) -->
+  <!-- ============================================== -->
+  <div class="auth-gate" id="authGate">
+    <div class="auth-card">
+      <div class="logo-badge" style="margin: 0 auto 16px auto; width: 44px; height: 44px;">
+        <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+      </div>
+      <h2 class="auth-title">SalesArmy Super Admin</h2>
+      <p class="auth-subtitle">Enterprise tenant management, remote control & telemetry</p>
+      
+      <div class="auth-error" id="authError">Invalid email or security passcode</div>
+
+      <form id="loginForm">
+        <div class="form-group" style="text-align: left;">
+          <label class="form-label">Super Admin Email</label>
+          <input type="text" class="form-control" id="loginEmail" value="superadmin@salesarmy.saas" required placeholder="superadmin@salesarmy.saas or admin@salesarmy.com">
+        </div>
+        <div class="form-group" style="text-align: left;">
+          <label class="form-label">Admin Passcode / Password</label>
+          <input type="password" class="form-control" id="loginPassword" value="Password@123" required placeholder="Enter password (e.g. Password@123 or admin)" autocomplete="current-password">
+          <div style="font-size: 11px; color: #94A3B8; margin-top: 6px;">Accepted: <code>superadmin@salesarmy.saas</code> or <code>admin@salesarmy.com</code> &bull; Password: <code>Password@123</code> or <code>admin</code></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 13.5px; margin-top: 8px;">
+          <span>Authenticate Session</span>
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </form>
+
+      <div style="margin-top: 14px;">
+        <button type="button" class="btn btn-sm btn-outline" style="width: 100%; font-weight: 600;" id="btnQuickDemoLogin">
+          ⚡ 1-Click Instant Sign-In (Super Admin)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-badge">
+        <svg class="icon icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+      </div>
+      <div class="brand-info">
+        <h2>SalesArmy <span class="nav-badge" style="background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.3); color: #818CF8; font-size: 9.5px; padding: 1px 5px;">PRO</span></h2>
+        <span>Super Admin Console</span>
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-label">Operations</div>
+      
+      <div class="nav-item active" data-view="dashboard">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        <span>Dashboard</span>
+      </div>
+
+      <div class="nav-item" data-view="tenants">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        <span>Agencies & Tenants</span>
+        <span class="nav-badge" id="badgeTenantsCount">4</span>
+      </div>
+
+      <div class="nav-item" data-view="users">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+        <span>User Management</span>
+        <span class="nav-badge" id="badgeUsersCount" style="background: #8B5CF6; color: white;">7</span>
+      </div>
+
+      <div class="nav-item" data-view="orders">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+        </svg>
+        <span>Retail Orders & Invoicing</span>
+        <span class="nav-badge" id="badgeRetailOrdersCount" style="background: #2563EB; color: white;">4</span>
+      </div>
+
+      <div class="nav-item" data-view="printers">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+        </svg>
+        <span>Hardware Orders</span>
+        <span class="nav-badge" id="badgePrinterOrdersCount">3</span>
+      </div>
+
+      <div class="nav-label">Configuration</div>
+
+      <div class="nav-item" data-view="plans">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>Plans & Pricing</span>
+      </div>
+
+      <div class="nav-item" data-view="coupons">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+        </svg>
+        <span>Coupons & Passes</span>
+        <span class="nav-badge" id="badgeCouponsCount">6</span>
+      </div>
+
+      <div class="nav-item" data-view="billing">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1M3 6h18v12H3V6z"/>
+        </svg>
+        <span>Billing &amp; Subscriptions</span>
+        <span class="nav-badge" id="badgePendingPayments" style="display:none;"></span>
+      </div>
+
+      <div class="nav-item" data-view="gateways">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+        </svg>
+        <span>Payment Gateways</span>
+      </div>
+
+      <div class="nav-item" data-view="audit-logs">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        <span>Audit Trail &amp; Health</span>
+      </div>
+
+      <div class="nav-item" data-view="broadcasts">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+        </svg>
+        <span>In-App Broadcasts</span>
+      </div>
+
+      <div class="nav-item" data-view="app-control">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+        </svg>
+        <span>Remote App Control</span>
+      </div>
+
+      <div class="nav-item" data-view="settings">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <span>Platform Settings</span>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="admin-avatar">SA</div>
+      <div class="admin-details">
+        <div class="admin-name" id="sidebarAdminName">Master Admin</div>
+        <div class="admin-role">Super Admin Console</div>
+      </div>
+      <button class="btn-sidebar-icon" id="btnAdminLogout" title="Sign Out">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Mobile Sidebar Backdrop -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="adminApp.toggleMobileSidebar()"></div>
+
+  <!-- Main Content Wrapper -->
+  <div class="main-wrapper">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="btn btn-ghost btn-sm mobile-menu-toggle" id="btnMobileMenu" onclick="adminApp.toggleMobileSidebar()" title="Toggle Menu">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div class="breadcrumbs">
+          <span class="breadcrumbs-root">SalesArmy</span>
+          <span class="breadcrumbs-sep">/</span>
+          <h1 class="page-title" id="pageTitle">Dashboard</h1>
+        </div>
+      </div>
+      <div class="topbar-right" style="display: flex; align-items: center; gap: 10px;">
+        <div class="topbar-omnisearch">
+          <div class="search-input-wrap">
+            <span class="search-icon">
+              <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </span>
+            <input type="text" class="search-input" id="globalOmnisearchInput" placeholder="Jump to agency, order, user... (⌘K)" oninput="adminApp.handleOmnisearch(this.value)" autocomplete="off">
+            <button type="button" class="search-clear-btn" id="btnClearOmnisearch" onclick="adminApp.clearOmnisearch()">✕</button>
+            <span class="search-kbd-shortcut">⌘K</span>
+          </div>
+          <div class="omnisearch-dropdown" id="omnisearchDropdown"></div>
+        </div>
+
+        <button class="btn btn-outline btn-sm" id="btnThemeToggle" onclick="adminApp.toggleTheme()" title="Toggle Dark/Light Mode">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <span id="themeToggleText">Dark</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+
+      <!-- ============================================== -->
+      <!-- VIEW 1: DASHBOARD OVERVIEW -->
+      <!-- ============================================== -->
+      <section class="view-section active" id="view-dashboard">
+        
+        <!-- Interactive Executive Toolbar -->
+        <div class="dash-toolbar">
+          <div class="dash-toolbar-left">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" style="color: var(--text-muted);"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+              <select id="dashTenantFilter" class="form-control" style="font-size: 12.5px; font-weight: 600; padding: 6px 12px; height: 34px; min-width: 220px;" onchange="adminApp.onDashFilterChange()">
+                <option value="all">🏢 All Registered Agencies</option>
+              </select>
+            </div>
+
+            <div class="dash-filter-group">
+              <button class="dash-filter-btn active" data-time="all" onclick="adminApp.setDashTimeWindow('all')">All-Time</button>
+              <button class="dash-filter-btn" data-time="30d" onclick="adminApp.setDashTimeWindow('30d')">30 Days</button>
+              <button class="dash-filter-btn" data-time="7d" onclick="adminApp.setDashTimeWindow('7d')">7 Days</button>
+              <button class="dash-filter-btn" data-time="today" onclick="adminApp.setDashTimeWindow('today')">Today</button>
+            </div>
+
+            <!-- Active Filter Badge with 1-Click Reset -->
+            <div id="dashActiveFilterNotice" style="display: none; align-items: center; gap: 6px; font-size: 11.5px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); padding: 4px 10px; border-radius: 20px; color: #2563EB;">
+              <span id="dashActiveFilterText">Filter Active</span>
+              <button onclick="adminApp.resetDashboardFilters()" style="color: #DC2626; font-size: 13px; font-weight: 800; cursor: pointer; border: none; background: transparent; padding: 0 0 0 4px; line-height: 1;" title="Clear filter & show all">✕</button>
+            </div>
+          </div>
+
+          <div class="dash-toolbar-right">
+            <span class="dash-sync-badge">
+              <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #10B981;"></span>
+              <span>Live Engine Connected</span>
+            </span>
+
+            <button class="btn btn-outline btn-sm" id="btnDashRefresh" onclick="adminApp.refreshDashboard(true)" title="Force re-sync with live Supabase database">
+              <svg class="icon icon-sm" id="iconDashSync" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              <span>Refresh</span>
+            </button>
+
+            <button class="btn btn-outline btn-sm" onclick="adminApp.exportDashboardSummary()" title="Export structured CSV report of current insights">
+              <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Export Report</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 6 Executive KPI Stat Cards -->
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));">
+          <!-- GMV Card -->
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-label">Gross Order Volume (GMV)</span>
+              <div class="stat-card-icon" style="background: rgba(16, 185, 129, 0.1); color: #10B981;">
+                <svg class="icon" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="statTotalGMV">₹0.00</div>
+            <div class="stat-footer">
+              <span class="stat-indicator emerald" id="statDeliveredGMVTag">● Invoiced</span>
+              <span id="statGMVSubtitle">Across field beat orders</span>
+            </div>
+            <div class="stat-micro-row">
+              <span>Delivered: <strong id="statMicroDeliveredGMV">₹0</strong></span>
+              <span>Pending: <strong id="statMicroPendingGMV">₹0</strong></span>
+            </div>
+          </div>
+
+          <!-- Retail Orders Card -->
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-label">Retail B2B Orders</span>
+              <div class="stat-card-icon" style="background: rgba(59, 130, 246, 0.1); color: #3B82F6;">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="statTotalOrders">0</div>
+            <div class="stat-footer">
+              <span class="stat-indicator indigo" id="statOrderRateTag">● 100% Rate</span>
+              <span>Fulfillment Velocity</span>
+            </div>
+            <div class="stat-micro-row">
+              <span>Avg Order: <strong id="statMicroAOV">₹0</strong></span>
+              <span>Delivered: <strong id="statMicroDeliveredCount">0</strong></span>
+            </div>
+          </div>
+
+          <!-- Agencies Card -->
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-label">Registered Agencies</span>
+              <div class="stat-card-icon" style="background: rgba(139, 92, 246, 0.1); color: #8B5CF6;">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18M3 7v14M21 7v14M6 7V3h12v4M9 11h2M9 15h2M13 11h2M13 15h2"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="statTotalTenants">0</div>
+            <div class="stat-footer">
+              <span class="stat-indicator emerald">● Active</span>
+              <span id="statActiveAgenciesSubtitle">SaaS Tenants</span>
+            </div>
+            <div class="stat-micro-row">
+              <span>Active: <strong id="statMicroActiveTenants">0</strong></span>
+              <span>Est. MRR: <strong id="statMicroMRR">₹0</strong></span>
+            </div>
+          </div>
+
+          <!-- Users & Field Reps Card -->
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-label">Platform Workforce</span>
+              <div class="stat-card-icon" style="background: rgba(245, 158, 11, 0.1); color: #F59E0B;">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="statTotalUsers">0</div>
+            <div class="stat-footer">
+              <span class="stat-indicator indigo">● Onboarded</span>
+              <span>Distributors & Reps</span>
+            </div>
+            <div class="stat-micro-row">
+              <span>Field Reps: <strong id="statMicroSalesReps">0</strong></span>
+              <span>Admins: <strong id="statMicroAdmins">0</strong></span>
+            </div>
+          </div>
+
+          <!-- Hardware Fulfillment Card -->
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-label">Hardware POS Printers</span>
+              <div class="stat-card-icon" style="background: rgba(236, 72, 153, 0.1); color: #EC4899;">
+                <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="statPrinterOrders">0</div>
+            <div class="stat-footer">
+              <span class="stat-indicator emerald">● Logistics</span>
+              <span>Thermal Hardware Orders</span>
+            </div>
+            <div class="stat-micro-row">
+              <span>Hardware GMV: <strong id="statMicroPrinterRev">₹0</strong></span>
+              <span>Fulfilled: <strong id="statMicroPrinterFulfilled">0</strong></span>
+            </div>
+          </div>
+
+          <!-- System Reliability Card -->
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-label">Operational Health</span>
+              <div class="stat-card-icon" style="background: rgba(16, 185, 129, 0.1); color: #10B981;">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" style="color: #10B981;">99.98%</div>
+            <div class="stat-footer">
+              <span class="stat-indicator emerald">● Optimal</span>
+              <span>Multi-Tenant Sync</span>
+            </div>
+            <div class="stat-micro-row">
+              <span>Conflicts: <strong>0</strong></span>
+              <span>Latency: <strong>38ms</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHARTS SECTION: ROW 1 -->
+        <div class="dash-charts-grid">
+          <!-- Main Chart: Order & Revenue Velocity Timeline -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-card-title">B2B Order & Revenue Trajectory</div>
+                <div class="chart-card-subtitle">Daily merchandise sales & order booking volume over time</div>
+              </div>
+              <div class="dash-filter-group">
+                <button class="dash-filter-btn active" id="btnChartMetricRev" onclick="adminApp.setChartMetric('revenue')">Revenue (₹)</button>
+                <button class="dash-filter-btn" id="btnChartMetricVol" onclick="adminApp.setChartMetric('orders')">Order Count</button>
+              </div>
+            </div>
+            <div class="chart-container-wrap">
+              <canvas id="chartRevenueTrajectory"></canvas>
+            </div>
+            <!-- User-Friendly Trajectory Summary Strip -->
+            <div class="chart-summary-strip" id="chartTrajectorySummary">
+              <div class="chart-summary-item">
+                <span class="chart-summary-label">Period GMV</span>
+                <strong class="chart-summary-val" id="chartTrajPeriodTotal">₹0.00</strong>
+              </div>
+              <div class="chart-summary-item">
+                <span class="chart-summary-label">Peak Day</span>
+                <strong class="chart-summary-val emerald" id="chartTrajPeakDay">—</strong>
+              </div>
+              <div class="chart-summary-item">
+                <span class="chart-summary-label">Daily Average</span>
+                <strong class="chart-summary-val" id="chartTrajDailyAvg">₹0</strong>
+              </div>
+              <div class="chart-summary-item">
+                <span class="chart-summary-label">Booked Orders</span>
+                <strong class="chart-summary-val indigo" id="chartTrajActiveCount">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart 2: Order Fulfillment Pipeline Donut -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-card-title">Order Fulfillment Pipeline</div>
+                <div class="chart-card-subtitle">Delivery breakdown and order lifecycle</div>
+              </div>
+              <span class="badge badge-emerald" id="badgeDeliveryRate">100% Rate</span>
+            </div>
+            <div class="chart-container-wrap-donut">
+              <canvas id="chartFulfillmentStatus"></canvas>
+              <div class="donut-center-metric">
+                <div class="donut-center-value" id="donutTotalOrdersVal">0</div>
+                <div class="donut-center-label" id="donutTotalOrdersSub">Orders</div>
+              </div>
+            </div>
+            <!-- User-Friendly Status Breakdown Cards -->
+            <div class="chart-donut-breakdown" id="donutFulfillmentBreakdown">
+              <div class="donut-breakdown-card delivered">
+                <div class="donut-breakdown-dot"></div>
+                <div>
+                  <div class="donut-breakdown-name">Delivered</div>
+                  <div class="donut-breakdown-val" id="donutBreakdownDelivered">0 orders</div>
+                </div>
+              </div>
+              <div class="donut-breakdown-card processing">
+                <div class="donut-breakdown-dot"></div>
+                <div>
+                  <div class="donut-breakdown-name">Processing</div>
+                  <div class="donut-breakdown-val" id="donutBreakdownProcessing">0 orders</div>
+                </div>
+              </div>
+              <div class="donut-breakdown-card dispatched">
+                <div class="donut-breakdown-dot"></div>
+                <div>
+                  <div class="donut-breakdown-name">Dispatched</div>
+                  <div class="donut-breakdown-val" id="donutBreakdownDispatched">0 orders</div>
+                </div>
+              </div>
+              <div class="donut-breakdown-card cancelled">
+                <div class="donut-breakdown-dot"></div>
+                <div>
+                  <div class="donut-breakdown-name">Cancelled</div>
+                  <div class="donut-breakdown-val" id="donutBreakdownCancelled">0 orders</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHARTS SECTION: ROW 2 -->
+        <div class="dash-charts-grid-equal">
+          <!-- Chart 3: Top Retail Outlets Horizontal Bar -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-card-title">Top Buying Retail Outlets</div>
+                <div class="chart-card-subtitle">Highest grossing kirana stores and retail counters</div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.switchView('orders')">View Orders</button>
+            </div>
+            <div class="chart-container-wrap">
+              <canvas id="chartTopShops"></canvas>
+            </div>
+            <!-- Insight Footer -->
+            <div class="chart-insight-footer" id="topShopsInsightFooter">
+              <span>💡 <strong>Retail Insight:</strong> Top outlets contribute <strong id="topShopsContributionPct" style="color: #3B82F6;">100%</strong> of overall retail sales volume.</span>
+            </div>
+          </div>
+
+          <!-- Chart 4: Agency Subscription Tier Breakdown -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div>
+                <div class="chart-card-title">Agency Subscription Distribution</div>
+                <div class="chart-card-subtitle">Distribution across Startup, Grow, Enterprise & Freemium tiers</div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.switchView('plans')">Manage Plans</button>
+            </div>
+            <div class="chart-container-wrap">
+              <canvas id="chartPlanDistribution"></canvas>
+            </div>
+            <!-- User-Friendly Tier Breakdown Pills -->
+            <div class="chart-plans-breakdown" id="plansBreakdownGrid">
+              <div class="plan-pill enterprise">
+                <div class="plan-pill-left">
+                  <span class="plan-pill-dot"></span>
+                  <span class="plan-pill-title">Enterprise (₹899/mo)</span>
+                </div>
+                <strong class="plan-pill-count" id="pillEnterpriseCount">0</strong>
+              </div>
+              <div class="plan-pill grow">
+                <div class="plan-pill-left">
+                  <span class="plan-pill-dot"></span>
+                  <span class="plan-pill-title">Grow (₹599/mo)</span>
+                </div>
+                <strong class="plan-pill-count" id="pillGrowCount">0</strong>
+              </div>
+              <div class="plan-pill startup">
+                <div class="plan-pill-left">
+                  <span class="plan-pill-dot"></span>
+                  <span class="plan-pill-title">Startup (₹399/mo)</span>
+                </div>
+                <strong class="plan-pill-count" id="pillStartupCount">0</strong>
+              </div>
+              <div class="plan-pill freemium">
+                <div class="plan-pill-left">
+                  <span class="plan-pill-dot"></span>
+                  <span class="plan-pill-title">Freemium (Free)</span>
+                </div>
+                <strong class="plan-pill-count" id="pillFreemiumCount">0</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PLATFORM SERVICES & HEALTH MONITOR -->
+        <div class="health-grid">
+          <div class="health-card">
+            <div class="health-icon-box" style="background: rgba(16, 185, 129, 0.1); color: #10B981;">
+              <svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+            </div>
+            <div class="health-info">
+              <div class="health-title">PostgreSQL / Supabase DB</div>
+              <div class="health-status">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10B981;"></span>
+                <span>Active • Connected</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="health-card">
+            <div class="health-icon-box" style="background: rgba(59, 130, 246, 0.1); color: #3B82F6;">
+              <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            </div>
+            <div class="health-info">
+              <div class="health-title">Multi-Tenant Sync Engine</div>
+              <div class="health-status">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10B981;"></span>
+                <span>0 Conflicts • Healthy</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="health-card">
+            <div class="health-icon-box" style="background: rgba(139, 92, 246, 0.1); color: #8B5CF6;">
+              <svg class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+            </div>
+            <div class="health-info">
+              <div class="health-title">Razorpay Webhooks</div>
+              <div class="health-status">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10B981;"></span>
+                <span>Live • HMAC Verified</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="health-card">
+            <div class="health-icon-box" style="background: rgba(245, 158, 11, 0.1); color: #F59E0B;">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </div>
+            <div class="health-info">
+              <div class="health-title">Automated Backup Scheduler</div>
+              <div class="health-status">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10B981;"></span>
+                <span>Daily 02:00 UTC Active</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECENT ACTIVITY TABS: ORDERS & HARDWARE -->
+        <div class="panel" style="margin-top: 24px;">
+          <div class="panel-header" style="border-bottom: none; padding-bottom: 0;">
+            <div>
+              <div class="panel-title">Recent Platform Activity</div>
+              <div class="panel-subtitle">Real-time log of field beat orders and printer fulfillment</div>
+            </div>
+          </div>
+
+          <div class="dash-tabs-nav" style="padding: 0 20px;">
+            <button class="dash-tab-btn active" id="tabBtnDashOrders" onclick="adminApp.setDashActivityTab('orders')">
+              Recent Retail Orders (<span id="dashTabOrdersCount">0</span>)
+            </button>
+            <button class="dash-tab-btn" id="tabBtnDashHardware" onclick="adminApp.setDashActivityTab('hardware')">
+              Hardware Printers (<span id="dashTabPrintersCount">0</span>)
+            </button>
+          </div>
+
+          <!-- Retail Orders Table -->
+          <div id="dashActivityOrdersPane" class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order Ref</th>
+                  <th>Retail Shop & Owner</th>
+                  <th>Agency</th>
+                  <th>Amount</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="dashRecentOrdersTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Hardware Orders Table -->
+          <div id="dashActivityHardwarePane" class="table-responsive" style="display: none;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order Ref</th>
+                  <th>Customer & Agency</th>
+                  <th>Hardware Item</th>
+                  <th>Fulfillment Status</th>
+                  <th>Tracking AWB</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="recentOrdersTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW: BILLING & SUBSCRIPTIONS                   -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-billing">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Billing &amp; Subscriptions</div>
+              <div class="panel-subtitle">Monitor recurring SaaS subscription revenue, active plans, checkout payment links, and renewal cycles.</div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline" onclick="adminApp.refreshBilling()">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                <span>Refresh Live Rollup</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Executive Stats Grid -->
+          <div class="stats-grid" style="padding: 16px 20px 0;">
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-label">Active Paid Tenants</span>
+                <span class="stat-card-icon">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" style="color: var(--emerald);"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+              </div>
+              <div class="stat-value" id="billActivePaid">0</div>
+              <div class="stat-footer">
+                <span class="badge badge-success" style="font-size: 10.5px;">● Recurring Revenue</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-label">Renewing Soon (&lt; 7 Days)</span>
+                <span class="stat-card-icon">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" style="color: var(--amber);"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </span>
+              </div>
+              <div class="stat-value" id="billRenewingSoon">0</div>
+              <div class="stat-footer">
+                <span class="badge badge-warning" style="font-size: 10.5px;">Upcoming Expiries</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-label">Pending Checkout Links</span>
+                <span class="stat-card-icon">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" style="color: var(--indigo);"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                </span>
+              </div>
+              <div class="stat-value" id="billPendingLinks">0</div>
+              <div class="stat-footer">
+                <span class="badge badge-indigo" style="font-size: 10.5px;">Payment Link Awaiting</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-card-header">
+                <span class="stat-label">Failed Webhooks (24h)</span>
+                <span class="stat-card-icon">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" style="color: var(--rose);"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                </span>
+              </div>
+              <div class="stat-value" id="billFailed24h">0</div>
+              <div class="stat-footer">
+                <span class="badge badge-delivered" style="font-size: 10.5px;">Gateway Health Normal</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tables Section -->
+          <div style="padding: 16px 20px 24px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin: 12px 0 12px;">
+              <div>
+                <h3 style="margin: 0; font-size: 15px; font-weight: 800; color: var(--text-main);">Pending Payment Links &amp; Uncaptured Checkouts</h3>
+                <p style="margin: 3px 0 0; font-size: 12px; color: var(--text-muted);">Self-serve subscription checkout links issued to agencies awaiting final UPI / net-banking settlement.</p>
+              </div>
+            </div>
+            <div class="table-responsive" style="border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 24px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Checkout Reference</th>
+                    <th>Tenant Agency</th>
+                    <th>Subscription Plan</th>
+                    <th>Total Payable</th>
+                    <th>Created At</th>
+                    <th style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="billPendingLinksBody">
+                  <tr><td colspan="6" style="text-align:center; padding: 24px; color:var(--text-muted);">Loading payment link data…</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin: 24px 0 12px;">
+              <div>
+                <h3 style="margin: 0; font-size: 15px; font-weight: 800; color: var(--text-main);">Upcoming Tenant Subscription Renewals</h3>
+                <p style="margin: 3px 0 0; font-size: 12px; color: var(--text-muted);">Current plan validity schedule, days until expiry, and quick trial extension controls.</p>
+              </div>
+            </div>
+            <div class="table-responsive" style="border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Agency &amp; Firm</th>
+                    <th>Active Plan</th>
+                    <th>Current Expiry Date</th>
+                    <th>Days Remaining</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="billRenewalsBody">
+                  <tr><td colspan="5" style="text-align:center; padding: 24px; color:var(--text-muted);">Loading subscription renewal timeline…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW: PAYMENT GATEWAYS (RAZORPAY)              -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-gateways">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div class="panel-title" style="margin: 0;">💳 Razorpay Payment Gateway Settings</div>
+                <span id="gatewayStatusBadge" class="badge badge-active" style="font-size: 11px; font-weight: 700;">● Razorpay Test Mode</span>
+              </div>
+              <div class="panel-subtitle">Configure corporate Razorpay credentials, environment mode (Sandbox/Live), auto-capture, and real-time HMAC webhook settlement.</div>
+            </div>
+            <div class="panel-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-outline" id="btnTestGateway" onclick="adminApp.testGatewayConnection()" title="Ping Razorpay API to verify API keys and network latency">
+                <span id="gatewayPingSpinner" style="display: none;">⏳ </span>
+                <span>⚡ Test Gateway Connection</span>
+              </button>
+              <button class="btn btn-primary" onclick="adminApp.saveGatewaySettings()" style="font-weight: 700;">
+                💾 Save Gateway Settings
+              </button>
+            </div>
+          </div>
+
+          <div style="padding: 24px;">
+            <!-- Clean 2-Column Responsive Layout -->
+            <div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 24px; align-items: start;">
+              
+              <!-- LEFT COLUMN: Environment Mode & Razorpay API Credentials -->
+              <div>
+                <!-- Environment Mode Card -->
+                <div style="background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <strong style="font-size: 13.5px; color: var(--text-main);">Razorpay Environment Mode</strong>
+                      <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                        Toggle between Sandbox Test Mode (<code style="background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px;">rzp_test_*</code>) and Production Live Mode (<code style="background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px;">rzp_live_*</code>).
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span id="gatewayModeLabel" style="font-size: 12px; font-weight: 700; color: #D97706;">Sandbox (Test)</span>
+                      <label class="custom-switch">
+                        <input type="checkbox" id="gatewayModeToggle" onchange="adminApp.toggleGatewayMode(this.checked)">
+                        <span class="switch-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- API Credentials Card -->
+                <div style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background: var(--bg-surface);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <h4 style="font-size: 14px; font-weight: 800; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;">
+                      <span>🔑 Razorpay API Keys &amp; Webhook Secret</span>
+                    </h4>
+                    <span class="badge badge-success" style="font-size: 10.5px;">Razorpay Active</span>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                      <span>Razorpay Key ID *</span>
+                      <span style="font-size: 11px; color: var(--text-muted);">Required for In-App &amp; Web Checkout</span>
+                    </label>
+                    <input type="text" class="form-control" id="gatewayKeyId" placeholder="e.g. rzp_test_1DP5mmOlF5G5ag" autocomplete="off">
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                      <span>Razorpay Key Secret *</span>
+                      <span id="gatewaySecretConfiguredBadge" class="badge badge-success" style="font-size: 10px; display: none;">Configured</span>
+                    </label>
+                    <div style="position: relative;">
+                      <input type="password" class="form-control" id="gatewayKeySecret" placeholder="••••••••••••••••••••••••••••••••" autocomplete="new-password">
+                      <button type="button" onclick="adminApp.togglePasswordVisibility('gatewayKeySecret', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 13px;">👁️</button>
+                    </div>
+                    <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block;">Leave blank to keep existing server secret unchanged.</span>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                      <span>Razorpay Webhook Signing Secret (HMAC-SHA256)</span>
+                      <span id="gatewayWebhookConfiguredBadge" class="badge badge-success" style="font-size: 10px; display: none;">Configured</span>
+                    </label>
+                    <div style="position: relative;">
+                      <input type="password" class="form-control" id="gatewayWebhookSecret" placeholder="••••••••••••••••••••••••" autocomplete="new-password">
+                      <button type="button" onclick="adminApp.togglePasswordVisibility('gatewayWebhookSecret', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 13px;">👁️</button>
+                    </div>
+                    <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block;">Secret configured in Razorpay Webhooks dashboard to verify <code style="font-size: 10.5px;">X-Razorpay-Signature</code>.</span>
+                  </div>
+
+                  <div class="toggle-switch-row" style="padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border);">
+                    <div class="toggle-switch-meta">
+                      <span class="toggle-switch-title">Auto-Capture Payments Immediately</span>
+                      <span class="toggle-switch-desc">Automatically captures authorized payments without manual 2-step capture hold</span>
+                    </div>
+                    <label class="custom-switch">
+                      <input type="checkbox" id="gatewayAutoCapture" checked>
+                      <span class="switch-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RIGHT COLUMN: Webhook Assistant & Diagnostic Tester -->
+              <div>
+                <!-- Webhook Listener & Tester Card -->
+                <div style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; background: var(--bg-surface);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h4 style="font-size: 14px; font-weight: 800; color: var(--text-main); margin: 0;">
+                      ⚡ Real-Time Webhook Endpoint
+                    </h4>
+                    <span class="badge badge-active" style="font-size: 10.5px;">Auto-Settling</span>
+                  </div>
+                  <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                    Add this endpoint in your Razorpay Dashboard under <strong>Settings &gt; Webhooks</strong> to automatically activate subscriptions upon customer payment.
+                  </p>
+
+                  <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <input type="text" class="form-control" id="gatewayWebhookDisplayUrl" readonly style="background: var(--bg-subtle); font-family: monospace; font-size: 11.5px;">
+                    <button class="btn btn-outline btn-sm" onclick="adminApp.copyWebhookUrl()" title="Copy Webhook URL">
+                      📋 Copy
+                    </button>
+                  </div>
+
+                  <div style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 12px; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px;">
+                    <div style="font-weight: 700; color: var(--text-main); margin-bottom: 4px;">Subscribed Events Checklist:</div>
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <span>✓ <code>payment_link.paid</code> (Instant SaaS subscription activation)</span>
+                      <span>✓ <code>payment.captured</code> (POS hardware printer checkout)</span>
+                      <span>✓ <code>order.paid</code> (Retail transaction settlement)</span>
+                    </div>
+                  </div>
+
+                  <button class="btn btn-outline" style="width: 100%; font-size: 12px;" onclick="adminApp.simulateWebhookTest()">
+                    🔔 Dispatch Test Webhook Event (Simulation)
+                  </button>
+                </div>
+
+                <!-- Last Diagnostic / Ping Status -->
+                <div id="gatewayDiagnosticCard" style="border: 1px dashed var(--border); border-radius: 12px; padding: 16px; background: var(--bg-subtle); font-size: 12px; color: var(--text-secondary);">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 700; color: var(--text-main);">Connection Diagnostic:</span>
+                    <span id="gatewayDiagnosticStatus" class="badge badge-trial">Not Tested Yet</span>
+                  </div>
+                  <div id="gatewayDiagnosticMessage" style="margin-top: 8px; font-size: 11.5px; color: var(--text-muted);">
+                    Click "Test Gateway Connection" above to verify live API key authorization with Razorpay.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW: AUDIT TRAIL & SYSTEM HEALTH              -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-audit-logs">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div class="panel-title" style="margin: 0;">🛡️ Platform Audit Trail &amp; System Health</div>
+                <span id="auditSyncBadge" class="badge badge-active" style="font-size: 11px; font-weight: 700;">● Cloud Engine Synchronized</span>
+              </div>
+              <div class="panel-subtitle">Comprehensive security audit trail tracking administrative actions, gateway mutations, broadcast alerts, and database state telemetry.</div>
+            </div>
+            <div class="panel-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm" onclick="adminApp.exportAuditLogs()" title="Export audit trail as CSV">
+                📥 Export CSV
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.refreshAuditLogs()" title="Refresh latest security records">
+                🔄 Refresh Logs
+              </button>
+            </div>
+          </div>
+
+          <!-- System Telemetry Row -->
+          <div style="padding: 16px 24px 0;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px;">
+              <div class="stat-card" style="padding: 14px;">
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px;">Supabase Cloud DB</div>
+                <div style="font-size: 16px; font-weight: 800; color: #10B981;" id="telemetryDbStatus">● Healthy Zero-Drift</div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">5 / 5 Tables Reconciled</div>
+              </div>
+
+              <div class="stat-card" style="padding: 14px;">
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px;">Payment Gateway Status</div>
+                <div style="font-size: 16px; font-weight: 800; color: #2563EB;" id="telemetryGatewayStatus">Razorpay Ready</div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Webhook Listener Active</div>
+              </div>
+
+              <div class="stat-card" style="padding: 14px;">
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px;">Node.js Runtime &amp; Port</div>
+                <div style="font-size: 16px; font-weight: 800; color: var(--text-main);" id="telemetryServerPort">Port 3000</div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">SSE Live Stream Active</div>
+              </div>
+
+              <div class="stat-card" style="padding: 14px;">
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px;">Logged Audit Records</div>
+                <div style="font-size: 16px; font-weight: 800; color: var(--text-main);" id="telemetryAuditCount">0 Events</div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Tamper-Resistant Log</div>
+              </div>
+            </div>
+
+            <!-- Filter Pills -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm audit-filter-pill active" data-category="all" onclick="adminApp.filterAuditLogs('all')">All Records</button>
+              <button class="btn btn-outline btn-sm audit-filter-pill" data-category="GATEWAY" onclick="adminApp.filterAuditLogs('GATEWAY')">💳 Gateway &amp; Payments</button>
+              <button class="btn btn-outline btn-sm audit-filter-pill" data-category="BILLING" onclick="adminApp.filterAuditLogs('BILLING')">💰 Invoicing &amp; Subscriptions</button>
+              <button class="btn btn-outline btn-sm audit-filter-pill" data-category="BROADCAST" onclick="adminApp.filterAuditLogs('BROADCAST')">📢 Broadcasts</button>
+              <button class="btn btn-outline btn-sm audit-filter-pill" data-category="SECURITY" onclick="adminApp.filterAuditLogs('SECURITY')">🔒 Auth &amp; Passwords</button>
+              <button class="btn btn-outline btn-sm audit-filter-pill" data-category="CONFIG" onclick="adminApp.filterAuditLogs('CONFIG')">⚙️ Configuration</button>
+              <button class="btn btn-outline btn-sm audit-filter-pill" data-category="SYSTEM" onclick="adminApp.filterAuditLogs('SYSTEM')">⚡ System</button>
+            </div>
+          </div>
+
+          <!-- Audit Logs Table -->
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 150px;">Timestamp</th>
+                  <th style="min-width: 130px;">Event Category</th>
+                  <th style="min-width: 150px;">Action Trigger</th>
+                  <th>Action Details &amp; Operational Context</th>
+                  <th style="min-width: 120px;">Actor / Origin</th>
+                  <th style="min-width: 100px;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="auditLogsTableBody">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                    Loading audit trail security log stream…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW: TENANT DRILL-DOWN                         -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-tenant-drilldown">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Tenant Drill-Down</div>
+              <div class="panel-subtitle">Comprehensive deep-inspection lens for any FMCG agency — live outlets, product catalog, orders, and ledger.</div>
+            </div>
+            <div class="panel-actions" style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="drilldownTenantSelect" style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0;">Agency:</label>
+                <select id="drilldownTenantSelect" class="form-control" style="min-width: 280px; height: 34px; font-size: 12.5px; font-weight: 600;" onchange="adminApp.loadTenantDrilldown(this.value)">
+                  <option value="">— Choose a tenant —</option>
+                </select>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.refreshActiveDrilldown()" title="Refresh tenant data">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                <span>Reload</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="drilldownBody" style="padding: 20px;">
+            <div style="text-align: center; padding: 48px 24px; color: var(--text-muted);">
+              <svg class="icon icon-lg" viewBox="0 0 24 24" style="color: var(--text-tertiary); margin-bottom: 12px; width: 44px; height: 44px;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+              <h3 style="font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Select an Agency to Inspect</h3>
+              <p style="font-size: 13px; max-width: 480px; margin: 0 auto;">Choose any registered tenant from the dropdown above to load their deep profile, store network, inventory catalog, field orders, and financial ledger.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW: REMOTE APP CONTROL & FEATURE FLAGS -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-app-control">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Mobile App Remote Governance & Feature Toggles</div>
+              <div class="panel-subtitle">Remotely toggle modules, manage kill switches, and enforce policies across all mobile client devices in real time</div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline btn-sm" onclick="adminApp.resetDefaultFeatureFlags()">Reset Defaults</button>
+              <button class="btn btn-primary btn-sm" onclick="adminApp.saveAndBroadcastRemoteConfig()">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                <span>Push Config to Mobile Apps</span>
+              </button>
+            </div>
+          </div>
+
+          <div style="padding: 20px;">
+            <!-- Grid of Remote Feature Toggles -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+              <div>
+                <h4 style="font-size: 13.5px; font-weight: 600; color: var(--text-main); margin-bottom: 2px;">Live Feature Kill Switches</h4>
+                <div style="font-size: 11.5px; color: var(--text-muted);">Instant remote circuit breakers synchronized over SSE bridge</div>
+              </div>
+            </div>
+            <div class="features-grid" id="remoteFeaturesContainer">
+              <!-- Dynamically populated via JavaScript -->
+            </div>
+
+            <div style="margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px;">
+              <!-- 1. Version & Update Shield -->
+              <div class="card-inner-box">
+                <h4 style="font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 4px;">
+                  Version & Mandatory Update Policy
+                </h4>
+                <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 14px;">
+                  Prevent outdated client apps from executing transactions. Older apps will be blocked by a mandatory update screen.
+                </p>
+                <div class="form-group">
+                  <label class="form-label">Minimum Enforced App Version</label>
+                  <input type="text" class="form-control" id="ctrlMinAppVersion" value="v2.4.1" placeholder="e.g. v2.5.0">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Google Play / APK Update Download URL</label>
+                  <input type="text" class="form-control" id="ctrlUpdateUrl" value="https://play.google.com/store/apps/details?id=com.salesarmy.app" placeholder="https://...">
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding: 10px 12px; background: var(--bg-subtle); border-radius: var(--radius-xs);">
+                  <div>
+                    <strong style="font-size: 12px; color: var(--text-main);">Hard Block Outdated Versions</strong>
+                    <div style="font-size: 11px; color: var(--text-muted);">Prevents bypass until update installed</div>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="ctrlEnforceHardUpdate" checked>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+
+
+            </div>
+
+            <!-- 3. Scheduled / Emergency Maintenance Control -->
+            <div class="card-inner-box" style="margin-top: 20px; border-color: var(--amber-border); background: var(--amber-bg);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                <div>
+                  <h4 style="font-size: 13.5px; font-weight: 600; color: var(--amber-text); display: flex; align-items: center; gap: 6px;">
+                    Global Emergency Maintenance Mode
+                  </h4>
+                  <p style="font-size: 11.5px; color: var(--text-secondary); margin-top: 4px; max-width: 720px;">
+                    When activated, all regular mobile app users see a full-screen maintenance lockout screen with your custom message and estimated recovery time. Super Admins retain full access.
+                  </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <strong style="font-size: 12px; color: var(--amber-text); font-family: var(--font-mono);" id="maintenanceStatusLabel">MAINTENANCE IS OFF</strong>
+                  <label class="switch">
+                    <input type="checkbox" id="ctrlMaintenanceActive" onchange="adminApp.onMaintenanceToggleChanged(this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 16px;">
+                <div class="form-group" style="margin: 0;">
+                  <label class="form-label" style="color: #92400E;">Lockout Announcement Message</label>
+                  <input type="text" class="form-control" id="ctrlMaintenanceMessage" value="SalesArmy is currently undergoing scheduled platform maintenance. Please check back shortly.">
+                </div>
+                <div class="form-group" style="margin: 0;">
+                  <label class="form-label" style="color: #92400E;">Estimated Time of Recovery (ETA)</label>
+                  <input type="text" class="form-control" id="ctrlMaintenanceEta" value="30 minutes" placeholder="e.g. 15 minutes, 1 hour">
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW: IN-APP EMERGENCY BROADCASTS -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-broadcasts">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div class="panel-title" style="margin: 0;">📣 In-App Emergency Broadcast &amp; Announcement Center</div>
+                <span id="broadcastStatusBadge" class="badge badge-delivered" style="font-size: 11px; font-weight: 700;">● Active &amp; Broadcasting</span>
+              </div>
+              <div class="panel-subtitle">Publish real-time notification banners, maintenance advisories, and flash alerts across active distributor mobile apps.</div>
+            </div>
+            <div class="panel-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm" onclick="adminApp.clearBroadcastBanner()" title="Deactivate and hide current banner">
+                ⏸️ Pause / Clear Banner
+              </button>
+              <button class="btn btn-primary" onclick="adminApp.publishBroadcastBanner()" style="font-weight: 700;">
+                📢 Broadcast to All Mobile Users
+              </button>
+            </div>
+          </div>
+
+          <div style="padding: 24px;">
+            <div class="broadcast-grid-layout">
+              
+              <!-- LEFT: Broadcast Composer & Targeting Controls -->
+              <div>
+                <!-- Card 1: Content & Theme -->
+                <div class="composer-card">
+                  <div class="composer-card-header">
+                    <h4 class="composer-card-title">
+                      <span>✍️ Announcement Headline &amp; Message</span>
+                    </h4>
+                    <span style="font-size: 11px; color: var(--text-muted);" id="bcastCharsCounter">Live Sync Enabled</span>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                      <span>Banner Headline / Title *</span>
+                      <span id="bcastTitleCount" style="font-size: 11px; font-weight: 500; color: var(--text-muted);">0 / 60</span>
+                    </label>
+                    <input type="text" class="form-control" id="bcastTitle" maxlength="60" value="Scheduled Maintenance Notice" placeholder="e.g. Scheduled Maintenance Alert" oninput="adminApp.updateBroadcastMockup()">
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between;">
+                      <span>Announcement Message Body *</span>
+                      <span id="bcastMessageCount" style="font-size: 11px; font-weight: 500; color: var(--text-muted);">0 / 220</span>
+                    </label>
+                    <textarea class="form-control" id="bcastMessage" rows="3" maxlength="220" placeholder="Provide full details for distributors and field reps..." oninput="adminApp.updateBroadcastMockup()">Platform maintenance scheduled tonight from 11:00 PM to 11:30 PM IST. Offline kaccha billing remains active.</textarea>
+                  </div>
+
+                  <!-- Priority Type Selector -->
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label">Banner Priority &amp; Color Style</label>
+                    <input type="hidden" id="bcastType" value="warning">
+                    <div class="priority-selector-grid">
+                      <div class="priority-pill" data-type="info" onclick="adminApp.setBroadcastType('info')">
+                        <span>🔵</span>
+                        <span>Info</span>
+                      </div>
+                      <div class="priority-pill active" data-type="warning" onclick="adminApp.setBroadcastType('warning')">
+                        <span>🟠</span>
+                        <span>Warning</span>
+                      </div>
+                      <div class="priority-pill" data-type="critical" onclick="adminApp.setBroadcastType('critical')">
+                        <span>🔴</span>
+                        <span>Critical</span>
+                      </div>
+                      <div class="priority-pill" data-type="festive" onclick="adminApp.setBroadcastType('festive')">
+                        <span>🟣</span>
+                        <span>Festive</span>
+                      </div>
+                      <div class="priority-pill" data-type="success" onclick="adminApp.setBroadcastType('success')">
+                        <span>🟢</span>
+                        <span>Success</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- CTA Action Button & Deep Link -->
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                      <label class="form-label">Action Button Label (Optional)</label>
+                      <input type="text" class="form-control" id="bcastActionText" value="Got It" placeholder="e.g. View Notice, Claim 25% Off" oninput="adminApp.updateBroadcastMockup()">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                      <label class="form-label">Action Deep-Link Route</label>
+                      <input type="text" class="form-control" id="bcastActionUrl" value="/orders" placeholder="e.g. /orders, /pricing, or https://...">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Card 2: Audience Scope & Beat Targeting -->
+                <div class="composer-card">
+                  <div class="composer-card-header">
+                    <h4 class="composer-card-title">
+                      <span>🎯 Audience &amp; Field Delivery Scope</span>
+                    </h4>
+                    <span class="badge badge-delivered" id="bcastReachBadge" style="font-size: 10.5px;">Reach: ~12 Devices</span>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                    <div class="form-group">
+                      <label class="form-label">Target Agency / Tenant</label>
+                      <select class="form-control" id="bcastTargetTenant" onchange="adminApp.updateBroadcastMockup()">
+                        <option value="all">🌐 All Agencies &amp; Tenants (Global)</option>
+                      </select>
+                    </div>
+
+                    <div class="form-group">
+                      <label class="form-label">Target Staff Role Filter</label>
+                      <select class="form-control" id="bcastTargetRole" onchange="adminApp.updateBroadcastMockup()">
+                        <option value="all">👥 All Staff &amp; Roles</option>
+                        <option value="owner">👑 Agency Owners / Proprietors</option>
+                        <option value="sales_person">💼 Field Sales Representatives</option>
+                        <option value="delivery_agent">🚚 Delivery Agents &amp; Van Drivers</option>
+                        <option value="manager">📦 Warehouse &amp; Store Managers</option>
+                        <option value="accountant">📊 Accounts &amp; Invoicing Clerks</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Toggle Settings -->
+                  <div style="margin-top: 10px;">
+                    <div class="toggle-switch-row">
+                      <div class="toggle-switch-meta">
+                        <span class="toggle-switch-title">Active &amp; Broadcasting Now</span>
+                        <span class="toggle-switch-desc">Banner instantly displays across mobile screens on app resume</span>
+                      </div>
+                      <label class="custom-switch">
+                        <input type="checkbox" id="bcastActive" checked onchange="adminApp.updateBroadcastMockup()">
+                        <span class="switch-slider"></span>
+                      </label>
+                    </div>
+
+                    <div class="toggle-switch-row">
+                      <div class="toggle-switch-meta">
+                        <span class="toggle-switch-title">Allow Users to Dismiss Banner</span>
+                        <span class="toggle-switch-desc">Displays a close '✕' button allowing mobile users to clear the banner</span>
+                      </div>
+                      <label class="custom-switch">
+                        <input type="checkbox" id="bcastDismissible" checked onchange="adminApp.updateBroadcastMockup()">
+                        <span class="switch-slider"></span>
+                      </label>
+                    </div>
+
+                    <div class="toggle-switch-row">
+                      <div class="toggle-switch-meta">
+                        <span class="toggle-switch-title">Simulate Soundbox Audio Chime</span>
+                        <span class="toggle-switch-desc">Triggers soundbox alert voice confirmation on mobile device</span>
+                      </div>
+                      <label class="custom-switch">
+                        <input type="checkbox" id="bcastSound" checked>
+                        <span class="switch-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Card 3: Quick Preset Templates -->
+                <div class="composer-card">
+                  <div class="composer-card-header">
+                    <h4 class="composer-card-title">
+                      <span>⚡ One-Click Instant Templates</span>
+                    </h4>
+                    <span style="font-size: 11px; color: var(--text-muted);">Click to autofill composer</span>
+                  </div>
+
+                  <div class="presets-grid-row">
+                    <div class="preset-card-item" onclick="adminApp.applyBroadcastPreset('gst_downtime')">
+                      <div class="preset-card-title">⚠️ GST Portal Downtime</div>
+                      <div class="preset-card-desc">Govt e-way &amp; e-invoice API maintenance window advisory.</div>
+                    </div>
+                    <div class="preset-card-item" onclick="adminApp.applyBroadcastPreset('festival_offer')">
+                      <div class="preset-card-title">🎉 Festive 25% Off</div>
+                      <div class="preset-card-desc">Annual Platinum Pro discount promotion with voucher code.</div>
+                    </div>
+                    <div class="preset-card-item" onclick="adminApp.applyBroadcastPreset('system_upgrade')">
+                      <div class="preset-card-title">🚀 SalesArmy v2.5.0</div>
+                      <div class="preset-card-desc">Multi-warehouse stock tracking and thermal printing launch.</div>
+                    </div>
+                    <div class="preset-card-item" onclick="adminApp.applyBroadcastPreset('payment_success')">
+                      <div class="preset-card-title">💳 Instant UPI Settlement</div>
+                      <div class="preset-card-desc">15-minute daily collection bank settlement confirmation.</div>
+                    </div>
+                    <div class="preset-card-item" onclick="adminApp.applyBroadcastPreset('monsoon_alert')">
+                      <div class="preset-card-title">🌧️ Monsoon Route Advisory</div>
+                      <div class="preset-card-desc">Severe rain weather delay advisory for field van reps.</div>
+                    </div>
+                    <div class="preset-card-item" onclick="adminApp.applyBroadcastPreset('critical_lock')">
+                      <div class="preset-card-title">🚨 Security Audit Notice</div>
+                      <div class="preset-card-desc">Mandatory UPI passcode reset and biometric verification.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RIGHT: Interactive Smartphone Simulator -->
+              <div class="phone-simulator-sticky">
+                <div class="phone-control-toolbar">
+                  <div class="phone-view-tabs">
+                    <button type="button" class="phone-tab-btn active" id="btnPhoneTabDashboard" onclick="adminApp.setPhoneScreen('dashboard')">Home</button>
+                    <button type="button" class="phone-tab-btn" id="btnPhoneTabOrders" onclick="adminApp.setPhoneScreen('orders')">Orders</button>
+                    <button type="button" class="phone-tab-btn" id="btnPhoneTabShops" onclick="adminApp.setPhoneScreen('shops')">Shops</button>
+                  </div>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.togglePhoneTheme()" style="padding: 4px 8px; font-size: 11px;" title="Toggle Light / Dark Mode">
+                      <span id="phoneThemeIcon">🌙</span>
+                    </button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.triggerPhonePushSimulation()" style="padding: 4px 8px; font-size: 11px; color: #3B82F6;" title="Simulate Push Notification">
+                      🔔 Push
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Hardware Smartphone Enclosure -->
+                <div class="smartphone-device">
+                  <div class="smartphone-screen" id="smartphoneScreen">
+                    <!-- Dynamic Island Notch -->
+                    <div class="dynamic-island">
+                      <div class="dynamic-island-cam"></div>
+                      <div class="dynamic-island-sensor"></div>
+                    </div>
+
+                    <!-- Simulated Heads-Up Push Notification (Initially Hidden) -->
+                    <div class="phone-heads-up-alert" id="phonePushOverlay" style="display: none;">
+                      <div style="width: 28px; height: 28px; border-radius: 7px; background: #3B82F6; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: white;">SA</div>
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 9px; color: #94A3B8; display: flex; justify-content: space-between;">
+                          <span>SalesArmy Mobile</span>
+                          <span>now</span>
+                        </div>
+                        <div style="font-size: 11px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="phonePushTitle">Platform Announcement</div>
+                        <div style="font-size: 10px; color: #CBD5E1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="phonePushMessage">Maintenance notice</div>
+                      </div>
+                    </div>
+
+                    <!-- Status Bar -->
+                    <div class="phone-status-bar">
+                      <span id="phoneClockTime">09:41</span>
+                      <div class="phone-status-icons">
+                        <span>5G</span>
+                        <span>📶</span>
+                        <span>98% 🔋</span>
+                      </div>
+                    </div>
+
+                    <!-- App Bar -->
+                    <div class="phone-app-bar">
+                      <div class="phone-agency-info">
+                        <div class="phone-agency-avatar" id="phoneAgencyAvatar">SG</div>
+                        <div style="min-width: 0;">
+                          <div class="phone-agency-name" id="phoneAgencyName">Shree Ganesh FMCG</div>
+                          <div class="phone-agency-sub">Beat Route #4 • Field Agent</div>
+                        </div>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 12px; cursor: pointer;" onclick="adminApp.triggerPhonePushSimulation()" title="Click to test notification">🔔</span>
+                        <div style="width: 7px; height: 7px; border-radius: 50%; background: #10B981;"></div>
+                      </div>
+                    </div>
+
+                    <!-- Live In-App Broadcast Banner Slot -->
+                    <div class="phone-broadcast-slot" id="phoneBroadcastSlot">
+                      <!-- Rendered by adminApp.updateBroadcastMockup() -->
+                    </div>
+
+                    <!-- Scrollable In-App Body (Switches views) -->
+                    <div class="phone-scroll-body" id="phoneScrollBody">
+                      <!-- Default: Dashboard View -->
+                      <div id="phoneViewDashboardContent">
+                        <div class="phone-stat-pill-row">
+                          <div class="phone-mini-stat">
+                            <div class="phone-mini-stat-label">Today's GMV</div>
+                            <div class="phone-mini-stat-val" style="color: #059669;">₹48,250</div>
+                          </div>
+                          <div class="phone-mini-stat">
+                            <div class="phone-mini-stat-label">Orders Logged</div>
+                            <div class="phone-mini-stat-val">14 Bills</div>
+                          </div>
+                        </div>
+
+                        <div class="phone-mini-card">
+                          <div style="font-size: 10px; font-weight: 700; color: #64748B; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                            <span>ACTIVE BEAT TRACKING</span>
+                            <span style="color: #3B82F6;">82% Visited</span>
+                          </div>
+                          <div style="font-size: 11px; font-weight: 800; color: #0F172A; margin-bottom: 2px;">Main Bazaar &amp; Station Road</div>
+                          <div style="height: 4px; background: #E2E8F0; border-radius: 2px; overflow: hidden; margin-top: 6px;">
+                            <div style="width: 82%; height: 100%; background: #3B82F6;"></div>
+                          </div>
+                        </div>
+
+                        <div class="phone-mini-card">
+                          <div style="font-size: 10px; font-weight: 700; color: #64748B; margin-bottom: 6px;">RECENT OUTLET VISITS</div>
+                          <div class="phone-order-row">
+                            <div>
+                              <div style="font-weight: 700;">Gupta General Store</div>
+                              <div style="font-size: 9px; color: #64748B;">Tax Invoice #SA-9021</div>
+                            </div>
+                            <div style="text-align: right;">
+                              <div style="font-weight: 800; color: #059669;">₹4,200</div>
+                              <span style="font-size: 8.5px; color: #3B82F6; font-weight: 700;">DELIVERED</span>
+                            </div>
+                          </div>
+                          <div class="phone-order-row">
+                            <div>
+                              <div style="font-weight: 700;">Shree Krishna Kirana</div>
+                              <div style="font-size: 9px; color: #64748B;">Kaccha Estimate #SA-9020</div>
+                            </div>
+                            <div style="text-align: right;">
+                              <div style="font-weight: 800;">₹1,850</div>
+                              <span style="font-size: 8.5px; color: #F59E0B; font-weight: 700;">PENDING</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Orders Beat Screen View (Hidden by default) -->
+                      <div id="phoneViewOrdersContent" style="display: none;">
+                        <div style="font-size: 11px; font-weight: 800; margin-bottom: 6px;">Today's Invoices (14)</div>
+                        <div class="phone-mini-card" style="margin-bottom: 6px;">
+                          <div class="phone-order-row">
+                            <div>
+                              <div style="font-weight: 700;">Mahalaxmi Supermart</div>
+                              <div style="font-size: 8.5px; color: #64748B;">Order #SA-1049 • Cash</div>
+                            </div>
+                            <div style="text-align: right;">
+                              <div style="font-weight: 800; color: #059669;">₹7,400</div>
+                              <span style="font-size: 8.5px; color: #059669; font-weight: 700;">PAID</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="phone-mini-card" style="margin-bottom: 6px;">
+                          <div class="phone-order-row">
+                            <div>
+                              <div style="font-weight: 700;">Radha Provisions</div>
+                              <div style="font-size: 8.5px; color: #64748B;">Order #SA-1048 • Credit</div>
+                            </div>
+                            <div style="text-align: right;">
+                              <div style="font-weight: 800;">₹3,250</div>
+                              <span style="font-size: 8.5px; color: #F59E0B; font-weight: 700;">CREDIT</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="phone-mini-card">
+                          <div class="phone-order-row">
+                            <div>
+                              <div style="font-weight: 700;">Bhawani Dairy &amp; Tea</div>
+                              <div style="font-size: 8.5px; color: #64748B;">Order #SA-1047 • UPI</div>
+                            </div>
+                            <div style="text-align: right;">
+                              <div style="font-weight: 800; color: #059669;">₹1,120</div>
+                              <span style="font-size: 8.5px; color: #059669; font-weight: 700;">PAID</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Retail Outlets Screen View (Hidden by default) -->
+                      <div id="phoneViewShopsContent" style="display: none;">
+                        <div style="font-size: 11px; font-weight: 800; margin-bottom: 6px;">Beat Outlets (22)</div>
+                        <div class="phone-mini-card" style="margin-bottom: 6px;">
+                          <div style="font-weight: 700; font-size: 10.5px;">Gupta General Store</div>
+                          <div style="font-size: 9px; color: #64748B;">Proprietor: Ramesh Gupta • 📍 Station Road</div>
+                          <div style="font-size: 9.5px; margin-top: 3px; font-weight: 600; color: #DC2626;">Outstanding Due: ₹4,200</div>
+                        </div>
+                        <div class="phone-mini-card" style="margin-bottom: 6px;">
+                          <div style="font-weight: 700; font-size: 10.5px;">Shree Krishna Kirana</div>
+                          <div style="font-size: 9px; color: #64748B;">Proprietor: Anand Lal • 📍 Clock Tower</div>
+                          <div style="font-size: 9.5px; margin-top: 3px; font-weight: 600; color: #059669;">Zero Balance • Healthy</div>
+                        </div>
+                        <div class="phone-mini-card">
+                          <div style="font-weight: 700; font-size: 10.5px;">Balaji Wholesale Traders</div>
+                          <div style="font-size: 9px; color: #64748B;">Proprietor: Suresh Jain • 📍 Market Yard</div>
+                          <div style="font-size: 9.5px; margin-top: 3px; font-weight: 600; color: #DC2626;">Outstanding Due: ₹12,500</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- In-Phone Interactive Toast Feedback -->
+                    <div class="phone-toast-feedback" id="phoneToastFeedback" style="display: none;">Action Clicked</div>
+
+                    <!-- Bottom Navigation Bar -->
+                    <div class="phone-bottom-bar">
+                      <button type="button" class="phone-nav-icon-btn active" id="btnPhoneNavHome" onclick="adminApp.setPhoneScreen('dashboard')">
+                        <span style="font-size: 14px;">🏠</span>
+                        <span>Home</span>
+                      </button>
+                      <button type="button" class="phone-nav-icon-btn" id="btnPhoneNavOrders" onclick="adminApp.setPhoneScreen('orders')">
+                        <span style="font-size: 14px;">🛍️</span>
+                        <span>Orders</span>
+                      </button>
+                      <button type="button" class="phone-nav-icon-btn" id="btnPhoneNavShops" onclick="adminApp.setPhoneScreen('shops')">
+                        <span style="font-size: 14px;">🏬</span>
+                        <span>Shops</span>
+                      </button>
+                      <button type="button" class="phone-nav-icon-btn" onclick="adminApp.showPhoneToast('Stock Inventory screen')">
+                        <span style="font-size: 14px;">📦</span>
+                        <span>Stock</span>
+                      </button>
+                      <button type="button" class="phone-nav-icon-btn" onclick="adminApp.showPhoneToast('Agency Profile screen')">
+                        <span style="font-size: 14px;">⚙️</span>
+                        <span>Profile</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Sent Push Notifications & History Section -->
+            <!-- Sent Push Notifications & History Section -->
+            <div style="margin-top: 36px; border-top: 1px solid #E2E8F0; padding-top: 24px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                  <h4 style="font-size: 15px; font-weight: 800; color: #0F172A; display: flex; align-items: center; gap: 8px;">
+                    <span>🔔 Sent Push Notifications & Realtime Event Stream</span>
+                    <span class="badge badge-active" style="font-size: 10px;">Supabase + SSE Live</span>
+                  </h4>
+                  <div style="font-size: 12px; color: #64748B;">Real-time log of administrative broadcasts, instant alerts, and automated transactional events</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn btn-outline btn-sm filter-btn-notif active" onclick="adminApp.filterNotifications('all', this)">All</button>
+                  <button class="btn btn-outline btn-sm filter-btn-notif" onclick="adminApp.filterNotifications('broadcast', this)">Broadcasts</button>
+                  <button class="btn btn-outline btn-sm filter-btn-notif" onclick="adminApp.filterNotifications('order', this)">Orders</button>
+                  <button class="btn btn-outline btn-sm filter-btn-notif" onclick="adminApp.filterNotifications('payment', this)">Payments</button>
+                  <button class="btn btn-primary btn-sm" onclick="adminApp.sendQuickTestPush()">⚡ Send Quick Test Push</button>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width: 130px;">Sent Time</th>
+                      <th style="width: 140px;">Type & Priority</th>
+                      <th>Headline & Content</th>
+                      <th style="width: 150px;">Target Audience</th>
+                      <th style="width: 130px;">Sync Channels</th>
+                      <th style="width: 90px; text-align: center;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="notificationsTableBody">
+                    <!-- Rendered by JavaScript -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW 2: COUPONS & TRIALS -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-coupons">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Coupon Codes & Membership Trials</div>
+              <div class="panel-subtitle">Create and manage promo codes for trial days or flat discounts on subscriptions</div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline btn-sm filter-btn active" data-filter="all">All</button>
+              <button class="btn btn-outline btn-sm filter-btn" data-filter="trial">Trial Passes</button>
+              <button class="btn btn-outline btn-sm filter-btn" data-filter="flat">Flat Discounts</button>
+              <button class="btn btn-outline btn-sm filter-btn" data-filter="percentage">Percentage Off</button>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.exportCouponsCSV()">📥 Export CSV</button>
+              <button class="btn btn-primary" id="btnOpenAddCoupon">
+                + Create New Coupon
+              </button>
+            </div>
+          </div>
+
+          <!-- Search Bar -->
+          <div class="panel-search-bar">
+            <div class="search-input-wrap">
+              <span class="search-icon">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+              <input type="text" class="search-input" id="searchCouponsInput" placeholder="Search coupon code (e.g. TRIAL30) or campaign title..." autocomplete="off">
+              <button type="button" class="search-clear-btn" id="btnClearCouponSearch" onclick="adminApp.clearCouponSearch()">✕</button>
+              <span class="search-kbd-shortcut">/</span>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Coupon Code</th>
+                  <th>Discount Type</th>
+                  <th>Benefit / Value</th>
+                  <th>Redemption Limit</th>
+                  <th>Valid Until</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="couponsTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW 3: PLANS & PRINTER BUNDLING -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-plans">
+        <div class="panel" style="padding: 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; margin-bottom: 4px;">Subscription Plans & Pricing</h2>
+            <p style="font-size: 13px; color: #64748B;">Manage subscription tier rates, product limits, and hardware add-on pricing.</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" onclick="adminApp.resetPlansToDefault()">Reset Defaults</button>
+            <button class="btn btn-outline" onclick="adminApp.verifyPricingSync()" title="Read back pricing_and_plans from Supabase and compare to local state">
+              🔄 Verify Cloud Sync
+            </button>
+            <button class="btn btn-primary" onclick="adminApp.openPlanEditModal()">
+              ✏️ Edit Plans & Pricing
+            </button>
+          </div>
+        </div>
+
+        <div class="plans-grid" id="plansContainer">
+          <!-- Injected dynamically via JavaScript -->
+        </div>
+
+        <!-- Dynamic POS Thermal Printers & Hardware Options -->
+        <div class="panel" style="padding: 24px; margin-top: 32px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; margin-bottom: 4px;">POS Thermal Printers Catalog</h2>
+            <p style="font-size: 13px; color: #64748B;">Manage wireless thermal printer models and hardware configurations.</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" onclick="adminApp.resetPrintersToDefault()">Reset Printer Defaults</button>
+            <button class="btn btn-primary" onclick="adminApp.openPrinterOptionModal()">
+              + Add / Edit Printer Model
+            </button>
+          </div>
+        </div>
+
+        <div class="plans-grid" id="printersContainer">
+          <!-- Injected dynamically via JavaScript -->
+        </div>
+
+        <!-- Dynamic Subscription Add-ons & Service Passes -->
+        <div class="panel" style="padding: 24px; margin-top: 32px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; margin-bottom: 4px;">Subscription Add-ons & Service Passes</h2>
+            <p style="font-size: 13px; color: #64748B;">Manage extra staff seats, shop capacity boosts, WhatsApp/SMS packages, supplies, and priority support passes.</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" onclick="adminApp.resetAddonsToDefault()">Reset Add-on Defaults</button>
+            <button class="btn btn-primary" onclick="adminApp.openAddonModal()">
+              + Add Subscription Add-on
+            </button>
+          </div>
+        </div>
+
+        <div class="plans-grid" id="addonsContainer">
+          <!-- Injected dynamically via JavaScript -->
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW 4: PRINTER ORDERS -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-printers">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Hardware Fulfillment - POS Thermal Printers</div>
+              <div class="panel-subtitle">Manage courier dispatches, packing slips, and tracking for optional ₹2,499 printer add-on orders</div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline btn-sm printer-filter-btn active" data-printer-filter="all">All</button>
+              <button class="btn btn-outline btn-sm printer-filter-btn" data-printer-filter="Pending">Pending</button>
+              <button class="btn btn-outline btn-sm printer-filter-btn" data-printer-filter="Processing">Processing</button>
+              <button class="btn btn-outline btn-sm printer-filter-btn" data-printer-filter="Dispatched">Dispatched</button>
+              <button class="btn btn-outline btn-sm printer-filter-btn" data-printer-filter="Delivered">Delivered</button>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.exportDataCSV('printers')" title="Export hardware orders to CSV">
+                📥 Export CSV
+              </button>
+              <button class="btn btn-primary" onclick="adminApp.openPrinterOrderModal()">
+                + Record Hardware Order
+              </button>
+            </div>
+          </div>
+
+          <!-- Search Bar -->
+          <div class="panel-search-bar">
+            <div class="search-input-wrap">
+              <span class="search-icon">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+              <input type="text" class="search-input" id="searchPrintersInput" placeholder="Search customer, agency, tracking number, or hardware order ID..." autocomplete="off">
+              <button type="button" class="search-clear-btn" id="btnClearPrinterSearch" onclick="adminApp.clearPrinterSearch()">✕</button>
+              <span class="search-kbd-shortcut">/</span>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order & Unique ID</th>
+                  <th>Customer & Agency</th>
+                  <th>Hardware & Plan</th>
+                  <th>Shipping Address</th>
+                  <th>Fulfillment Status</th>
+                  <th>Courier / Tracking</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="printerOrdersTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW: RETAIL ORDERS & INVOICING -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-orders">
+        <!-- Stats Row -->
+        <div class="stats-grid" style="margin-bottom: 20px;">
+          <div class="stat-card">
+            <div class="stat-info">
+              <span class="stat-label">Total Retail GMV</span>
+              <span class="stat-value" id="statOrdersGMV">₹48,329.70</span>
+              <span class="stat-trend up">↑ Invoiced Value</span>
+            </div>
+            <div class="stat-icon green">💰</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-info">
+              <span class="stat-label">Total Retail Orders</span>
+              <span class="stat-value" id="statOrdersCount">4</span>
+              <span class="stat-trend up">Mobile Beat Sync</span>
+            </div>
+            <div class="stat-icon blue">📦</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-info">
+              <span class="stat-label">Delivered Orders</span>
+              <span class="stat-value" id="statOrdersDelivered">1</span>
+              <span class="stat-trend up">Settled & Closed</span>
+            </div>
+            <div class="stat-icon purple">✅</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-info">
+              <span class="stat-label">Pending / In-Transit</span>
+              <span class="stat-value" id="statOrdersPending">3</span>
+              <span class="stat-trend" style="color: #F59E0B;">Active Fulfillment</span>
+            </div>
+            <div class="stat-icon amber">🚚</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Retail Orders & GST Tax Invoicing Directory</div>
+              <div class="panel-subtitle">Live orders captured by field salesmen across retail stores and distributor beats</div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline btn-sm order-filter-btn active" data-order-filter="all" onclick="adminApp.filterOrders('all')">All</button>
+              <button class="btn btn-outline btn-sm order-filter-btn" data-order-filter="pending" onclick="adminApp.filterOrders('pending')">Pending</button>
+              <button class="btn btn-outline btn-sm order-filter-btn" data-order-filter="confirmed" onclick="adminApp.filterOrders('confirmed')">Confirmed</button>
+              <button class="btn btn-outline btn-sm order-filter-btn" data-order-filter="dispatched" onclick="adminApp.filterOrders('dispatched')">Dispatched</button>
+              <button class="btn btn-outline btn-sm order-filter-btn" data-order-filter="delivered" onclick="adminApp.filterOrders('delivered')">Delivered</button>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.exportDataCSV('orders')" title="Export orders to CSV">
+                📥 Export CSV
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="adminApp.openCreateOrderModal()">
+                + New B2B Sales Order
+              </button>
+            </div>
+          </div>
+
+          <!-- Search Bar -->
+          <div class="panel-search-bar">
+            <div class="search-input-wrap">
+              <span class="search-icon">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+              <input type="text" class="search-input" id="searchOrdersInput" placeholder="Search order ID, shop name, beat salesman, or city..." oninput="adminApp.handleOrderSearch(this.value)" autocomplete="off">
+              <button type="button" class="search-clear-btn" id="btnClearOrderSearch" onclick="adminApp.clearOrderSearch()">✕</button>
+              <span class="search-kbd-shortcut">/</span>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Retail Shop & Territory</th>
+                  <th>Beat Salesman</th>
+                  <th>Order Items</th>
+                  <th>Taxable & GST</th>
+                  <th>Grand Total</th>
+                  <th>Status</th>
+                  <th>Payment</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="retailOrdersTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW 5: TENANTS & UNIQUE USER IDS -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-tenants">
+        <!-- TOP EXECUTIVE METRICS ROW -->
+        <div class="tenant-metrics-grid">
+          <div class="tenant-metric-card">
+            <div class="tenant-metric-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--indigo-text);">
+              <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M3 21h18M3 7v14M21 7v14M6 21V11M10 21V11M14 21V11M18 21V11M12 3l9 4H3l9-4z"></path></svg>
+            </div>
+            <div class="tenant-metric-content">
+              <div class="tenant-metric-title">Registered Agencies</div>
+              <div class="tenant-metric-value" id="tenantStatTotal">0</div>
+              <div class="tenant-metric-subtext">
+                <span class="badge badge-indigo" id="tenantBadgeTotalSync">● Live Multi-Tenant</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tenant-metric-card">
+            <div class="tenant-metric-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--emerald-text);">
+              <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            </div>
+            <div class="tenant-metric-content">
+              <div class="tenant-metric-title">Active Subscriptions</div>
+              <div class="tenant-metric-value" id="tenantStatActive">0</div>
+              <div class="tenant-metric-subtext">
+                <span class="badge badge-emerald" id="tenantStatMRR">₹0/mo Est. MRR</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tenant-metric-card">
+            <div class="tenant-metric-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--amber-text);">
+              <svg class="icon icon-lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div class="tenant-metric-content">
+              <div class="tenant-metric-title">Free Trial Passes</div>
+              <div class="tenant-metric-value" id="tenantStatTrial">0</div>
+              <div class="tenant-metric-subtext">
+                <span class="badge badge-amber">14-Day Full Demo</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tenant-metric-card">
+            <div class="tenant-metric-icon" style="background: rgba(59, 130, 246, 0.1); color: #3B82F6;">
+              <svg class="icon icon-lg" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            </div>
+            <div class="tenant-metric-content">
+              <div class="tenant-metric-title">Freemium Guaranteed</div>
+              <div class="tenant-metric-value" id="tenantStatFreemium">0</div>
+              <div class="tenant-metric-subtext">
+                <span class="badge badge-delivered">Unrestricted Billing</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MAIN PANEL -->
+        <div class="panel">
+          <div class="panel-header" style="flex-wrap: wrap; gap: 14px;">
+            <div>
+              <div class="panel-title" style="display: flex; align-items: center; gap: 8px;">
+                <span>Agencies & Distributor Tenants</span>
+                <span class="badge badge-indigo" id="badgeTenantHeaderCount">0 Total</span>
+              </div>
+              <div class="panel-subtitle">Manage SaaS tenant profiles, unique user credentials (SA-USR-XXXX), quotas, and subscription lifecycles</div>
+            </div>
+            <div class="panel-actions" style="flex-wrap: wrap; gap: 8px;">
+              <div class="view-mode-toggle" id="tenantViewModeToggle">
+                <button type="button" class="view-mode-btn active" id="btnTenantViewTable" onclick="adminApp.setTenantViewMode('table')" title="Table View">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <button type="button" class="view-mode-btn" id="btnTenantViewGrid" onclick="adminApp.setTenantViewMode('grid')" title="Card Grid View">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                </button>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.exportDataCSV('tenants')" title="Export tenants to CSV">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Export CSV</span>
+              </button>
+              <button class="btn btn-primary" onclick="adminApp.openTenantModal()">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Onboard New Agency</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- ENHANCED TOOLBAR & FILTERS -->
+          <div class="tenant-toolbar">
+            <div class="tenant-toolbar-row">
+              <!-- Filter Status Pills -->
+              <div class="tenant-filters-group">
+                <button type="button" class="tenant-pill-btn active tenant-filter-btn" data-tenant-filter="all">
+                  <span>All</span>
+                  <span class="pill-count" id="countFilterAll">0</span>
+                </button>
+                <button type="button" class="tenant-pill-btn tenant-filter-btn" data-tenant-filter="active">
+                  <span>Active</span>
+                  <span class="pill-count" id="countFilterActive">0</span>
+                </button>
+                <button type="button" class="tenant-pill-btn tenant-filter-btn" data-tenant-filter="trial">
+                  <span>Trial</span>
+                  <span class="pill-count" id="countFilterTrial">0</span>
+                </button>
+                <button type="button" class="tenant-pill-btn tenant-filter-btn" data-tenant-filter="freemium">
+                  <span>Freemium</span>
+                  <span class="pill-count" id="countFilterFreemium">0</span>
+                </button>
+                <button type="button" class="tenant-pill-btn tenant-filter-btn" data-tenant-filter="suspended">
+                  <span>Frozen / Suspended</span>
+                  <span class="pill-count" id="countFilterSuspended">0</span>
+                </button>
+              </div>
+
+              <!-- Secondary Selectors -->
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <select class="form-control" id="filterTenantPlan" onchange="adminApp.filterTenantsByPlan(this.value)" style="font-size: 12px; height: 32px; padding: 4px 10px; min-width: 140px;">
+                  <option value="all">All Plan Tiers</option>
+                  <option value="enterprise">Enterprise Tier</option>
+                  <option value="grow">Grow / Pro Tier</option>
+                  <option value="startup">Startup Tier</option>
+                  <option value="trial">Trial Pass</option>
+                </select>
+
+                <select class="form-control" id="filterTenantCity" onchange="adminApp.filterTenantsByCity(this.value)" style="font-size: 12px; height: 32px; padding: 4px 10px; min-width: 120px;">
+                  <option value="all">All Cities</option>
+                </select>
+
+                <div class="tenant-sort-widget" title="Sort criteria and direction">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" style="color: var(--text-muted); margin-left: 2px;"><path d="M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 18V4"></path></svg>
+                  <select id="sortTenantOrder" onchange="adminApp.setTenantSortKey(this.value)" style="border: none; background: transparent; font-size: 12px; font-weight: 600; color: var(--text-main); height: 26px; padding: 0 4px; outline: none; cursor: pointer;">
+                    <option value="createdAt">Date: Onboarded</option>
+                    <option value="firmName">Agency Name</option>
+                    <option value="ordersCount">Lifetime Orders</option>
+                    <option value="expiryDate">Renewal / Expiry</option>
+                    <option value="planTier">Plan Tier</option>
+                  </select>
+                  <button type="button" class="btn-sort-dir" id="btnTenantSortDir" onclick="adminApp.toggleTenantSortDirection()" title="Toggle Ascending / Descending">
+                    <span id="tenantSortDirIcon">↓</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Unified Search Input -->
+            <div class="search-input-wrap" style="width: 100%;">
+              <span class="search-icon">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+              <input type="text" class="search-input" id="searchTenantsInput" placeholder="Quick search by Agency Name, Unique User ID (SA-USR-XXXX), Proprietor, City, Mobile (+91), or GSTIN..." autocomplete="off">
+              <button type="button" class="search-clear-btn" id="btnClearTenantSearch" onclick="adminApp.clearTenantSearch()">✕</button>
+              <span class="search-kbd-shortcut">/</span>
+            </div>
+          </div>
+
+          <!-- TABLE VIEW CONTAINER -->
+          <div class="table-responsive" id="tenantsTableViewContainer">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 220px;" class="sortable-col" onclick="adminApp.toggleTenantColumnSort('firmName')" data-sort-key="firmName" title="Click to sort by Agency Name">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <span>Agency & Firm</span>
+                      <span class="sort-indicator" id="sortInd-firmName">↕</span>
+                    </div>
+                  </th>
+                  <th style="min-width: 160px;" class="sortable-col" onclick="adminApp.toggleTenantColumnSort('userId')" data-sort-key="userId" title="Click to sort by Unique ID">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <span>Unique User ID</span>
+                      <span class="sort-indicator" id="sortInd-userId">↕</span>
+                    </div>
+                  </th>
+                  <th style="min-width: 160px;" class="sortable-col" onclick="adminApp.toggleTenantColumnSort('planTier')" data-sort-key="planTier" title="Click to sort by Subscription Plan Tier">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <span>Subscription Plan</span>
+                      <span class="sort-indicator" id="sortInd-planTier">↕</span>
+                    </div>
+                  </th>
+                  <th style="min-width: 140px;" class="sortable-col" onclick="adminApp.toggleTenantColumnSort('expiryDate')" data-sort-key="expiryDate" title="Click to sort by Renewal Date">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <span>Status & Renewal</span>
+                      <span class="sort-indicator" id="sortInd-expiryDate">↕</span>
+                    </div>
+                  </th>
+                  <th style="min-width: 140px;" class="sortable-col" onclick="adminApp.toggleTenantColumnSort('ordersCount')" data-sort-key="ordersCount" title="Click to sort by Lifetime Order Volume">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <span>Lifetime Activity</span>
+                      <span class="sort-indicator" id="sortInd-ordersCount">↕</span>
+                    </div>
+                  </th>
+                  <th style="min-width: 200px; text-align: right;">Quick Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tenantsTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- CARDS GRID VIEW CONTAINER (Hidden by default) -->
+          <div id="tenantsCardsGrid" class="tenant-cards-grid" style="display: none;">
+            <!-- Injected via JavaScript -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW 6: USER MANAGEMENT & RBAC -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-users">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Platform Staff & User Directory</div>
+              <div class="panel-subtitle">Manage roles, permissions, phone credentials, and agency staff assignments</div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline btn-sm user-filter-btn active" data-user-filter="all" onclick="adminApp.filterUsersByRole('all')">All</button>
+              <button class="btn btn-outline btn-sm user-filter-btn" data-user-filter="super_admin" onclick="adminApp.filterUsersByRole('super_admin')">Super Admin</button>
+              <button class="btn btn-outline btn-sm user-filter-btn" data-user-filter="distributor" onclick="adminApp.filterUsersByRole('distributor')">Agency Owner</button>
+              <button class="btn btn-outline btn-sm user-filter-btn" data-user-filter="salesman" onclick="adminApp.filterUsersByRole('salesman')">Field Sales</button>
+              <button class="btn btn-outline btn-sm user-filter-btn" data-user-filter="delivery" onclick="adminApp.filterUsersByRole('delivery')">Delivery</button>
+              <button class="btn btn-outline btn-sm user-filter-btn" data-user-filter="accountant" onclick="adminApp.filterUsersByRole('accountant')">Accountant</button>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.exportDataCSV('users')" title="Export staff users to CSV">
+                📥 Export CSV
+              </button>
+              <button class="btn btn-primary" onclick="adminApp.openUserModal()">
+                + Add New User
+              </button>
+            </div>
+          </div>
+
+          <!-- Search Bar & Filters -->
+          <div class="panel-search-bar" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <div class="search-input-wrap" style="flex: 1; min-width: 260px;">
+              <span class="search-icon">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+              <input type="text" class="search-input" id="searchUsersInput" placeholder="Search staff user by name, email, phone number, or agency..." oninput="adminApp.handleUserSearch(this.value)" autocomplete="off">
+              <button type="button" class="search-clear-btn" id="btnClearUserSearch" onclick="adminApp.clearUserSearch()">✕</button>
+              <span class="search-kbd-shortcut">/</span>
+            </div>
+            <div style="min-width: 170px;">
+              <select class="form-control" id="filterUserTenant" onchange="adminApp.filterUsersByTenant(this.value)">
+                <option value="all">All Agencies</option>
+              </select>
+            </div>
+            <div style="min-width: 140px;">
+              <select class="form-control" id="filterUserStatus" onchange="adminApp.filterUsersByStatus(this.value)">
+                <option value="all">All Statuses</option>
+                <option value="active">Active Only</option>
+                <option value="suspended">Suspended Only</option>
+                <option value="pending">Pending Only</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>User & Contact</th>
+                  <th>System Role (RBAC)</th>
+                  <th>Assigned Agency / Tenant</th>
+                  <th>Account Status</th>
+                  <th>Created Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+
+
+      <!-- ============================================== -->
+      <!-- VIEW 7: PLATFORM SETTINGS -->
+      <!-- ============================================== -->
+      <section class="view-section" id="view-settings">
+        <div class="panel" style="max-width: 760px;">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Platform Super Admin Settings</div>
+              <div class="panel-subtitle">System maintenance, security passcodes, and master controls</div>
+            </div>
+          </div>
+
+          <div style="padding: 24px;">
+            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+              <div>
+                <strong style="color: #0F172A;">Maintenance Mode</strong>
+                <p style="font-size: 12px; color: #64748B;">Put customer mobile app in maintenance mode for system upgrades</p>
+              </div>
+              <label style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                <input type="checkbox" id="chkMaintenanceMode" style="opacity: 0; width: 0; height: 0;" onchange="adminApp.toggleMaintenanceMode(this.checked)">
+                <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #CBD5E1; transition: .3s; border-radius: 24px;" id="sliderMaintenance"></span>
+              </label>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+              <label class="form-label">Super Admin Passcode (Used for in-app Super Admin Login)</label>
+              <div style="display: flex; gap: 10px;">
+                <input type="password" class="form-control" id="settingPasscode" autocomplete="new-password" placeholder="New passcode">
+                <button class="btn btn-primary" onclick="adminApp.updatePasscode()">Save Passcode</button>
+              </div>
+            </div>
+
+            <div class="form-row" style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label class="form-label">Support WhatsApp Number</label>
+                <input type="text" class="form-control" id="settingSupportPhone" value="+91 98230 11928">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Central Support Email</label>
+                <input type="email" class="form-control" id="settingSupportEmail" value="support@salesarmy.saas">
+              </div>
+            </div>
+
+            <div class="form-row" style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label class="form-label">Company Legal Entity Name</label>
+                <input type="text" class="form-control" id="settingCompanyName" value="SalesArmy Technologies Private Limited">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Registered Corporate GSTIN</label>
+                <input type="text" class="form-control" id="settingGstin" value="27AABCS1429B1Z1">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+              <label class="form-label">UPI Merchant VPA (For In-App Dynamic BharatQR Billing)</label>
+              <input type="text" class="form-control" id="settingUpiVpa" value="salesarmy@icici" placeholder="e.g. company@bank">
+            </div>
+
+            <div style="margin-top: 24px; padding: 18px; background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span style="font-size: 16px;">🛡️</span>
+                <strong style="color: var(--text-main); font-size: 14px;">SaaS Plan &amp; Signup Membership Governance</strong>
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+                Configure the default plan and trial period applied to all newly registered agency distributor accounts.
+              </p>
+              <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Default Plan for New Signups</label>
+                  <select class="form-control" id="settingDefaultPlanId">
+                    <option value="startup">Startup Plan (14-Day Free Trial - 50 Prod, 1 User, 200 Shops)</option>
+                    <option value="grow">Grow Plan (₹599/mo - 200 Prod, 5 Users, 1000 Shops)</option>
+                    <option value="enterprise">Enterprise Plan (₹899/mo - Unlimited Prod, 50 Users, 10000 Shops)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Default Free Trial Duration (Days)</label>
+                  <input type="number" class="form-control" id="settingDefaultTrialDays" value="14" min="1" max="90">
+                </div>
+              </div>
+              <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label">Post-Trial Grace Period (Days)</label>
+                <input type="number" class="form-control" id="settingTrialGracePeriodDays" value="3" min="0" max="30">
+                <span style="font-size: 11px; color: var(--text-muted);">Days after trial ends before advanced cloud features lock (Core invoicing never locks).</span>
+              </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+              <button class="btn btn-primary" onclick="adminApp.savePlatformSettings()" style="width: 100%; padding: 12px; font-weight: 700;">
+                💾 Save & Synchronize Platform Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: CREATE / EDIT COUPON -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="couponModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="couponModalTitle">Publish New Coupon / Trial Pass</h3>
+        <button class="btn btn-sm btn-outline" id="btnCloseCouponModal" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <form id="couponForm">
+        <input type="hidden" id="couponEditId" value="">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Coupon Code *</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" class="form-control" id="couponCode" placeholder="e.g. TRIAL30, FLAT100" style="text-transform: uppercase;" required>
+              <button type="button" class="btn btn-outline" id="btnGenerateCode" style="white-space: nowrap;">⚡ Auto</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Promo Title / Campaign Name</label>
+            <input type="text" class="form-control" id="couponTitle" placeholder="e.g. 30 Days Free Trial, Festive Cashback">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Coupon Discount Type *</label>
+              <select class="form-control" id="couponType" required>
+                <option value="trial">Account Membership Trial (Free Days)</option>
+                <option value="flat">Flat Cash Discount (₹)</option>
+                <option value="percentage">Percentage Discount (%)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Discount Value / Trial Days *</label>
+              <input type="number" class="form-control" id="couponValue" placeholder="30 (days) or 100 (₹) or 20 (%)" required min="1">
+              <div class="form-hint" id="couponHint">For trial: Enter number of free days. For flat: Enter ₹ amount.</div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Min Plan Value (₹)</label>
+              <input type="number" class="form-control" id="couponMinOrder" placeholder="0" value="0">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Max Total Redemptions</label>
+              <input type="number" class="form-control" id="couponMaxUses" placeholder="100" value="100">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Expiration Date</label>
+            <input type="date" class="form-control" id="couponExpiry" value="2027-12-31">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Internal Description / Terms</label>
+            <textarea class="form-control" id="couponDescription" rows="2" placeholder="e.g. Applicable on new agency onboarding and upgrade checkout."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="btnCancelCouponModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitCoupon">Publish Coupon</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: RECORD HARDWARE / PRINTER ORDER -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="printerOrderModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Record POS Thermal Printer Order</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closePrinterOrderModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <form id="printerOrderForm" onsubmit="adminApp.handleSavePrinterOrder(event)">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Customer Name *</label>
+              <input type="text" class="form-control" id="printerCustomerName" required placeholder="e.g. Rajesh Gupta">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Agency / Firm Name *</label>
+              <input type="text" class="form-control" id="printerAgencyName" required placeholder="e.g. Gupta Enterprises">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Phone Number *</label>
+              <input type="text" class="form-control" id="printerPhone" required placeholder="+91 98200 12345">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Unique User ID</label>
+              <input type="text" class="form-control" id="printerUserId" placeholder="SA-USR-XXXX" value="SA-USR-5510">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Hardware Item *</label>
+            <select class="form-control" id="printerItemSelect" required>
+              <option value="58mm Bluetooth Thermal POS Printer (+₹2,499)">58mm Bluetooth Thermal POS Printer (Standard Bundle - ₹2,499)</option>
+              <option value="80mm Heavy-Duty Bluetooth POS Printer (+₹3,999)">80mm Heavy-Duty Bluetooth POS Printer (₹3,999)</option>
+              <option value="Thermal Paper Rolls Pack of 10 (+₹499)">Thermal Paper Rolls Pack of 10 (₹499)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Linked Subscription Plan</label>
+            <select class="form-control" id="printerPlanSelect">
+              <option value="Gold Quarterly (₹1,299)">Gold Quarterly (₹1,299)</option>
+              <option value="Platinum Annual (₹3,999)">Platinum Annual (₹3,999)</option>
+              <option value="Silver Monthly (₹499)">Silver Monthly (₹499)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Complete Shipping Destination Address *</label>
+            <textarea class="form-control" id="printerAddress" rows="2" required placeholder="Shop #, Street, City, State - PIN"></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="adminApp.closePrinterOrderModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save & Queue for Dispatch</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: ONBOARD NEW TENANT -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="tenantModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="tenantModalTitle">Onboard New Agency Tenant</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closeTenantModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <form id="tenantForm" onsubmit="adminApp.handleSaveTenant(event)">
+        <input type="hidden" id="tenantEditId" value="">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Agency / Firm Name *</label>
+              <input type="text" class="form-control" id="tenantFirmName" required placeholder="e.g. Mahavir Trading Co">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Proprietor / Owner Name *</label>
+              <input type="text" class="form-control" id="tenantOwnerName" required placeholder="e.g. Mahavir Jain">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Owner Login Email *</label>
+              <input type="email" class="form-control" id="tenantEmail" required placeholder="owner@agency.com">
+            </div>
+            <div class="form-group" id="tenantPasswordGroup">
+              <label class="form-label">Owner Login Password</label>
+              <input type="password" class="form-control" id="tenantPassword" placeholder="Default: Password@123">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Mobile Number *</label>
+              <input type="text" class="form-control" id="tenantPhone" required placeholder="9823012345">
+            </div>
+            <div class="form-group">
+              <label class="form-label">City & State *</label>
+              <input type="text" class="form-control" id="tenantCity" required placeholder="e.g. Pune, MH">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">GSTIN (Optional)</label>
+              <input type="text" class="form-control" id="tenantGstin" placeholder="e.g. 27AABCS1429B1Z1" style="text-transform: uppercase;">
+            </div>
+            <div class="form-group">
+              <label class="form-label">PAN Number (Optional)</label>
+              <input type="text" class="form-control" id="tenantPan" placeholder="e.g. ABCDE1234F" style="text-transform: uppercase;">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Warehouse / Godown Address (Optional)</label>
+            <input type="text" class="form-control" id="tenantAddress" placeholder="e.g. Plot 42, Market Yard Road, Vashi">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Subscription Status</label>
+              <select class="form-control" id="tenantStatusSelect">
+                <option value="trial">14-Day Free Trial Pass</option>
+                <option value="active">Active Pro Subscription</option>
+                <option value="freemium">Permanent Freemium (Free Core)</option>
+                <option value="suspended">Suspended / Frozen</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Assigned Plan Tier</label>
+              <select class="form-control" id="tenantPlanSelect">
+                <option value="Startup Plan (50 Prod, 1 User)">Startup Plan (50 Prod, 1 User)</option>
+                <option value="Grow Plan (200 Prod, 5 Users)">Grow Plan (200 Prod, 5 Users)</option>
+                <option value="Enterprise Tier (9,999 Prod, 50 Users)">Enterprise Tier (Unlimited, 50 Users)</option>
+                <option value="14 Days Trial Pass">14 Days Trial Pass</option>
+                <option value="Free Starter Tier">Free Starter Tier (Freemium)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="adminApp.closeTenantModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveTenant">Save Agency</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: TENANT DETAIL / INSPECTOR DRAWER -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="tenantDetailModal">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Tenant Account Profile & Details</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closeTenantDetailModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <div class="modal-body" id="tenantDetailModalContent">
+        <!-- Injected via JavaScript -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="adminApp.closeTenantDetailModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: EDIT PLAN PRICING & HARDWARE -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="planEditModal">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Configure SaaS Subscription Plans, Pricing & Features</h3>
+        <button type="button" class="btn btn-sm btn-outline" onclick="adminApp.closePlanEditModal()" style="border:none; font-size:18px; cursor:pointer;">✕</button>
+      </div>
+      <form id="planEditForm" onsubmit="adminApp.handleSavePlanSettings(event)">
+        <div class="modal-body" style="padding: 20px;">
+          <!-- Tier Switcher Navigation Pills -->
+          <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm plan-tab-btn active" id="tabBtnStartup" onclick="adminApp.switchPlanTab('startup')">
+              🔵 Startup Plan
+            </button>
+            <button type="button" class="btn btn-sm plan-tab-btn" id="tabBtnGrow" onclick="adminApp.switchPlanTab('grow')">
+              ⭐ Grow Plan (Popular)
+            </button>
+            <button type="button" class="btn btn-sm plan-tab-btn" id="tabBtnEnterprise" onclick="adminApp.switchPlanTab('enterprise')">
+              👑 Enterprise Plan
+            </button>
+            <button type="button" class="btn btn-sm plan-tab-btn" id="tabBtnTaxes" onclick="adminApp.switchPlanTab('taxes')">
+              ⚙️ Taxes & Free Core
+            </button>
+          </div>
+
+          <!-- Hidden active tab tracker -->
+          <input type="hidden" id="activePlanTab" value="startup">
+
+          <!-- 1. STARTUP TAB -->
+          <div class="plan-tab-pane" id="paneStartup">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <strong style="font-size: 14px; color: #2563EB;">Startup Plan Configuration (Tier 1)</strong>
+              <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="cfgStartupPopular" onchange="adminApp.handlePopularPlanToggle('startup')"> Mark Most Popular
+              </label>
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Plan Display Name</label>
+                <input type="text" class="form-control" id="cfgStartupName" value="Startup Plan" required>
+              </div>
+              <div class="form-group" style="flex: 2;">
+                <label class="form-label">Tagline / Subtitle</label>
+                <input type="text" class="form-control" id="cfgStartupTagline" value="Ideal for single-van distributors and emerging agencies." required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Monthly Price (₹/mo)</label>
+                <input type="number" class="form-control" id="cfgStartupPrice" required value="399" min="0" oninput="adminApp.autoCalcYearly('startup')">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Annual Billing (₹/mo equivalent)</label>
+                <input type="number" class="form-control" id="cfgStartupYearlyPrice" required value="319" min="0">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Max Staff Logins (Users)</label>
+                <input type="number" class="form-control" id="cfgStartupMaxStaff" required value="2" min="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Monthly Orders Limit</label>
+                <input type="number" class="form-control" id="cfgStartupMaxOrders" required value="200" min="10">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Branch Locations</label>
+                <input type="number" class="form-control" id="cfgStartupMaxBranches" required value="1" min="1">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Included Features (What the user gets in this subscription - 1 bullet per line)</label>
+              <textarea class="form-control" id="cfgStartupFeatures" rows="5" placeholder="Feature 1&#10;Feature 2&#10;Feature 3"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Offered Capabilities (what this plan actually unlocks in the mobile app)</label>
+              <div id="cfgStartupAllowedFeatures" class="capability-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;"></div>
+            </div>
+          </div>
+
+          <!-- 2. GROW TAB -->
+          <div class="plan-tab-pane" id="paneGrow" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <strong style="font-size: 14px; color: #D97706;">Grow Plan Configuration (Tier 2 - Regional Distributors)</strong>
+              <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="cfgGrowPopular" checked onchange="adminApp.handlePopularPlanToggle('grow')"> Mark Most Popular
+              </label>
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Plan Display Name</label>
+                <input type="text" class="form-control" id="cfgGrowName" value="Grow Plan" required>
+              </div>
+              <div class="form-group" style="flex: 2;">
+                <label class="form-label">Tagline / Subtitle</label>
+                <input type="text" class="form-control" id="cfgGrowTagline" value="Most popular for expanding regional wholesale operations." required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Monthly Price (₹/mo)</label>
+                <input type="number" class="form-control" id="cfgGrowPrice" required value="599" min="0" oninput="adminApp.autoCalcYearly('grow')">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Annual Billing (₹/mo equivalent)</label>
+                <input type="number" class="form-control" id="cfgGrowYearlyPrice" required value="479" min="0">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Max Staff Logins (Users)</label>
+                <input type="number" class="form-control" id="cfgGrowMaxStaff" required value="10" min="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Monthly Orders Limit</label>
+                <input type="number" class="form-control" id="cfgGrowMaxOrders" required value="1000" min="10">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Branch Locations</label>
+                <input type="number" class="form-control" id="cfgGrowMaxBranches" required value="3" min="1">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Included Features (What the user gets in this subscription - 1 bullet per line)</label>
+              <textarea class="form-control" id="cfgGrowFeatures" rows="5" placeholder="Feature 1&#10;Feature 2&#10;Feature 3"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Offered Capabilities (what this plan actually unlocks in the mobile app)</label>
+              <div id="cfgGrowAllowedFeatures" class="capability-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;"></div>
+            </div>
+          </div>
+
+          <!-- 3. ENTERPRISE TAB -->
+          <div class="plan-tab-pane" id="paneEnterprise" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <strong style="font-size: 14px; color: #7C3AED;">Enterprise Plan Configuration (Tier 3 - FMCG Giants)</strong>
+              <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="cfgEnterprisePopular" onchange="adminApp.handlePopularPlanToggle('enterprise')"> Mark Most Popular
+              </label>
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Plan Display Name</label>
+                <input type="text" class="form-control" id="cfgEnterpriseName" value="Enterprise Plan" required>
+              </div>
+              <div class="form-group" style="flex: 2;">
+                <label class="form-label">Tagline / Subtitle</label>
+                <input type="text" class="form-control" id="cfgEnterpriseTagline" value="Maximum power & scale for enterprise FMCG operations." required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Monthly Price (₹/mo)</label>
+                <input type="number" class="form-control" id="cfgEnterprisePrice" required value="899" min="0" oninput="adminApp.autoCalcYearly('enterprise')">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Annual Billing (₹/mo equivalent)</label>
+                <input type="number" class="form-control" id="cfgEnterpriseYearlyPrice" required value="719" min="0">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Max Staff Logins (Enter 999 for Unlimited)</label>
+                <input type="number" class="form-control" id="cfgEnterpriseMaxStaff" required value="999" min="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Monthly Orders Limit (Enter 999999 for Unlimited)</label>
+                <input type="number" class="form-control" id="cfgEnterpriseMaxOrders" required value="999999" min="10">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Branch Locations</label>
+                <input type="number" class="form-control" id="cfgEnterpriseMaxBranches" required value="10" min="1">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Included Features (What the user gets in this subscription - 1 bullet per line)</label>
+              <textarea class="form-control" id="cfgEnterpriseFeatures" rows="5" placeholder="Feature 1&#10;Feature 2&#10;Feature 3"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Offered Capabilities (what this plan actually unlocks in the mobile app)</label>
+              <div id="cfgEnterpriseAllowedFeatures" class="capability-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;"></div>
+            </div>
+          </div>
+
+          <!-- 4. TAXES & CORE SETTINGS TAB -->
+          <div class="plan-tab-pane" id="paneTaxes" style="display: none;">
+            <strong style="font-size: 14px; color: var(--text-main); margin-bottom: 12px; display: block;">Taxes & Free Freemium Core Rules</strong>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Subscription Plan GST Tax (%)</label>
+                <input type="number" class="form-control" id="cfgPlanGst" required value="18" min="0" max="28">
+              </div>
+              <div class="form-group">
+                <label class="form-label">POS Thermal Printer Hardware GST (%)</label>
+                <input type="number" class="form-control" id="cfgPrinterGst" required value="18" min="0" max="28">
+              </div>
+            </div>
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 10px;">
+              <strong style="font-size: 13px; color: var(--text-main); margin-bottom: 4px; display: block;">Free Core Tier Limits (Unsubscribed Free Users)</strong>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Free tier users can take orders & print kaccha bills forever with basic limits:</p>
+              <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
+                • Max 1 Field Executive Login<br>
+                • Up to 50 Retail Outlets<br>
+                • Permanent Core Order Taking & Estimation Enabled
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="adminApp.closePlanEditModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save & Push Pricing Globally</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: ADD / EDIT PRINTER HARDWARE OPTION -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="printerOptionModal">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="printerOptionModalTitle">Add / Edit POS Printer Option</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closePrinterOptionModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <form id="printerOptionForm" onsubmit="adminApp.handleSavePrinterOption(event)">
+        <input type="hidden" id="cfgPrinterOptId" value="">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Printer Model Name *</label>
+            <input type="text" class="form-control" id="cfgPrinterOptName" required placeholder="e.g. 58mm Standard Bluetooth POS Thermal Printer">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Base Price (₹) *</label>
+              <input type="number" class="form-control" id="cfgPrinterOptPrice" required placeholder="2499" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GST Tax Rate (%)</label>
+              <input type="number" class="form-control" id="cfgPrinterOptGst" value="18" min="0" max="28">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Paper Width Specification *</label>
+              <input type="text" class="form-control" id="cfgPrinterOptWidth" required placeholder="e.g. 58mm (2-inch) or 80mm (3-inch)" value="58mm (2-inch)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Connectivity Modes *</label>
+              <input type="text" class="form-control" id="cfgPrinterOptConnectivity" required placeholder="e.g. Bluetooth + USB" value="Bluetooth + USB">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description / Ideal Use Case</label>
+            <textarea class="form-control" id="cfgPrinterOptDesc" rows="2" placeholder="e.g. Compact wireless receipt printer ideal for mobile delivery vans and counter bills."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Bullet Features (comma separated)</label>
+            <input type="text" class="form-control" id="cfgPrinterOptFeatures" placeholder="Up to 90mm/s speed, Drop-in paper roll, Rechargeable battery">
+          </div>
+
+          <div class="form-row" style="margin-top: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; cursor: pointer;">
+              <input type="checkbox" id="cfgPrinterOptAvailable" checked>
+              <span><strong>In Stock & Active for Selection</strong></span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; cursor: pointer;">
+              <input type="checkbox" id="cfgPrinterOptDefault">
+              <span><strong>Set as Default Recommended</strong></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="adminApp.closePrinterOptionModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Printer Model</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: ADD / EDIT SUBSCRIPTION ADD-ON -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="addonOptionModal">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="addonOptionModalTitle">Add / Edit Subscription Add-on</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closeAddonModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <form id="addonOptionForm" onsubmit="adminApp.handleSaveAddon(event)">
+        <input type="hidden" id="cfgAddonId" value="">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Add-on Title / Name *</label>
+            <input type="text" class="form-control" id="cfgAddonTitle" required placeholder="e.g. Extra Staff Seat License">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Price (₹) *</label>
+              <input type="number" class="form-control" id="cfgAddonPrice" required placeholder="299" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GST Tax Rate (%)</label>
+              <input type="number" class="form-control" id="cfgAddonGst" value="18" min="0" max="28">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Category *</label>
+              <select class="form-control" id="cfgAddonCategory">
+                <option value="seats">Staff & User Seats</option>
+                <option value="directory">Shop & Store Directory</option>
+                <option value="notifications">WhatsApp & SMS Notifications</option>
+                <option value="supplies">Consumables & Paper Rolls</option>
+                <option value="hardware">Hardware & Devices</option>
+                <option value="support">VIP & Priority Support</option>
+                <option value="integration">ERP & Custom Integration</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Billing Cycle *</label>
+              <select class="form-control" id="cfgAddonPeriod">
+                <option value="monthly">Monthly Recurring (/mo)</option>
+                <option value="yearly">Yearly Recurring (/yr)</option>
+                <option value="one_time">One-Time Purchase</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description / Summary</label>
+            <textarea class="form-control" id="cfgAddonDesc" rows="2" placeholder="e.g. Add 1 additional mobile salesman login with GPS field tracking."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Features & Highlights (comma separated)</label>
+            <input type="text" class="form-control" id="cfgAddonFeatures" placeholder="1 Active Login, GPS Route Tracking, Cash Register">
+          </div>
+
+          <div class="form-row" style="margin-top: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1E293B; cursor: pointer;">
+              <input type="checkbox" id="cfgAddonAvailable" checked>
+              <span><strong>Active & Available for Purchase</strong></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="adminApp.closeAddonModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Add-on</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: PRINT SHIPPING LABEL & PACKING SLIP -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="shippingLabelModal">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Thermal Courier Shipping Label</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closeShippingLabelModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <div class="modal-body" id="shippingLabelContent">
+        <!-- Injected via JavaScript -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="adminApp.closeShippingLabelModal()">Close</button>
+        <button type="button" class="btn btn-primary" onclick="adminApp.printShippingLabel()">🖨️ Print Label</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: ADD / EDIT PLATFORM USER -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="userModal">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="userModalTitle">Add / Edit Platform User</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closeUserModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <form id="userForm" onsubmit="adminApp.handleSaveUser(event)">
+        <input type="hidden" id="usrId" value="">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Full Name *</label>
+              <input type="text" class="form-control" id="usrName" required placeholder="e.g. Ramesh Kulkarni">
+            </div>
+            <div class="form-group">
+              <label class="form-label">System Role *</label>
+              <select class="form-control" id="usrRole" required>
+                <option value="salesman">Field Sales Executive</option>
+                <option value="delivery">Van Delivery Agent</option>
+                <option value="accountant">Accountant / Billing Clerk</option>
+                <option value="distributor">Agency Owner / Distributor</option>
+                <option value="manager">Store / Warehouse Manager</option>
+                <option value="super_admin">Platform Super Admin</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Email Address *</label>
+              <input type="email" class="form-control" id="usrEmail" required placeholder="name@agency.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mobile Number *</label>
+              <input type="tel" class="form-control" id="usrPhone" required placeholder="+91 98200 12345">
+            </div>
+          </div>
+
+          <div class="form-row" id="usrPasswordRow">
+            <div class="form-group" style="grid-column: span 2;">
+              <label class="form-label">Account Password (for Mobile App Login)</label>
+              <input type="password" class="form-control" id="usrPassword" placeholder="Default: Password@123 (min 6 characters)">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Assigned Agency / Tenant</label>
+              <select class="form-control" id="usrTenantId">
+                <!-- Dynamically populated with tenants -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Account Status</label>
+              <select class="form-control" id="usrStatus">
+                <option value="active">Active (Full Access)</option>
+                <option value="suspended">Suspended (Blocked)</option>
+                <option value="pending">Pending Verification</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="adminApp.closeUserModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveUser">Save User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: RESET USER PASSWORD -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="userPasswordResetModal">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Reset User Credentials</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closeUserPasswordResetModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <form id="userPasswordResetForm" onsubmit="adminApp.handleSaveUserPasswordReset(event)">
+        <input type="hidden" id="resetPassUserId" value="">
+        <div class="modal-body">
+          <div style="background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 14px;">
+            <div style="font-size: 13px; font-weight: 700; color: var(--text-main);" id="resetPassUserName">User Name</div>
+            <div style="font-size: 11.5px; color: var(--text-muted);" id="resetPassUserEmail">email@domain.com</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">New Security Password *</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" class="form-control" id="resetPassNewInput" required minlength="6" placeholder="Enter new password (min 6 chars)">
+              <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.generateRandomPasswordForReset()" style="white-space: nowrap;">
+                ⚡ Auto
+              </button>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">User will immediately use this passcode to login on the Flutter mobile app.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="adminApp.closeUserPasswordResetModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Update Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: CREATE NEW B2B SALES ORDER / BILL -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="createOrderModal">
+    <div class="modal-card" style="max-width: 760px; width: 95%;">
+      <div class="modal-header">
+        <h3 class="modal-title">Record B2B Sales Order & Generate Bill</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closeCreateOrderModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <form id="createOrderForm" onsubmit="adminApp.handleSaveOrder(event)">
+        <div class="modal-body" style="max-height: 72vh; overflow-y: auto;">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Agency / Distributor *</label>
+              <select class="form-control" id="ordTenantSelect" required onchange="adminApp.onOrderTenantChange(this.value)">
+                <!-- populated dynamically -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Assigned Salesman *</label>
+              <input type="text" class="form-control" id="ordSalesmanName" required placeholder="e.g. Suresh Kumar (Beat 3)">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Retail Shop Name *</label>
+              <input type="text" class="form-control" id="ordShopName" required placeholder="e.g. Mahavir Super Mart">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Proprietor Name *</label>
+              <input type="text" class="form-control" id="ordOwnerName" required placeholder="e.g. Rajesh Patil">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Customer Mobile *</label>
+              <input type="tel" class="form-control" id="ordPhone" required placeholder="+91 98200 55443">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Shop Address / Market</label>
+              <input type="text" class="form-control" id="ordAddress" placeholder="e.g. Shop 4, Main Bazaar, Vashi">
+            </div>
+          </div>
+
+          <!-- Product Line Items -->
+          <div style="margin: 16px 0 8px 0; display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-size: 13px; color: var(--text-main);">Order Line Items (SKUs & Quantities)</strong>
+            <button type="button" class="btn btn-sm btn-outline" onclick="adminApp.addOrderLineItem()">
+              + Add Item Line
+            </button>
+          </div>
+
+          <div id="orderLineItemsContainer" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Line Item Rows injected dynamically -->
+          </div>
+
+          <!-- Totals Summary Card -->
+          <div style="background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-top: 16px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 6px;">
+              <span style="color: var(--text-muted);">Taxable Subtotal:</span>
+              <strong id="ordCalcSubtotal" style="color: var(--text-main);">₹0.00</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 6px;">
+              <span style="color: var(--text-muted);">CGST + SGST (Combined):</span>
+              <strong id="ordCalcGst" style="color: var(--emerald-text);">₹0.00</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 800; border-top: 1px solid var(--border); padding-top: 6px;">
+              <span>Grand Total:</span>
+              <span id="ordCalcGrandTotal" style="color: var(--indigo-text); font-family: var(--font-mono);">₹0.00</span>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-top: 16px;">
+            <div class="form-group">
+              <label class="form-label">Order Fulfillment Status</label>
+              <select class="form-control" id="ordStatus">
+                <option value="Pending">⏳ Pending Warehouse Pack</option>
+                <option value="Confirmed">📝 Confirmed / Ready</option>
+                <option value="Dispatched">🚚 Dispatched in Van</option>
+                <option value="Delivered">✅ Delivered to Shop</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Status & Method</label>
+              <div style="display: flex; gap: 8px;">
+                <select class="form-control" id="ordPaymentStatus" style="flex: 1;">
+                  <option value="Pending">Pending</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Partial">Partial</option>
+                </select>
+                <select class="form-control" id="ordPaymentMethod" style="flex: 1;">
+                  <option value="UPI / Soundbox">UPI / Soundbox</option>
+                  <option value="Cash on Delivery">Cash on Delivery</option>
+                  <option value="Khata Credit (15 Days)">Khata Credit (15 Days)</option>
+                  <option value="Bank NEFT">Bank NEFT</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 8px;">
+            <label class="form-label">Delivery Note / Beat Instructions</label>
+            <input type="text" class="form-control" id="ordNotes" placeholder="e.g. Afternoon delivery, call before arrival">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="adminApp.closeCreateOrderModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Order & Generate Bill</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: VIEW TAX INVOICE -->
+  <!-- ============================================== -->
+  <div class="modal-overlay" id="orderInvoiceModal">
+    <div class="modal-card" style="max-width: 680px; width: 95%;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="orderInvoiceModalTitle">GST Tax Invoice</h3>
+        <button class="btn btn-sm btn-outline" onclick="adminApp.closeInvoiceModal()" style="border:none; font-size:18px;">✕</button>
+      </div>
+      <div class="modal-body" id="orderInvoiceModalBody" style="max-height: 70vh; overflow-y: auto;">
+        <!-- Injected via JavaScript -->
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-outline" onclick="adminApp.closeInvoiceModal()">Close</button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-outline" id="btnShareInvoiceWhatsApp" style="color: #059669; border-color: #A7F3D0; font-weight: 600;" onclick="adminApp.shareInvoiceWhatsApp()">
+            💬 Share on WhatsApp
+          </button>
+          <button type="button" class="btn btn-primary" onclick="window.print()">🖨️ Print Tax Invoice</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast">
+    <span>✓</span> <span>Operation completed</span>
+  </div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!--
+    External scripts: pinned to exact versions. Add SRI integrity hashes
+    (see https://www.srihash.org/) once a Content-Security-Policy
+    `require-sri-for script` posture is desired. The gstatic Firebase CDN
+    does NOT publish SRI hashes, so Firebase scripts are intentionally
+    omitted below — load them only from the same Google CDN that the
+    `script-src` CSP whitelists.
+  -->
+  <!-- Firebase SDK removed — admin now uses Supabase as the single source
+       of truth. See apps/web-admin/README.md for the rationale. -->
+
+  <script src="/vendor/supabase.min.js"
+          onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'"></script>
+  <script src="/vendor/chart.umd.min.js"
+          onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js'"></script>
+  <!--
+    NOTE (operator): regenerate the two SRI hashes above whenever you bump
+    the pinned version, otherwise the browser will refuse to execute the
+    script. Use `openssl dgst -sha384 -binary file.js | openssl base64 -A`.
+  -->
+
+  <script>
+    // Supabase client config is fetched from the server at runtime via
+    // /api/config/supabase — avoids embedding the anon key in the HTML and
+    // means a key rotation does not require redeploying the admin bundle.
+    window.SUPABASE_CONFIG = window.SUPABASE_CONFIG || null;
+  </script>
+
+  <script src="app.js?v=5.0.0"></script>
+</body>
+</html>

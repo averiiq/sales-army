@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze *)",
+      "Bash(node --check server.js)",
+      "Bash(node --check app.js)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\somve\\\\Desktop\\\\projects\\\\client projects\\\\název-sir-project\\\\sales_army\" -Recurse -Filter \"*admin*\" -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Read(//c/Users/somve/Desktop/projects/client projects/naziv-sir-project/**)",
+      "Bash(find . -type d -name \"*admin*\")",
+      "Bash(supabase --version)",
+      "Bash(rm -f firebase.json firestore.rules firestore.indexes.json storage.rules salesarmy_firebase_database_structure.json apps/mobile/android/app/google-services.json apps/mobile/lib/firebase_options.dart .github/workflows/deploy.yml)",
+      "Bash(rm -rf functions/)",
+      "Bash(awk '/fs != null/ {print NR\": \"$0}' lib/core/services/app_state.dart)",
+      "Bash(python -c ' *)",
+      "Read(//c/Users/somve/AppData/Local/Temp/claude/C--Users-somve-Desktop-projects-client-projects-navnet-sir-project-sales-army/fcd72f52-3b0a-4bb8-a86f-fdc89a18aca1/tasks/**)",
+      "Bash(Get-ChildItem *)",
+      "PowerShell([System.Environment]::CurrentDirectory)",
+      "Bash(grep -i \"\\\\.dart$\")",
+      "PowerShell(Get-Item *)",
+      "Bash(flutter pub *)",
+      "Bash(awk 'NR<=755 || NR>=1197' lib/features/collections/presentation/screens/collections_tab.dart)",
+      "Bash(mv /tmp/collections_tab_fixed.dart lib/features/collections/presentation/screens/collections_tab.dart)"
+    ]
+  }
+}

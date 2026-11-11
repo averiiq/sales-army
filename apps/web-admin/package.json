@@ -1,0 +1,22 @@
+{
+  "name": "salesarmy-web-admin",
+  "version": "1.0.0",
+  "description": "SalesArmy Super Admin Web Portal - Manage Subscriptions, Trial & Discount Coupons, Printer Hardware Orders, and Freemium Tenants",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "live": "node scripts/start-live.js",
+    "tunnel": "npx --yes cloudflared tunnel --url http://127.0.0.1:3000",
+    "deploy:pages": "npx wrangler pages deploy . --project-name salesarmy-web-admin",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "salesarmy",
+    "admin-panel",
+    "monorepo",
+    "coupons",
+    "subscriptions"
+  ],
+  "author": "SalesArmy Team",
+  "license": "MIT"
+}

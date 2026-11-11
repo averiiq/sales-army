@@ -1,0 +1,6 @@
+Analyzing mobile...                                             
+
+warning - Unused import: 'package:salesarmy/core/theme/app_theme.dart'. Try removing the import directive - lib\features\auth\presentation\screens\login_screen.dart:9:8 - unused_import
+warning - Unused import: 'dart:convert'. Try removing the import directive - test\payment_preferences_dynamic_qr_test.dart:1:8 - unused_import
+
+2 issues found. (ran in 4.5s)

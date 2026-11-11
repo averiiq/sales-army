@@ -1,0 +1,80 @@
+00:00 +0: loading C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/authentication_security_test.dart
+00:00 +0: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/authentication_security_test.dart: fixed OTPs and demo passwords cannot authenticate without a verified backend
+00:00 +1: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/authentication_security_test.dart: Google failure never offers fabricated accounts or dispatches a login callback
+Google Sign-In note: Bad state: Provider unavailable
+00:02 +2: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole renders royal blue header, KPI cards, revenue, and subscribers matching screenshots
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:03 +3: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Download SaaS Reports modal matching Screenshot 2
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +4: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 1. Default coupons contain all Web Admin shared coupon codes
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +5: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 2. Applying Web Admin coupons updates appliedCoupon and computes accurate discounts
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +6: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 3. Unique User ID follows SA-USR-XXXX convention used in Web Admin
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +7: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 4. exportAdminSyncBundle outputs complete format compatible with Web Admin
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +8: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +8: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 5. importAdminSyncBundle correctly ingests Web Admin bundle payload
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +9: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 6. Remote feature flags kill switches disable mobile modules via canAccessModule
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +10: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 7. Emergency broadcast banner can be dynamically dispatched and dismissed
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +11: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +11: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 8. Full remote app control payload roundtrips through export/importAdminSyncBundle
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +12: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 9. Remote kill switch immediately disables purchases, expenses, reports, and thermal printing
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:04 +13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+00:04 +13: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/web_admin_seamless_sync_test.dart: Web Admin & Mobile App Seamless Interoperability Tests 10. Web Admin subscriber tenant governance controls mobile subscription tier and status
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+⚡ AppState: Persisted tenant locally: SalesArmy SaaS HQ (Selxo Distributor)
+00:04 +14: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Subscriber Details modal matching Screenshot 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:05 +15: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Delete Cash History modal matching Screenshots 4 & 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:06 +16: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Reset User Account modal matching Screenshot 3
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:07 +17: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 1. PlanAndPricingScreen renders executive tiers and directly opens checkout on tap
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:10 +18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole switches tabs to Subscriber, Features, and Plans with filter pills
+00:12 +18: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/subscription_express_checkout_flow_test.dart: Refined Subscription & 1-Step Express Checkout Flow Tests 2. Checkout renders coupons and shipping but requires server verification before activation
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:12 +19: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole switches tabs to Subscriber, Features, and Plans with filter pills
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:12 +20: loading C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart
+00:12 +20: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Plan tab renders Card 1, Card 2, Card 3 matching Screenshots 2, 3, 4
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:15 +21: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole opens Edit SaaS & Printer Pricing modal, recalculates annual, and saves pricing matching Screenshot 5
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:17 +22: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - AppState & TenantModel AppState defaults isGstBillingEnabled to true and toggles correctly
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:17 +23: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - AppState & TenantModel TenantModel serialization preserves isGstBillingEnabled
+00:17 +24: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - OrdersTab UI OrdersTab shows GST Bills tab and billing options when isGstBillingEnabled is true
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:20 +25: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole pauses and deletes coupons, and creates new coupon
+00:20 +25: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - OrdersTab UI OrdersTab hides GST Bills tab and billing options when isGstBillingEnabled is false
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:20 +26: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole pauses and deletes coupons, and creates new coupon
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:21 +27: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - Settings Switch MainShell settings sheet allows toggling GST Billing
+00:23 +27: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Setting tab allows toggling maintenance mode and triggering backup
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:23 +28: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - Settings Switch MainShell settings sheet allows toggling GST Billing
+00:24 +29: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - Settings Switch MainShell settings sheet allows toggling GST Billing
+00:25 +30: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/gst_billing_toggle_test.dart: GST Billing Toggle - Settings Switch MainShell settings sheet allows toggling GST Billing
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:26 +31: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Features tab renders SMS, Payment Gateway, and Company Details cards with interactive controls
+00:28 +32: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Logout Option in Setting tab triggers onSignOut when confirmed
+00:28 +33: C:/Users/somve/Desktop/projects/client projects/navnet-sir-project/sales_army/apps/mobile/test/super_admin_console_test.dart: SuperAdminConsole Features tab renders Remote Feature Kill Switches card and toggles live modules
+⚡ AppState: Loaded persisted tenant profile: SalesArmy SaaS HQ | UPI: null | Photo: false
+00:30 +34: All tests passed!
