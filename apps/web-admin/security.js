@@ -8,7 +8,7 @@ const PUBLIC_ROUTES = new Set([
   'GET /api/auth/roles',
   'POST /api/auth/login',
   'POST /api/auth/signup',
-  'GET /api/auth/tenants',
+  // 'GET /api/auth/tenants' removed — requires authentication to prevent tenant data exposure.
 ]);
 
 function bearerToken(req) {

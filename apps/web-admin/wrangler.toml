@@ -10,5 +10,6 @@ run_worker_first = true
 [vars]
 SUPABASE_URL = "https://ivwvqpeivnltshrxjhjx.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2d3ZxcGVpdm5sdHNocnhqaGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MTcyNTgsImV4cCI6MjEwNzM5MzI1OH0.pkwOLQUyP0Te719UKV5s6wZ_GNXDe9AOMaeqkH0H-iY"
-SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2d3ZxcGVpdm5sdHNocnhqaGp4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgxNzI1OCwiZXhwIjoyMTA3MzkzMjU4fQ.swVBzLlo-fQ3xc1ezYD_VcPKElnTKa6ZyBMjeU1sjxM"
-ENABLE_DEMO_AUTH = "true"
+# SUPABASE_SERVICE_ROLE_KEY must be set via `wrangler secret put SUPABASE_SERVICE_ROLE_KEY` — never in source.
+# SUPABASE_SERVICE_ROLE_KEY = ""
+ENABLE_DEMO_AUTH = "false"

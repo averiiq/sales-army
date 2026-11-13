@@ -109,29 +109,10 @@ export default {
           return json({ success: false, error: 'Email and password are required.' }, 400);
         }
 
-        const isSuperAdminAlias = [
-          'superadmin@salesarmy.saas',
-          'admin@salesarmy.com',
-          'admin@salesarmy.saas',
-          'admin',
-          'superadmin'
-        ].includes(email);
-
-        const isDemoPw = [
-          'admin',
-          'password',
-          'Password@123',
-          'password123',
-          'admin123',
-          'demo123',
-          '123456',
-          'SAAS-ADMIN-2026'
-        ].includes(password);
-
-        // Try live Supabase Auth first
+        // Authenticate strictly via Supabase — no demo aliases or backdoor passwords.
         try {
-          const authEmail = isSuperAdminAlias ? 'superadmin@salesarmy.saas' : email;
-          const authPw = (isSuperAdminAlias && isDemoPw) ? 'Password@123' : password;
+          const authEmail = email;
+          const authPw = password;
 
           const supaRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/token?grant_type=password`, {
             method: 'POST',
@@ -174,31 +155,7 @@ export default {
           }
         } catch (_) {}
 
-        // Fallback for demo / admin testing
-        if (isSuperAdminAlias || isDemoPw || env.ENABLE_DEMO_AUTH === 'true') {
-          return json({
-            success: true,
-            token: `demo_access_token_super_admin_${Date.now()}`,
-            refreshToken: null,
-            permissions: ['*'],
-            user: {
-              id: 'd1d1a54c-0280-4ec6-b09d-2bb9a91f831c',
-              uid: 'd1d1a54c-0280-4ec6-b09d-2bb9a91f831c',
-              name: 'Master Super Admin',
-              email: 'superadmin@salesarmy.saas',
-              role: 'super_admin',
-              tenantId: 'platform_tenant',
-              tenant_id: 'platform_tenant',
-              accountStatus: 'active'
-            },
-            tenant: {
-              id: 'f5f64429-bf69-48ee-b9a1-95e9dcbe7a0f',
-              tenant_id: 'platform_tenant',
-              business_name: 'SalesArmy Central Platform'
-            }
-          });
-        }
-
+        // Demo auth fallback removed for production security.
         return json({ success: false, error: 'Invalid email or password.' }, 401);
       }
 

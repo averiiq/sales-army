@@ -99,7 +99,7 @@ class AppState extends ChangeNotifier {
           if (decodedGw is Map<String, dynamic>) {
             mergedGw = (mergedGw ?? {})..addAll(decodedGw);
           }
-        } catch (_) {}
+        } catch (e) { debugPrint('Decode gateway config JSON: $e'); }
       }
 
       if (savedStaticQr != null && savedStaticQr.isNotEmpty) {
@@ -116,7 +116,7 @@ class AppState extends ChangeNotifier {
           if (decoded is Map<String, dynamic>) {
             restoredBank = decoded;
           }
-        } catch (_) {}
+        } catch (e) { debugPrint('Decode bank config JSON: $e'); }
       }
 
       if ((savedVpa != null && savedVpa.isNotEmpty) || mergedGw != null || restoredBank != null) {
@@ -559,8 +559,8 @@ class AppState extends ChangeNotifier {
     if (_bankAccounts.isEmpty) {
       acc['isPrimary'] = true;
     } else if (acc['isPrimary'] == true) {
-      for (var a in _bankAccounts) {
-        a['isPrimary'] = false;
+      for (int i = 0; i < _bankAccounts.length; i++) {
+        _bankAccounts[i] = Map<String, dynamic>.from(_bankAccounts[i])..['isPrimary'] = false;
       }
     }
     _bankAccounts.add(acc);
@@ -602,8 +602,8 @@ class AppState extends ChangeNotifier {
 
     final acc = Map<String, dynamic>.from(account);
     if (acc['isPrimary'] == true) {
-      for (var a in _bankAccounts) {
-        a['isPrimary'] = false;
+      for (int i = 0; i < _bankAccounts.length; i++) {
+        _bankAccounts[i] = Map<String, dynamic>.from(_bankAccounts[i])..['isPrimary'] = false;
       }
     }
     _bankAccounts[idx] = acc;
@@ -628,7 +628,7 @@ class AppState extends ChangeNotifier {
     final removed = _bankAccounts.where((a) => a['id'] == id).toList();
     _bankAccounts.removeWhere((a) => a['id'] == id);
     if (_bankAccounts.isNotEmpty && !_bankAccounts.any((a) => a['isPrimary'] == true)) {
-      _bankAccounts.first['isPrimary'] = true;
+      _bankAccounts[0] = Map<String, dynamic>.from(_bankAccounts[0])..['isPrimary'] = true;
     }
     _persistBankAccountsLocally();
     if (removed.isNotEmpty) {
@@ -648,11 +648,11 @@ class AppState extends ChangeNotifier {
 
   void setPrimaryBankAccount(String id) {
     String? bankName;
-    for (var a in _bankAccounts) {
-      final isCurrent = (a['id'] == id);
-      a['isPrimary'] = isCurrent;
+    for (int i = 0; i < _bankAccounts.length; i++) {
+      final isCurrent = (_bankAccounts[i]['id'] == id);
+      _bankAccounts[i] = Map<String, dynamic>.from(_bankAccounts[i])..['isPrimary'] = isCurrent;
       if (isCurrent) {
-        bankName = a['bankName'] as String?;
+        bankName = _bankAccounts[i]['bankName'] as String?;
       }
     }
     _persistBankAccountsLocally();
@@ -1042,13 +1042,13 @@ class AppState extends ChangeNotifier {
 
     for (int i = 0; i < _products.length; i++) {
       _products[i] = _products[i].copyWith(
-        stockQuantity: 100,
+        stockQuantity: 0,
         updatedAt: DateTime.now(),
       );
     }
 
-    _inHandCash = 18450.0;
-    _inAccountBalance = 142500.0;
+    _inHandCash = 0.0;
+    _inAccountBalance = 0.0;
     _syncBalancesToFirestore();
 
     // Persist emptied data across namespaced local storage
@@ -1076,7 +1076,9 @@ class AppState extends ChangeNotifier {
 
     try {
       await outboxManager.init();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('OutboxManager re-init after reset: $e');
+    }
 
     notifyListeners();
     return true;
@@ -1888,7 +1890,7 @@ class AppState extends ChangeNotifier {
       await prefs.remove(_prefsKeyBankAccounts);
       await prefs.remove(_prefsKeyNotifications);
       await prefs.remove(_prefsKeyLiquidBalances);
-    } catch (_) {}
+    } catch (e) { debugPrint('Clear local prefs on reset: $e'); }
 
     notifyListeners();
   }
@@ -2262,7 +2264,7 @@ class AppState extends ChangeNotifier {
     if (kReleaseMode || kIsWeb) return;
     try {
       if (Platform.environment.containsKey('FLUTTER_TEST')) return;
-    } catch (_) {}
+    } catch (e) { debugPrint('Check FLUTTER_TEST env: $e'); }
     syncWithPlatformBridge();
     _bridgeSyncTimer?.cancel();
     _bridgeSyncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
@@ -2289,7 +2291,7 @@ class AppState extends ChangeNotifier {
           return;
         }
         client.close();
-      } catch (_) {}
+      } catch (e) { debugPrint('Platform bridge sync: $e'); }
     }
   }
 
@@ -2463,7 +2465,7 @@ class AppState extends ChangeNotifier {
           debugPrint('Successfully posted hardware order to admin bridge at $host:3000');
           return;
         }
-      } catch (_) {}
+      } catch (e) { debugPrint('Post hardware order to bridge: $e'); }
     }
   }
 
@@ -2505,7 +2507,7 @@ class AppState extends ChangeNotifier {
           debugPrint('⚡ AppState: Synced tenant $tid to bridge server ($host:3000)');
           return;
         }
-      } catch (_) {}
+      } catch (e) { debugPrint('Sync tenant to bridge: $e'); }
     }
   }
 
@@ -2515,7 +2517,7 @@ class AppState extends ChangeNotifier {
     String matchedShopName = 'Retail Party';
     try {
       matchedShopName = _shops.firstWhere((s) => s.shopId == order.shopId).shopName;
-    } catch (_) {}
+    } catch (e) { debugPrint('Lookup shop name for order: $e'); }
 
     final orderMap = {
       'orderId': order.orderId,
@@ -2547,7 +2549,7 @@ class AppState extends ChangeNotifier {
           debugPrint('⚡ AppState: Synced order ${order.orderId} to bridge server ($host:3000)');
           return;
         }
-      } catch (_) {}
+      } catch (e) { debugPrint('Sync order to bridge: $e'); }
     }
   }
 
@@ -2570,7 +2572,7 @@ class AppState extends ChangeNotifier {
           debugPrint('⚡ AppState: Synced shop ${shop.shopId} to bridge server ($host:3000)');
           return;
         }
-      } catch (_) {}
+      } catch (e) { debugPrint('Sync shop to bridge: $e'); }
     }
   }
 
@@ -2593,7 +2595,7 @@ class AppState extends ChangeNotifier {
           debugPrint('⚡ AppState: Synced product ${product.productId} to bridge server ($host:3000)');
           return;
         }
-      } catch (_) {}
+      } catch (e) { debugPrint('Sync product to bridge: $e'); }
     }
   }
 
@@ -2626,7 +2628,7 @@ class AppState extends ChangeNotifier {
           debugPrint('⚡ AppState: Synced user $uid to bridge server ($host:3000)');
           return;
         }
-      } catch (_) {}
+      } catch (e) { debugPrint('Sync user to bridge: $e'); }
     }
   }
 
@@ -2644,7 +2646,7 @@ class AppState extends ChangeNotifier {
     if (tenantId.isEmpty) return;
     try {
       _supabasePrinterOrdersChannel?.unsubscribe();
-    } catch (_) {}
+    } catch (e) { debugPrint('Unsubscribe printer orders channel: $e'); }
     _supabasePrinterOrdersChannel = null;
 
     // Initial hydrate so UI has data before realtime fires.
@@ -2655,7 +2657,7 @@ class AppState extends ChangeNotifier {
         ..clear()
         ..addAll(rows);
       notifyListeners();
-    } catch (_) {}
+    } catch (e) { debugPrint('Fetch printer hardware orders: $e'); }
 
     _supabasePrinterOrdersChannel =
         SupabaseService.instance.listenToPrinterHardwareOrders(
@@ -2752,7 +2754,7 @@ class AppState extends ChangeNotifier {
     try {
       _supabaseTenantChannel?.unsubscribe();
       _supabaseTenantChannel = null;
-    } catch (_) {}
+    } catch (e) { debugPrint('Unsubscribe tenant channel on sign-out: $e'); }
     // Also kill the top-level (non-subcollection) listeners so a new login
     // doesn't stack a second generation of them on top of the old one.
     _pricingSubscription?.cancel();
@@ -2805,7 +2807,7 @@ class AppState extends ChangeNotifier {
       await prefs.remove('salesarmy_session_is_admin_v1');
       await prefs.remove('salesarmy_session_tenant_id_v1');
       await prefs.remove('salesarmy_session_uid_v1');
-    } catch (_) {}
+    } catch (e) { debugPrint('Clear session prefs on sign-out: $e'); }
   }
 
   void toggleSuperAdminMode(bool enable) {
@@ -2834,11 +2836,11 @@ class AppState extends ChangeNotifier {
     _tenantSubscription = null;
     try {
       _supabaseTenantChannel?.unsubscribe();
-    } catch (_) {}
+    } catch (e) { debugPrint('Unsubscribe tenant channel on switch: $e'); }
     _supabaseTenantChannel = null;
     try {
       _supabasePrinterOrdersChannel?.unsubscribe();
-    } catch (_) {}
+    } catch (e) { debugPrint('Unsubscribe printer orders on switch: $e'); }
     _supabasePrinterOrdersChannel = null;
     _cancelSubcollectionSubscriptions();
 
@@ -2919,7 +2921,7 @@ class AppState extends ChangeNotifier {
             Map<String, dynamic>? durableSettings;
             try {
               durableSettings = await sb.fetchPlatformSettings('tenant_profile_$tenantId');
-            } catch (_) {}
+            } catch (e) { debugPrint('Fetch durable platform settings: $e'); }
 
             final preservedUpiId = (cloudTenant.upiId != null && cloudTenant.upiId!.isNotEmpty)
                 ? cloudTenant.upiId
@@ -3593,7 +3595,7 @@ class AppState extends ChangeNotifier {
           await res.drain();
           client.close();
           if (res.statusCode == 200) break;
-        } catch (_) {}
+        } catch (e) { debugPrint('Post broadcast to bridge: $e'); }
       }
     }
   }
@@ -3673,7 +3675,7 @@ class AppState extends ChangeNotifier {
       if (currentUid != null) {
         await prefs.setString('salesarmy_session_uid_v1', currentUid!);
       }
-    } catch (_) {}
+    } catch (e) { debugPrint('Persist role session: $e'); }
   }
 
   void setActiveRole(String role) {
@@ -4661,6 +4663,7 @@ class AppState extends ChangeNotifier {
 
   /// Process a Sales Return: automatically restocks items in inventory and credits the shop balance
   Future<void> processSalesReturn(SalesReturnModel salesReturn) async {
+    if (_salesReturns.any((r) => r.returnId == salesReturn.returnId)) return;
     _salesReturns.insert(0, salesReturn);
 
     // 1. Automatically restore returned item quantities back into inventory stock
@@ -4694,7 +4697,7 @@ class AppState extends ChangeNotifier {
         createdByUid: currentUid ?? 'user',
         type: 'CREDIT_NOTE',
         referenceId: salesReturn.returnId,
-        amount: salesReturn.totalAmount,
+        amount: -salesReturn.totalAmount,
         balanceAfter: newOutstanding,
         description: 'Sales Return ${salesReturn.returnNumber} (${salesReturn.reason}) - $totalUnitsRestocked items restocked',
         date: salesReturn.date,
@@ -4781,7 +4784,7 @@ class AppState extends ChangeNotifier {
 
     if (shopIdx != -1 && reverseLedger) {
       final old = _shops[shopIdx];
-      newOutstanding = old.currentOutstanding - invoice.grandTotal;
+      newOutstanding = (old.currentOutstanding - invoice.grandTotal).clamp(0.0, double.infinity);
       _shops[shopIdx] = old.copyWith(currentOutstanding: newOutstanding);
 
       reversalLedgerEntry = LedgerEntryModel(
@@ -4912,6 +4915,7 @@ class AppState extends ChangeNotifier {
   // Actions: Payments
   Future<void> recordPayment(PaymentModel payment) async {
     if (!payment.amount.isFinite || payment.amount <= 0) throw ArgumentError('Payment must be a positive amount');
+    if (_payments.any((p) => p.paymentId == payment.paymentId)) return;
     if (SupabaseService.instance.client != null) {
       await SupabaseService.instance.insertPayment(tenantId: currentTenantId ?? _tenant.tenantId, paymentData: payment.toMap());
     }
@@ -4924,7 +4928,7 @@ class AppState extends ChangeNotifier {
 
     if (shopIdx != -1) {
       final old = _shops[shopIdx];
-      newOutstanding = old.currentOutstanding - payment.amount;
+      newOutstanding = (old.currentOutstanding - payment.amount).clamp(0.0, double.infinity);
       _shops[shopIdx] = old.copyWith(currentOutstanding: newOutstanding);
 
       // Add payment ledger entry locally
@@ -5048,7 +5052,7 @@ class AppState extends ChangeNotifier {
     double newOutstanding = 0.0;
     if (shopIdx != -1) {
       final old = _shops[shopIdx];
-      newOutstanding = old.currentOutstanding + payment.amount;
+      newOutstanding = (old.currentOutstanding + payment.amount).clamp(0.0, double.infinity);
       _shops[shopIdx] = old.copyWith(currentOutstanding: newOutstanding);
 
       // Reversal ledger entry
@@ -5312,13 +5316,13 @@ class AppState extends ChangeNotifier {
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('salesarmy_pref_profile_image_url_v2');
-      } catch (_) {}
+      } catch (e) { debugPrint('Clear profile image pref: $e'); }
     }
     if (clearLogo) {
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('salesarmy_pref_logo_url_v2');
-      } catch (_) {}
+      } catch (e) { debugPrint('Clear logo pref: $e'); }
     }
 
     await _persistTenantLocally(mergedWithExisting);
@@ -5397,7 +5401,7 @@ class AppState extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('salesarmy_pref_gst_billing_enabled_v1', enabled);
-    } catch (_) {}
+    } catch (e) { debugPrint('Persist GST billing pref: $e'); }
 
     final tid = currentTenantId ?? _tenant.tenantId;
     if (tid.isNotEmpty) {
@@ -5949,11 +5953,11 @@ class AppState extends ChangeNotifier {
 
     try {
       _supabaseTenantChannel?.unsubscribe();
-    } catch (_) {}
+    } catch (e) { debugPrint('Unsubscribe tenant channel on dispose: $e'); }
     _supabaseTenantChannel = null;
     try {
       _supabasePrinterOrdersChannel?.unsubscribe();
-    } catch (_) {}
+    } catch (e) { debugPrint('Unsubscribe printer orders on dispose: $e'); }
     _supabasePrinterOrdersChannel = null;
 
     _cancelSubcollectionSubscriptions();

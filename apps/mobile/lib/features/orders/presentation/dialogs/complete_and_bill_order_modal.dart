@@ -9,6 +9,7 @@ import 'package:salesarmy/features/billing/data/models/transaction_item_snapshot
 import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/services/printer_service.dart';
 import 'package:salesarmy/features/billing/data/models/gst_slab_model.dart';
+import 'package:salesarmy/features/billing/data/services/gst_engine.dart';
 import 'package:salesarmy/features/profile/presentation/screens/gst_configuration_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:salesarmy/core/utils/app_image_helper.dart';
@@ -147,35 +148,21 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
     _effectiveCart.forEach((productId, qty) {
       if (qty <= 0) return;
       final productMatches = appState.products.where((p) => p.productId == productId);
-      final product = productMatches.isNotEmpty
-          ? productMatches.first
-          : (appState.products.isNotEmpty
-              ? appState.products.first
-              : ProductModel(
-                  productId: productId,
-                  name: 'Product $productId',
-                  variant: 'Standard',
-                  size: 'Item',
-                  categoryId: 'General',
-                  basePrice: 0.0,
-                  wholesalePrice: 0.0,
-                  retailPrice: 0.0,
-                  customerPrice: 0.0,
-                  gstRate: 0.0,
-                  stockQuantity: 0,
-                  lowStockAlertQty: 0,
-                ));
+      if (productMatches.isEmpty) return; // Skip unknown products instead of substituting wrong product
+      final product = productMatches.first;
 
       final productPrice = _getProductPrice(product, _selectedPricingCategory);
-      final taxable = productPrice * qty;
+      final taxable = GstEngine.roundToTwoDecimals(productPrice * qty);
       final rate = appliedSlab != null ? appliedSlab.rate : product.gstRate;
-      final gst = taxable * (rate / 100);
+      final gst = GstEngine.roundToTwoDecimals(taxable * (rate / 100));
       subtotal += taxable;
       totalGst += gst;
     });
 
+    subtotal = GstEngine.roundToTwoDecimals(subtotal);
+    totalGst = GstEngine.roundToTwoDecimals(totalGst);
     final effectiveGst = (withGst && appState.isGstBillingEnabled) ? totalGst : 0.0;
-    final grandTotal = subtotal + effectiveGst;
+    final grandTotal = GstEngine.roundToTwoDecimals(subtotal + effectiveGst);
 
     return (subtotal: subtotal, gstTax: effectiveGst, grandTotal: grandTotal, appliedSlab: appliedSlab);
   }
@@ -209,40 +196,25 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
       final buyerState = AppState.getStateNameFromCode(buyerStateCode);
       final isIntraState = sellerStateCode == buyerStateCode;
 
-      final double cgstAmount = (_isGstCompliance && isIntraState) ? totalGst / 2 : 0.0;
-      final double sgstAmount = (_isGstCompliance && isIntraState) ? totalGst / 2 : 0.0;
+      // Use GstEngine rounding to prevent CGST + SGST != totalGst drift
+      final double cgstAmount = (_isGstCompliance && isIntraState) ? GstEngine.roundToTwoDecimals(totalGst / 2) : 0.0;
+      final double sgstAmount = (_isGstCompliance && isIntraState) ? GstEngine.roundToTwoDecimals(totalGst - cgstAmount) : 0.0;
       final double igstAmount = (_isGstCompliance && !isIntraState) ? totalGst : 0.0;
 
       final orderItems = <TransactionItemSnapshot>[];
       _effectiveCart.forEach((productId, qty) {
         if (qty <= 0) return;
         final productMatches = appState.products.where((p) => p.productId == productId);
-        final product = productMatches.isNotEmpty
-            ? productMatches.first
-            : (appState.products.isNotEmpty
-                ? appState.products.first
-                : ProductModel(
-                    productId: productId,
-                    name: 'Product $productId',
-                    variant: 'Standard',
-                    size: 'Item',
-                    categoryId: 'General',
-                    basePrice: 0.0,
-                    wholesalePrice: 0.0,
-                    retailPrice: 0.0,
-                    customerPrice: 0.0,
-                    gstRate: 0.0,
-                    stockQuantity: 0,
-                    lowStockAlertQty: 0,
-                  ));
+        if (productMatches.isEmpty) return; // Skip unknown products instead of substituting wrong product
+        final product = productMatches.first;
 
         final productPrice = _getProductPrice(product, _selectedPricingCategory);
-        final taxable = productPrice * qty;
+        final taxable = GstEngine.roundToTwoDecimals(productPrice * qty);
         final rate = appliedSlab != null ? appliedSlab.rate : product.gstRate;
-        final gst = _isGstCompliance ? taxable * (rate / 100) : 0.0;
+        final gst = _isGstCompliance ? GstEngine.roundToTwoDecimals(taxable * (rate / 100)) : 0.0;
 
-        final itemCgst = (_isGstCompliance && isIntraState) ? gst / 2 : 0.0;
-        final itemSgst = (_isGstCompliance && isIntraState) ? gst / 2 : 0.0;
+        final itemCgst = (_isGstCompliance && isIntraState) ? GstEngine.roundToTwoDecimals(gst / 2) : 0.0;
+        final itemSgst = (_isGstCompliance && isIntraState) ? GstEngine.roundToTwoDecimals(gst - itemCgst) : 0.0;
         final itemIgst = (_isGstCompliance && !isIntraState) ? gst : 0.0;
 
         orderItems.add(
@@ -264,9 +236,10 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
         );
       });
 
-      final orderId = widget.existingOrder?.orderId ?? 'ORD-2026-${(appState.orders.length + 1).toString().padLeft(3, '0')}';
+      // Use timestamp-based IDs to prevent collision under concurrent use
+      final orderId = widget.existingOrder?.orderId ?? 'ORD-${now.year}-${now.millisecondsSinceEpoch.toRadixString(36).toUpperCase()}';
       final invoiceId = 'inv_${now.millisecondsSinceEpoch}';
-      final invoiceNumber = 'INV-2026-${(appState.invoices.length + 1).toString().padLeft(4, '0')}';
+      final invoiceNumber = 'INV-${now.year}-${(appState.invoices.length + 1).toString().padLeft(4, '0')}-${now.millisecondsSinceEpoch % 10000}';
 
       // Payment calculations
       final paidAmount = cashOrPaidAmount.clamp(0.0, grandTotal);

@@ -19,14 +19,17 @@ class SupabaseService {
     defaultValue: 'https://ivwvqpeivnltshrxjhjx.supabase.co',
   );
 
+  // Anon key should be provided via --dart-define at build time.
   static const String defaultSupabaseAnonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
-    defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2d3ZxcGVpdm5sdHNocnhqaGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MTcyNTgsImV4cCI6MjEwNzM5MzI1OH0.pkwOLQUyP0Te719UKV5s6wZ_GNXDe9AOMaeqkH0H-iY',
+    defaultValue: '',
   );
 
+  // Service role key must ONLY be provided via --dart-define at build time.
+  // It must NEVER have a hardcoded default — it bypasses all RLS policies.
   static const String defaultSupabaseServiceRoleKey = String.fromEnvironment(
     'SUPABASE_SERVICE_ROLE_KEY',
-    defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2d3ZxcGVpdm5sdHNocnhqaGp4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgxNzI1OCwiZXhwIjoyMTA3MzkzMjU4fQ.swVBzLlo-fQ3xc1ezYD_VcPKElnTKa6ZyBMjeU1sjxM',
+    defaultValue: '',
   );
 
   /// Google OAuth Web Client ID — created in Google Cloud Console and added
@@ -55,12 +58,8 @@ class SupabaseService {
     String? url,
     String? anonKey,
   }) async {
-    final targetUrl = (url != null && url.isNotEmpty)
-        ? url
-        : (defaultSupabaseUrl.isNotEmpty ? defaultSupabaseUrl : 'https://ivwvqpeivnltshrxjhjx.supabase.co');
-    final targetKey = (anonKey != null && anonKey.isNotEmpty)
-        ? anonKey
-        : (defaultSupabaseAnonKey.isNotEmpty ? defaultSupabaseAnonKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2d3ZxcGVpdm5sdHNocnhqaGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MTcyNTgsImV4cCI6MjEwNzM5MzI1OH0.pkwOLQUyP0Te719UKV5s6wZ_GNXDe9AOMaeqkH0H-iY');
+    final targetUrl = (url != null && url.isNotEmpty) ? url : defaultSupabaseUrl;
+    final targetKey = (anonKey != null && anonKey.isNotEmpty) ? anonKey : defaultSupabaseAnonKey;
 
     if (targetUrl.isEmpty || targetKey.isEmpty) {
       _isInitialized = false;
@@ -384,6 +383,7 @@ class SupabaseService {
       }
     } catch (e) {
       debugPrint('registerAgencyOwnerAndSeed auth notice: $e');
+      return {'success': false, 'error': 'Auth setup failed: $e'};
     }
 
     // 3. Upsert Tenant record in public.tenants
@@ -440,7 +440,9 @@ class SupabaseService {
     // 5. Sign in with credentials to initialize live Supabase session
     try {
       await signInWithEmailPassword(email: cleanEmail, password: cleanPassword);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Post-registration sign-in note: $e');
+    }
 
     return {
       'success': true,
@@ -593,7 +595,9 @@ class SupabaseService {
     if (client != null) {
       try {
         await client!.from('profiles').upsert(profilePayload);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Profile upsert via client SDK: $e');
+      }
     }
   }
 
@@ -647,7 +651,8 @@ class SupabaseService {
           .from('tenants')
           .select('tenant_id, business_name, contact_person, mobile, city, state, plan_id, subscription_status')
           .eq('is_active', true)
-          .order('business_name');
+          .order('business_name')
+          .limit(1000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchActiveTenants error: $e');
@@ -843,9 +848,11 @@ class SupabaseService {
           .from('printer_hardware_orders')
           .select('*')
           .eq('tenant_id', tenantId)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .limit(100);
       return List<Map<String, dynamic>>.from(data);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Supabase fetchPrinterHardwareOrders: $e');
       return [];
     }
   }
@@ -899,7 +906,8 @@ class SupabaseService {
             .select('*')
             .eq('tenant_id', tenantId)
             .eq('is_active', true)
-            .order('name');
+            .order('name')
+            .limit(5000);
         prods = List<Map<String, dynamic>>.from(data);
       } catch (e) {
         debugPrint('Supabase fetchProducts client error: $e');
@@ -936,7 +944,8 @@ class SupabaseService {
             .select('*')
             .eq('tenant_id', tenantId)
             .eq('is_active', true)
-            .order('shop_name');
+            .order('shop_name')
+            .limit(5000);
         shops = List<Map<String, dynamic>>.from(data);
       } catch (e) {
         debugPrint('Supabase fetchShops client error: $e');
@@ -971,7 +980,8 @@ class SupabaseService {
           .from('orders')
           .select('*, order_items(*)')
           .eq('tenant_id', tenantId)
-          .order('order_date', ascending: false);
+          .order('order_date', ascending: false)
+          .limit(5000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchOrders error: $e');
@@ -980,9 +990,11 @@ class SupabaseService {
             .from('orders')
             .select('*')
             .eq('tenant_id', tenantId)
-            .order('order_date', ascending: false);
+            .order('order_date', ascending: false)
+            .limit(5000);
         return List<Map<String, dynamic>>.from(data);
-      } catch (_) {
+      } catch (e2) {
+        debugPrint('Supabase fetchOrders fallback: $e2');
         return [];
       }
     }
@@ -1221,7 +1233,8 @@ class SupabaseService {
           .from('payments')
           .select('*')
           .eq('tenant_id', tenantId)
-          .order('payment_date', ascending: false);
+          .order('payment_date', ascending: false)
+          .limit(5000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchPayments error: $e');
@@ -1268,7 +1281,7 @@ class SupabaseService {
       if (shopId != null) {
         query = query.eq('shop_id', shopId);
       }
-      final data = await query.order('created_at', ascending: false);
+      final data = await query.order('created_at', ascending: false).limit(5000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchLedgerEntries error: $e');
@@ -1284,7 +1297,8 @@ class SupabaseService {
           .select('*')
           .eq('tenant_id', tenantId)
           .isFilter('cancelled_at', null)
-          .order('invoice_date', ascending: false);
+          .order('invoice_date', ascending: false)
+          .limit(5000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchInvoices error: $e');
@@ -1499,7 +1513,8 @@ class SupabaseService {
           .from('visits')
           .select('*')
           .eq('tenant_id', tenantId)
-          .order('scheduled_date', ascending: false);
+          .order('scheduled_date', ascending: false)
+          .limit(5000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchVisits error: $e');
@@ -1847,7 +1862,8 @@ class SupabaseService {
           .from('expenses')
           .select('*')
           .eq('tenant_id', tenantId)
-          .order('date', ascending: false);
+          .order('date', ascending: false)
+          .limit(5000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchExpenses note: $e');
@@ -1889,7 +1905,8 @@ class SupabaseService {
           .from('purchases')
           .select('*')
           .eq('tenant_id', tenantId)
-          .order('date', ascending: false);
+          .order('date', ascending: false)
+          .limit(5000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchPurchases note: $e');
@@ -1933,7 +1950,8 @@ class SupabaseService {
           .from('reminders')
           .select('*')
           .eq('tenant_id', tenantId)
-          .order('due_date', ascending: true);
+          .order('due_date', ascending: true)
+          .limit(5000);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       debugPrint('Supabase fetchReminders note: $e');

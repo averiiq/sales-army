@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salesarmy/features/auth/data/models/user_model.dart';
 import 'package:salesarmy/features/admin/data/models/tenant_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
@@ -211,34 +209,8 @@ class AuthService {
           password: cleanPassword,
         );
       } catch (e) {
-        debugPrint('Supabase signInWithEmailPassword initial attempt: $e');
-        try {
-          final existingUser = await SupabaseService.instance.adminFindUserByEmail(cleanEmail);
-          if (existingUser != null) {
-            final uid = existingUser['id']?.toString();
-            if (uid != null) {
-              await SupabaseService.instance.adminConfirmAndSetPassword(uid, password: cleanPassword);
-              res = await SupabaseService.instance.signInWithEmailPassword(
-                email: cleanEmail,
-                password: cleanPassword,
-              );
-            }
-          } else if (cleanPassword.length >= 6) {
-            final newUser = await SupabaseService.instance.adminCreateUser(
-              email: cleanEmail,
-              password: cleanPassword,
-              name: cleanEmail.split('@').first,
-            );
-            if (newUser != null) {
-              res = await SupabaseService.instance.signInWithEmailPassword(
-                email: cleanEmail,
-                password: cleanPassword,
-              );
-            }
-          }
-        } catch (repairErr) {
-          debugPrint('Supabase admin auto-heal notice: $repairErr');
-        }
+        if (kDebugMode) debugPrint('Supabase signInWithEmailPassword attempt: $e');
+        // Login failed — do NOT auto-create accounts. Users must register explicitly.
       }
 
       if (res?.user != null) {
@@ -356,7 +328,8 @@ class AuthService {
     supa.User? verifiedUser;
     String? accessToken;
 
-    if (SupabaseService.instance.isInitialized && cleanOtp != '123456') {
+    // Verify OTP strictly through Supabase — no bypass codes in production.
+    if (SupabaseService.instance.isInitialized) {
       try {
         final authRes = await SupabaseService.instance.verifyEmailOtp(
           email: cleanEmail,
@@ -365,61 +338,7 @@ class AuthService {
         verifiedUser = authRes?.user;
         accessToken = authRes?.session?.accessToken;
       } catch (e) {
-        debugPrint('Supabase verifyEmailOtp token note: $e');
-      }
-    }
-
-    // QA recovery test fixture
-    if (!SupabaseService.instance.isInitialized &&
-        cleanEmail == 'vermajatin477@gmail.com' &&
-        cleanOtp == '123456') {
-      return AppAuthResult.failure('Your workspace is not configured. Please contact your administrator.');
-    }
-
-    // Fallback: master code / admin-provisioned flow
-    if (verifiedUser == null && (cleanOtp == '123456' || cleanOtp.length >= 4) &&
-        SupabaseService.instance.isInitialized) {
-      try {
-        final existing = await SupabaseService.instance.adminFindUserByEmail(cleanEmail);
-        if (existing != null) {
-          final uid = existing['id']?.toString();
-          if (uid != null) {
-            await SupabaseService.instance.adminConfirmAndSetPassword(uid);
-            // Fetch user through supabase so we route through the standard builder.
-            final tempRes = await SupabaseService.instance.signInWithEmailPassword(
-              email: cleanEmail,
-              password: 'User@${DateTime.now().millisecondsSinceEpoch}',
-            ).catchError((_) => null);
-            if (tempRes?.user != null) {
-              return await _buildAuthResultFromSupabase(tempRes!.user!, cleanEmail, tempRes.session?.accessToken);
-            }
-            // Fall back to a profile-only result when sign-in session isn't retrievable.
-            var profile = await SupabaseService.instance.fetchUserProfile(uid);
-            profile ??= {
-              'id': uid,
-              'email': cleanEmail,
-              'name': cleanEmail.split('@').first,
-              'role': 'Owner',
-              'tenant_id': '',
-            };
-            final tenantId = profile['tenant_id']?.toString() ?? '';
-            if (tenantId.isEmpty) {
-              return AppAuthResult.failure('Your account is not linked to a workspace. Please sign up to onboard your agency.');
-            }
-            return AppAuthResult.success(
-              uid: uid,
-              email: cleanEmail,
-              name: profile['name']?.toString() ?? cleanEmail.split('@').first,
-              role: 'Owner',
-              tenantId: tenantId,
-              profile: profile,
-            );
-          }
-        } else {
-          return AppAuthResult.failure('Your account is not linked to a workspace. Please sign up to onboard your agency.');
-        }
-      } catch (e) {
-        debugPrint('verifyEmailOtp admin fallback note: $e');
+        if (kDebugMode) debugPrint('Supabase verifyEmailOtp token note: $e');
       }
     }
 

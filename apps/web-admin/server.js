@@ -1104,10 +1104,7 @@ async function verifyAdminAuth(req) {
     }
     const authHeader = req.headers.authorization;
     const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-    const demoAuthPermitted = process.env.ENABLE_DEMO_AUTH !== 'false';
-    if (demoAuthPermitted && token && token.startsWith('demo_access_token_super_admin')) {
-      return { authorized: true, user: { role: 'super_admin', email: 'superadmin@salesarmy.saas', tenant_id: 'platform_tenant' }, error: null };
-    }
+    // Demo auth removed for production security. Only real Supabase auth is accepted.
     return { authorized: false, user, error: 'Super Admin authentication required.' };
   } catch (_) {
     return { authorized: false, error: 'Authentication unavailable. Please retry.' };
@@ -1737,15 +1734,7 @@ const server = http.createServer(async (req, res) => {
         password
       }, true);
 
-      // If user typed admin@salesarmy.com or admin alias with demo password, try canonical superadmin@salesarmy.saas
-      const isSuperAdminAlias = ['superadmin@salesarmy.saas', 'admin@salesarmy.com', 'admin@salesarmy.saas', 'admin', 'superadmin'].includes(cleanEmail);
-      if ((!tokenRes || tokenRes.status !== 200) && isSuperAdminAlias) {
-        const canonicalPw = ['admin', 'password', 'Password@123', 'admin123', 'demo123', 'SAAS-ADMIN-2026'].includes(password) ? 'Password@123' : password;
-        tokenRes = await supabaseAuthRequest('POST', 'token?grant_type=password', {
-          email: 'superadmin@salesarmy.saas',
-          password: canonicalPw
-        }, true);
-      }
+      // Demo alias/password remapping removed for production security.
 
       if (tokenRes && tokenRes.status === 200) {
         try {
@@ -1789,46 +1778,7 @@ const server = http.createServer(async (req, res) => {
         } catch (_) {}
       }
 
-      // 2. Demo Seeded Accounts Fallback
-      const demoAuthPermitted = process.env.ENABLE_DEMO_AUTH !== 'false';
-      if (!authSuccess && demoAuthPermitted) {
-        const seedUsers = [
-          { email: 'superadmin@salesarmy.saas', role: 'super_admin', tenant_id: 'platform_tenant', name: 'Master Super Admin', id: 'c5d3eb2b-08b8-4a4c-9082-6db533d3155e' },
-          { email: 'admin@salesarmy.com', role: 'super_admin', tenant_id: 'platform_tenant', name: 'Master Super Admin', id: 'c5d3eb2b-08b8-4a4c-9082-6db533d3155e' },
-          { email: 'distributor@salesarmy.com', role: 'owner', tenant_id: 'tenant_shree_ganesh_traders', name: 'Vikram Malhotra', id: 'd981a54b-bde0-4455-98ea-22885e4565f1' },
-          { email: 'sales@salesarmy.com', role: 'sales_person', tenant_id: 'tenant_shree_ganesh_traders', name: 'Amit Sharma', id: '6e9895fb-52d1-448f-92db-750019d6f701' },
-          { email: 'accountant@salesarmy.com', role: 'accountant', tenant_id: 'tenant_shree_ganesh_traders', name: 'Pooja Patel', id: '579aff9a-a71a-4777-a1e3-88168db006b6' },
-          { email: 'delivery@salesarmy.com', role: 'delivery_agent', tenant_id: 'tenant_shree_ganesh_traders', name: 'Suresh Kumar', id: 'bb3c8d40-f99b-4e05-a349-3a4243f6b46f' },
-          { email: 'manager@salesarmy.com', role: 'manager', tenant_id: 'tenant_shree_ganesh_traders', name: 'Rahul Verma', id: '19cfaf3a-b1a4-4965-ae76-4eed1acc1148' }
-        ];
-
-        let matchedSeed = seedUsers.find(u => u.email === cleanEmail);
-        if (!matchedSeed && isSuperAdminAlias) {
-          matchedSeed = seedUsers[0]; // Super Admin fallback
-        }
-
-        const validDemoPw = [
-          'admin',
-          'password',
-          'Password@123',
-          'password123',
-          'admin123',
-          'demo123',
-          '123456',
-          'SAAS-ADMIN-2026'
-        ].includes(password);
-
-        if (matchedSeed && (validDemoPw || isSuperAdminAlias)) {
-          matchedProfile = matchedSeed;
-          token = `demo_access_token_${matchedSeed.role}_${Date.now()}`;
-          matchedTenant = (platformState.tenants || []).find(t => t.id === matchedSeed.tenant_id || t.tenantId === matchedSeed.tenant_id) || {
-            tenant_id: matchedSeed.tenant_id,
-            business_name: matchedSeed.tenant_id === 'platform_tenant' ? 'SalesArmy Platform Central' : 'Shree Ganesh FMCG Distributors'
-          };
-          authSuccess = true;
-          loginAttemptsByEmail.delete(cleanEmail);
-        }
-      }
+      // Demo seeded accounts fallback removed for production security.
 
       if (!authSuccess || !matchedProfile || matchedProfile.is_active === false || (matchedProfile.account_status && matchedProfile.account_status !== 'active')) {
         res.writeHead(401, { 'Content-Type': 'application/json' });

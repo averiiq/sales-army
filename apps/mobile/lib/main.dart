@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 import 'package:salesarmy/features/auth/data/services/auth_service.dart';
@@ -15,6 +16,16 @@ import 'package:salesarmy/core/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Global error handler — prevents red screen of death in release builds.
+  FlutterError.onError = (details) {
+    if (kDebugMode) {
+      FlutterError.presentError(details);
+    } else {
+      // In release mode, log silently instead of showing red screen.
+      debugPrint('FlutterError: ${details.exceptionAsString()}');
+    }
+  };
 
   try {
     await SupabaseService.instance.initialize();
@@ -39,7 +50,10 @@ class MyApp extends StatelessWidget {
       ],
       child: Consumer<AppState>(
         builder: (context, appState, _) {
-          NotificationService.instance.initialize(appState);
+          // initialize once — subsequent calls are guarded internally.
+          if (!NotificationService.instance.isInitialized) {
+            NotificationService.instance.initialize(appState);
+          }
           return MaterialApp(
             navigatorKey: rootNavigatorKey,
             title: 'SalesArmy',
@@ -126,7 +140,9 @@ class _AppEntryWrapperState extends State<AppEntryWrapper> {
         if (isSuperAdmin) {
           try {
             appState.toggleSuperAdminMode(true);
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('toggleSuperAdminMode on restore: $e');
+          }
         }
         setState(() {
           _loggedIn = true;
@@ -140,7 +156,9 @@ class _AppEntryWrapperState extends State<AppEntryWrapper> {
         if (supaClient != null) {
           try {
             await supaClient.auth.refreshSession().timeout(const Duration(seconds: 3));
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('Session refresh on restore: $e');
+          }
 
           final profile = await SupabaseService.instance
               .fetchUserProfile(supaUser.id)
@@ -148,21 +166,17 @@ class _AppEntryWrapperState extends State<AppEntryWrapper> {
           if (profile != null && profile['is_active'] != false) {
             final targetRole = AuthService.mapDbRoleToAppRole(
                 profile['role']?.toString(), supaUser.email ?? '');
-            // Profile MUST carry a tenant_id — otherwise this account was
-            // never properly onboarded and must not be allowed in. Previous
-            // fallback to `tenant_shree_ganesh_traders` leaked data across
-            // workspaces.
             final rawTenantId = profile['tenant_id']?.toString();
             final targetTenantId = (rawTenantId != null && rawTenantId.isNotEmpty)
                 ? rawTenantId
                 : (targetRole == 'super_admin' ? 'platform_tenant' : '');
 
             if (targetTenantId.isEmpty) {
-              // Session is unusable — profile exists but is unassigned to a
-              // tenant. Force sign-out so the user re-registers properly.
               try {
                 await supaClient.auth.signOut();
-              } catch (_) {}
+              } catch (e) {
+                debugPrint('Sign-out unassigned profile: $e');
+              }
               return;
             }
 
@@ -173,7 +187,9 @@ class _AppEntryWrapperState extends State<AppEntryWrapper> {
               if (targetRole == 'super_admin') {
                 try {
                   appState.toggleSuperAdminMode(true);
-                } catch (_) {}
+                } catch (e) {
+                  debugPrint('toggleSuperAdminMode on Supabase restore: $e');
+                }
               }
               await _saveSession(isLoggedIn: true, role: targetRole, tenantId: targetTenantId, uid: supaUser.id);
               setState(() {

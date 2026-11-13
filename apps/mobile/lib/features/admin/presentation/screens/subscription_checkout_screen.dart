@@ -119,7 +119,7 @@ class _SubscriptionCheckoutScreenState extends State<SubscriptionCheckoutScreen>
   String _getDeliveryAddress(TenantModel tenant) {
     if (_selectedAddressType == 0) {
       final addr = tenant.address ?? tenant.warehouseAddress ?? 'Registered Shop Address';
-      final contact = '${tenant.firmName ?? "Shop"} (${tenant.representativeName ?? "Owner"}) • Ph: ${tenant.mobile ?? tenant.phone ?? "9876543210"}';
+      final contact = '${tenant.firmName ?? "Shop"} (${tenant.representativeName ?? "Owner"})${(tenant.mobile ?? tenant.phone) != null ? " • Ph: ${tenant.mobile ?? tenant.phone}" : ""}';
       return '$contact\n$addr';
     } else {
       final parts = [

@@ -24,11 +24,25 @@ class NotificationService {
   AppState? _appState;
   OverlayEntry? _currentBannerEntry;
   Timer? _dismissTimer;
+  bool _initialized = false;
+  bool get isInitialized => _initialized;
 
   /// Initialize notification listeners and tie to AppState
   void initialize(AppState appState) {
+    if (_initialized) return;
+    _initialized = true;
     _appState = appState;
     _setupSupabaseRealtime(appState);
+  }
+
+  /// Dispose all resources to prevent leaks.
+  void dispose() {
+    _dismissTimer?.cancel();
+    _dismissTimer = null;
+    _currentBannerEntry?.remove();
+    _currentBannerEntry = null;
+    _appState = null;
+    _initialized = false;
   }
 
   void _setupSupabaseRealtime(AppState appState) {
@@ -114,7 +128,9 @@ class NotificationService {
     if (_currentBannerEntry != null) {
       try {
         _currentBannerEntry?.remove();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('NotificationService banner remove: $e');
+      }
       _currentBannerEntry = null;
     }
   }

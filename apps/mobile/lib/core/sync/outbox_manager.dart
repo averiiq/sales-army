@@ -51,8 +51,16 @@ class OutboxManager {
       }
       await _pruneExpiredCommitted();
       _notifyCount();
-    } catch (_) {
-      // Gracefully recover on parse failure.
+    } catch (e) {
+      // Corrupted queue — log and clear to prevent stuck state.
+      _queue.clear();
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_storageKey);
+      } catch (_) {}
+      if (e is! FormatException) {
+        rethrow;
+      }
     }
   }
 

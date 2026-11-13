@@ -47,6 +47,7 @@ dependencies:
   # formatted text / QR to the printer.
   blue_thermal_printer: ^1.2.3
   permission_handler: ^11.3.1
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:

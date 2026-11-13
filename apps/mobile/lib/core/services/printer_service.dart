@@ -28,6 +28,7 @@ class PrinterService extends ChangeNotifier {
   }
 
   final BlueThermalPrinter _bt = BlueThermalPrinter.instance;
+  StreamSubscription? _stateSubscription;
 
   PrinterSettingsModel _settings = const PrinterSettingsModel();
   PrinterSettingsModel get settings => _settings;
@@ -69,7 +70,9 @@ class PrinterService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefKey, jsonEncode(_settings.toMap()));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PrinterService save settings: $e');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -78,7 +81,7 @@ class PrinterService extends ChangeNotifier {
 
   void _wireConnectionStream() {
     try {
-      _bt.onStateChanged().listen((state) {
+      _stateSubscription = _bt.onStateChanged().listen((state) {
         final nowConnected = state == BlueThermalPrinter.CONNECTED;
         if (nowConnected != _settings.isConnected) {
           _settings = _settings.copyWith(isConnected: nowConnected);
@@ -88,6 +91,12 @@ class PrinterService extends ChangeNotifier {
     } catch (e) {
       debugPrint('PrinterService state stream note: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    _stateSubscription?.cancel();
+    super.dispose();
   }
 
   /// Requests runtime permissions needed on Android 12+ for Bluetooth scan +
@@ -146,7 +155,9 @@ class PrinterService extends ChangeNotifier {
       if (already) {
         try {
           await _bt.disconnect();
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('PrinterService pre-disconnect: $e');
+        }
       }
       final target = BluetoothDevice(device.name, device.address);
       await _bt.connect(target);
@@ -171,7 +182,9 @@ class PrinterService extends ChangeNotifier {
   Future<void> disconnect() async {
     try {
       await _bt.disconnect();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PrinterService disconnect: $e');
+    }
     _settings = _settings.copyWith(isConnected: false);
     notifyListeners();
     await saveSettings(_settings);

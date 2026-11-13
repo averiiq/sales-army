@@ -99,7 +99,7 @@ class _SuperAdminLoginScreenState extends State<SuperAdminLoginScreen> {
             if (role != 'super_admin') {
               setState(() {
                 _isLoading = false;
-                _errorMessage = 'Access Denied: Account does not possess super_admin privileges (Current Role: $role).';
+                _errorMessage = 'Access Denied: This account does not have admin console access.';
               });
               await SupabaseService.instance.signOut();
               return;

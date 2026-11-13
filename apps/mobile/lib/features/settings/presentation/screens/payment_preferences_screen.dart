@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/services/printer_service.dart';
 import 'package:salesarmy/core/utils/app_image_helper.dart';
@@ -28,6 +29,9 @@ class _PaymentPreferencesScreenState extends State<PaymentPreferencesScreen> wit
   static const String _prefKeyQrSource = 'salesarmy_pref_qr_source_v2';
   static const String _prefKeyStaticQr = 'salesarmy_pref_static_qr_image_v2';
   static const String _prefKeyGwConfig = 'salesarmy_pref_payment_gateway_config_v2';
+
+  // Secure storage for payment gateway secrets (API keys, webhook secrets)
+  static const _secureStorage = FlutterSecureStorage();
 
   // Controllers for UPI
   late TextEditingController _vpaController;
@@ -80,6 +84,14 @@ class _PaymentPreferencesScreenState extends State<PaymentPreferencesScreen> wit
       final savedStaticQr = prefs.getString(_prefKeyStaticQr);
       final savedGwConfigStr = prefs.getString(_prefKeyGwConfig);
 
+      // Load secrets from secure storage (not SharedPreferences)
+      String? secKeySecret;
+      String? secWebhook;
+      try {
+        secKeySecret = await _secureStorage.read(key: 'salesarmy_gw_key_secret');
+        secWebhook = await _secureStorage.read(key: 'salesarmy_gw_webhook_secret');
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           if (savedVpa != null && savedVpa.isNotEmpty && _vpaController.text.isEmpty) {
@@ -98,14 +110,14 @@ class _PaymentPreferencesScreenState extends State<PaymentPreferencesScreen> wit
             try {
               final gw = jsonDecode(savedGwConfigStr) as Map<String, dynamic>;
               if (gw['apiKey'] != null && _apiKeyController.text.isEmpty) _apiKeyController.text = gw['apiKey'].toString();
-              if (gw['keySecret'] != null && _keySecretController.text.isEmpty) _keySecretController.text = gw['keySecret'].toString();
-              if (gw['webhookSecret'] != null && _webhookSecretController.text.isEmpty) _webhookSecretController.text = gw['webhookSecret'].toString();
               if (gw['displayName'] != null && _checkoutDisplayNameController.text.isEmpty) _checkoutDisplayNameController.text = gw['displayName'].toString();
               if (gw['provider'] != null) _selectedProvider = gw['provider'].toString();
               if (gw['isLive'] is bool) _isLiveProduction = gw['isLive'] as bool;
               if (gw['autoVerify'] is bool) _autoVerifyInvoices = gw['autoVerify'] as bool;
             } catch (_) {}
           }
+          if (secKeySecret != null && _keySecretController.text.isEmpty) _keySecretController.text = secKeySecret;
+          if (secWebhook != null && _webhookSecretController.text.isEmpty) _webhookSecretController.text = secWebhook;
         });
       }
     } catch (e) {
@@ -190,7 +202,7 @@ class _PaymentPreferencesScreenState extends State<PaymentPreferencesScreen> wit
       paymentGatewayConfig: gw,
     );
 
-    // 1. Direct Persistent Storage in SharedPreferences
+    // 1. Persist non-sensitive settings in SharedPreferences
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefKeyUpiId, vpa);
@@ -201,9 +213,21 @@ class _PaymentPreferencesScreenState extends State<PaymentPreferencesScreen> wit
       } else {
         await prefs.remove(_prefKeyStaticQr);
       }
-      await prefs.setString(_prefKeyGwConfig, jsonEncode(gw));
+      // Store only non-secret gateway config in SharedPreferences
+      final gwPublic = Map<String, dynamic>.from(gw)
+        ..remove('keySecret')
+        ..remove('webhookSecret');
+      await prefs.setString(_prefKeyGwConfig, jsonEncode(gwPublic));
     } catch (e) {
-      debugPrint('Error saving payment preferences to SharedPreferences: $e');
+      if (kDebugMode) debugPrint('Error saving payment preferences: $e');
+    }
+
+    // 1b. Persist gateway secrets in encrypted secure storage
+    try {
+      await _secureStorage.write(key: 'salesarmy_gw_key_secret', value: gw['keySecret']?.toString() ?? '');
+      await _secureStorage.write(key: 'salesarmy_gw_webhook_secret', value: gw['webhookSecret']?.toString() ?? '');
+    } catch (e) {
+      if (kDebugMode) debugPrint('Error saving gateway secrets to secure storage: $e');
     }
 
     // 2. Update AppState and cloud sync

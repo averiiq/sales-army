@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -529,7 +530,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     // local-registered-users vault. The real auth session was
                     // already established via Google OAuth, so this value is
                     // never used to log in to Supabase.
-                    final seedPassword = 'g_${email.hashCode.toUnsigned(32)}';
+                    // Generate a cryptographically random seed password instead of
+                    // a deterministic hash that can be brute-forced from the email.
+                    final rng = Random.secure();
+                    final seedPassword = 'g_${List.generate(24, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
                     final regRes = await SupabaseService.instance.registerAgencyOwnerAndSeed(
                       businessName: bName,
                       representativeName: name,

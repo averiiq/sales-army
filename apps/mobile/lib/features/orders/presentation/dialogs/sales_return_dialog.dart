@@ -67,7 +67,10 @@ class _SalesReturnDialogContentState extends State<_SalesReturnDialogContent> {
     }
 
     final currentStock = _selectedProduct?.stockQuantity ?? 0;
-    final unitPrice = _selectedProduct?.basePrice ?? 0.0;
+    // Use retailPrice (typical sale price) for credit calculation, not basePrice
+    final unitPrice = _selectedProduct != null
+        ? (_selectedProduct!.retailPrice > 0 ? _selectedProduct!.retailPrice : _selectedProduct!.basePrice)
+        : 0.0;
     final returnAmount = unitPrice * _returnQty;
     final projectedStock = currentStock + _returnQty;
 

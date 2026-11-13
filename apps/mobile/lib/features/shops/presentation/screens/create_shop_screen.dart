@@ -28,9 +28,9 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
   String _selectedSellerCategory = 'Retailer'; // 'Retailer', 'Wholesaler'
   String _visitFreq = 'weekly';
 
-  double? _currentLat = 19.0760;
-  double? _currentLng = 72.8777;
-  String _gpsStatus = 'GPS Location Tagged (19.0760° N, 72.8777° E)';
+  double? _currentLat;
+  double? _currentLng;
+  String _gpsStatus = 'No GPS location tagged';
   bool _isCapturingGps = false;
 
   final Map<String, String> _storefrontPresets = {
@@ -64,9 +64,11 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       _selectedType = s.businessType ?? 'Kirana';
       _selectedSellerCategory = s.sellerCategory ?? 'Retailer';
       _visitFreq = s.visitFrequency.isNotEmpty ? s.visitFrequency : 'weekly';
-      _currentLat = s.latitude ?? 19.0760;
-      _currentLng = s.longitude ?? 72.8777;
-      _gpsStatus = 'GPS Location Tagged (${_currentLat!.toStringAsFixed(4)}° N, ${_currentLng!.toStringAsFixed(4)}° E)';
+      _currentLat = s.latitude;
+      _currentLng = s.longitude;
+      _gpsStatus = (_currentLat != null && _currentLng != null)
+          ? 'GPS Location Tagged (${_currentLat!.toStringAsFixed(4)} N, ${_currentLng!.toStringAsFixed(4)} E)'
+          : 'No GPS location tagged';
     }
   }
 
@@ -118,19 +120,19 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
   void _captureGps() async {
     HapticFeedback.lightImpact();
     setState(() => _isCapturingGps = true);
-    await Future.delayed(const Duration(milliseconds: 600));
+    // GPS capture requires geolocator package integration.
+    // Until then, inform the user honestly rather than fabricating coordinates.
+    await Future.delayed(const Duration(milliseconds: 400));
     setState(() {
-      _currentLat = 19.0760 + (DateTime.now().millisecond % 100) / 10000;
-      _currentLng = 72.8777 + (DateTime.now().second % 60) / 10000;
-      _gpsStatus = 'Lat: ${_currentLat!.toStringAsFixed(5)}, Lng: ${_currentLng!.toStringAsFixed(5)} (Acc: ±3m)';
       _isCapturingGps = false;
+      _gpsStatus = 'GPS unavailable — location service not configured';
     });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Shop GPS location tagged with high accuracy!'),
-          backgroundColor: Color(0xFF059669),
-          duration: Duration(seconds: 2),
+          content: Text('GPS location service not yet configured. Shop will be saved without coordinates.'),
+          backgroundColor: Color(0xFFD97706),
+          duration: Duration(seconds: 3),
         ),
       );
     }
@@ -198,7 +200,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       final updatedShop = widget.initialShop!.copyWith(
         shopName: _nameCtrl.text.trim(),
         ownerName: _ownerCtrl.text.trim().isNotEmpty ? _ownerCtrl.text.trim() : 'Store Manager',
-        phone: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : '9876543210',
+        phone: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : '',
         address: _addressCtrl.text.trim().isNotEmpty ? _addressCtrl.text.trim() : 'Main Market Road',
         gstin: _gstinCtrl.text.trim().isNotEmpty ? _gstinCtrl.text.trim().toUpperCase() : null,
         businessType: _selectedType,
@@ -227,7 +229,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       shopId: 'shop_${DateTime.now().millisecondsSinceEpoch}',
       shopName: _nameCtrl.text.trim(),
       ownerName: _ownerCtrl.text.trim().isNotEmpty ? _ownerCtrl.text.trim() : 'Store Manager',
-      phone: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : '9876543210',
+      phone: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : '',
       address: _addressCtrl.text.trim().isNotEmpty ? _addressCtrl.text.trim() : 'Main Market Road',
       gstin: _gstinCtrl.text.trim().isNotEmpty ? _gstinCtrl.text.trim().toUpperCase() : null,
       businessType: _selectedType,

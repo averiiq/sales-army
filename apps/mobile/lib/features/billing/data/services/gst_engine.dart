@@ -18,27 +18,31 @@ class GstEngine {
     // Normalize states for comparison
     bool isIntraState = sellerState.trim().toLowerCase() == buyerState.trim().toLowerCase();
     
+    // Round totalGst first, then split to ensure CGST + SGST == totalGst exactly.
+    totalGst = roundToTwoDecimals(totalGst);
+
     if (isIntraState) {
-      cgst = totalGst / 2.0;
-      sgst = totalGst / 2.0;
+      cgst = roundToTwoDecimals(totalGst / 2.0);
+      sgst = roundToTwoDecimals(totalGst - cgst); // derive sgst to prevent rounding drift
     } else {
       igst = totalGst;
     }
-    
-    double grandTotal = taxableAmount + totalGst;
-    
+
+    final roundedTaxable = roundToTwoDecimals(taxableAmount);
+    double grandTotal = roundToTwoDecimals(roundedTaxable + totalGst);
+
     return {
-      'taxableAmount': _roundToTwoDecimals(taxableAmount),
+      'taxableAmount': roundedTaxable,
       'gstRate': gstRate,
-      'cgst': _roundToTwoDecimals(cgst),
-      'sgst': _roundToTwoDecimals(sgst),
-      'igst': _roundToTwoDecimals(igst),
-      'totalGst': _roundToTwoDecimals(totalGst),
-      'grandTotal': _roundToTwoDecimals(grandTotal),
+      'cgst': cgst,
+      'sgst': sgst,
+      'igst': igst,
+      'totalGst': totalGst,
+      'grandTotal': grandTotal,
     };
   }
 
-  static double _roundToTwoDecimals(double value) {
+  static double roundToTwoDecimals(double value) {
     return (value * 100).roundToDouble() / 100;
   }
 }
