@@ -509,14 +509,14 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                     Center(
                       child: Text(
                         selectedRating == 5
-                            ? '5 Stars â€¢ Excellent! Super smooth experience'
+                            ? '5 Stars • Excellent! Super smooth experience'
                             : selectedRating == 4
-                                ? '4 Stars â€¢ Very good! Minor improvements needed'
+                                ? '4 Stars • Very good! Minor improvements needed'
                                 : selectedRating == 3
-                                    ? '3 Stars â€¢ Average â€¢ Work in progress'
+                                    ? '3 Stars • Average • Work in progress'
                                     : selectedRating == 2
-                                        ? '2 Stars â€¢ Having friction or slow response'
-                                        : '1 Star â€¢ Critical issues encountered',
+                                        ? '2 Stars • Having friction or slow response'
+                                        : '1 Star • Critical issues encountered',
                         style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
                       ),
                     ),
@@ -702,7 +702,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                               ),
                             ),
                             Text(
-                              'SalesArmy Technologies Pvt Ltd â€¢ CIN: U72900MH2024PTC412345',
+                              'SalesArmy Technologies Pvt Ltd • CIN: U72900MH2024PTC412345',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -740,7 +740,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                       children: [
                         _buildPolicyScrollView(
                           title: 'Commercial Terms of Service',
-                          tag: 'SAC 998314 â€¢ 18% GST Compliance',
+                          tag: 'SAC 998314 • 18% GST Compliance',
                           paragraphs: [
                             '1. B2B Enterprise Eligibility: SalesArmy SaaS is provided solely for authorized commercial FMCG distributors and retail agency staff. By activating an account, you confirm commercial authorization.',
                             '2. Input Tax Credit (ITC): B2B invoices generated carry the Company GSTIN (27AABCS1429B1Z1) and your registered 15-digit GSTIN for valid ITC claims under the CGST/SGST Act.',
@@ -787,7 +787,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                           tag: 'Rule 3(2) IT Rules 2021 & Consumer Protection Act',
                           paragraphs: [
                             'Designated Grievance Redressal Officer:\nShri Vikramaditya Sharma\nHead of Legal & Regulatory Compliance\nSalesArmy Technologies Private Limited\nPlot 42, Sector 18, Vashi Infotech Park, Navi Mumbai, MH - 400703\nEmail: grievance@salesarmy.saas\nPhone: +91 98200 54321 (Mon-Fri 10:00 AM - 6:00 PM IST)',
-                            'Turnaround SLA:\nâ€¢ Written acknowledgment within 24â€“48 hours\nâ€¢ Complete complaint investigation and resolution within 15 calendar days',
+                            'Turnaround SLA:\n• Written acknowledgment within 24-48 hours\n• Complete complaint investigation and resolution within 15 calendar days',
                           ],
                           isDark: isDark,
                         ),
@@ -1625,10 +1625,10 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                         children: [
                           Text('Standard FMCG Tax Slabs:', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: isDark ? const Color(0xFF34D399) : const Color(0xFF166534))),
                           const SizedBox(height: 6),
-                          Text('â€¢ 5% : Grains, pulses, edible oils, dairy products', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF15803D))),
-                          Text('â€¢ 12% : Packaged foods, butter, ghee, fruit juices', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF15803D))),
-                          Text('â€¢ 18% : Biscuits, confectionery, soaps, detergents', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF15803D))),
-                          Text('â€¢ 28% : Aerated soft drinks, energy drinks, tobacco', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF15803D))),
+                          Text('• 5% : Grains, pulses, edible oils, dairy products', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF15803D))),
+                          Text('• 12% : Packaged foods, butter, ghee, fruit juices', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF15803D))),
+                          Text('• 18% : Biscuits, confectionery, soaps, detergents', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF15803D))),
+                          Text('• 28% : Aerated soft drinks, energy drinks, tobacco', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF15803D))),
                         ],
                       ),
                     ),
@@ -2307,7 +2307,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                                           ),
                                           const SizedBox(height: 3),
                                           Text(
-                                            'Plan: ${appState.isFreeTier ? "Starter Free Tier" : (tenant.subscriptionPlanId?.isNotEmpty == true ? (tenant.subscriptionPlanId == "silver_monthly" ? "Silver Monthly Plan" : tenant.subscriptionPlanId == "gold_quarterly" ? "Gold Quarterly Plan" : tenant.subscriptionPlanId == "platinum_annual" ? "Platinum Annual Plan" : tenant.subscriptionPlanId!) : (tenant.subscriptionStatus?.toLowerCase() == "trial" ? "30-Day Premium Trial" : "Enterprise FMCG Tier"))} â€¢ Tap to view & upgrade',
+                                            'Plan: ${appState.isFreeTier ? "Starter Free Tier" : (tenant.subscriptionPlanId?.isNotEmpty == true ? (tenant.subscriptionPlanId == "silver_monthly" ? "Silver Monthly Plan" : tenant.subscriptionPlanId == "gold_quarterly" ? "Gold Quarterly Plan" : tenant.subscriptionPlanId == "platinum_annual" ? "Platinum Annual Plan" : tenant.subscriptionPlanId!) : (tenant.subscriptionStatus?.toLowerCase() == "trial" ? "30-Day Premium Trial" : "Enterprise FMCG Tier"))} • Tap to view & upgrade',
                                             style: TextStyle(
                                               fontSize: 11.5,
                                               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF2563EB),
@@ -2564,7 +2564,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                         _buildSettingsRow(
                           icon: Icons.badge_outlined,
                           title: 'Profile & Business Details',
-                          subtitle: '${tenant.representativeName ?? "Distributor Owner"} â€¢ $firmName',
+                          subtitle: '${tenant.representativeName ?? "Distributor Owner"} • $firmName',
                           onTap: () => _showUnifiedProfileModal(context),
                           isDark: isDark,
                         ),
@@ -2616,7 +2616,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                             icon: Icons.share_outlined,
                             title: 'Export Reports & Statements',
                             subtitle: appState.isFreeTier
-                                ? 'Half-Year & Annual Statements â€¢ Pro Feature'
+                                ? 'Half-Year & Annual Statements • Pro Feature'
                                 : 'Download Half-Year & Annual CSV/PDF',
                             onTap: () {
                               if (appState.isFreeTier) {
@@ -2702,7 +2702,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                           _buildSettingsRow(
                             icon: Icons.receipt_long_rounded,
                             title: 'GST Details',
-                            subtitle: 'GSTIN: ${tenant.gstin ?? "27ABCDE1234F1Z5"} â€¢ PAN: ${tenant.pan ?? "ABCDE1234F"}${appState.isGstBillingEnabled ? " â€¢ Active" : " â€¢ Off"}',
+                            subtitle: 'GSTIN: ${tenant.gstin ?? "27ABCDE1234F1Z5"} • PAN: ${tenant.pan ?? "ABCDE1234F"}${appState.isGstBillingEnabled ? " • Active" : " • Off"}',
                             onTap: () {
                               if (appState.isFreeTier) {
                                 _showSubscriptionUpgradeSheet(
@@ -2803,7 +2803,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                             icon: Icons.group_outlined,
                             title: 'Staff',
                             subtitle: appState.isFreeTier
-                                ? 'Multi-user roles â€¢ Upgrade to Grow/Enterprise'
+                                ? 'Multi-user roles • Upgrade to Grow/Enterprise'
                                 : 'Add user & define role permissions (RBAC)',
                             onTap: () {
                               if (appState.isFreeTier) {
@@ -2848,7 +2848,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                           icon: Icons.notifications_active_outlined,
                           title: 'Notification',
                           subtitle: appState.unreadNotificationsCount > 0
-                              ? '${appState.unreadNotificationsCount} unread alerts â€¢ Tap to manage'
+                              ? '${appState.unreadNotificationsCount} unread alerts • Tap to manage'
                               : 'Real-time order, inventory & payment alerts',
                           trailingBadge: appState.unreadNotificationsCount > 0
                               ? '${appState.unreadNotificationsCount} NEW'
@@ -2871,7 +2871,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                         _buildSettingsRow(
                           icon: Icons.alarm_rounded,
                           title: 'Reminders',
-                          subtitle: '${appState.reminders.where((r) => !r.isCompleted).length} pending â€¢ Customer dues & market tasks',
+                          subtitle: '${appState.reminders.where((r) => !r.isCompleted).length} pending • Customer dues & market tasks',
                           trailingBadge: appState.reminders.where((r) => !r.isCompleted).isNotEmpty
                               ? '${appState.reminders.where((r) => !r.isCompleted).length} PENDING'
                               : null,
@@ -3039,7 +3039,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                         _buildSettingsRow(
                           icon: Icons.language_rounded,
                           title: 'Visitors',
-                          subtitle: '$_officialWebsiteUrl â€¢ Official Portal & Guides',
+                          subtitle: '$_officialWebsiteUrl • Official Portal & Guides',
                           onTap: () => _launchVisitorsUrl(context),
                           isDark: isDark,
                         ),
