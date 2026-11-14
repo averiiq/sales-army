@@ -10,7 +10,6 @@ import 'package:salesarmy/core/theme/app_theme.dart';
 import 'package:salesarmy/core/utils/formatters.dart';
 import 'package:salesarmy/core/utils/responsive_helper.dart';
 import 'package:salesarmy/features/billing/presentation/screens/gst_tax_invoice_viewer.dart';
-import 'package:salesarmy/features/collections/presentation/dialogs/collect_payment_dialog.dart';
 import 'package:salesarmy/features/orders/presentation/dialogs/complete_and_bill_order_modal.dart';
 import 'package:salesarmy/features/orders/presentation/screens/order_taker_flow.dart';
 
@@ -469,32 +468,39 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                     children: [
                       Material(
                         color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        borderRadius: BorderRadius.circular(24),
+                        shape: const CircleBorder(),
                         child: InkWell(
+                          customBorder: const CircleBorder(),
                           onTap: () {
                             HapticFeedback.lightImpact();
                             widget.onBack?.call();
                           },
-                          borderRadius: BorderRadius.circular(24),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                              boxShadow: AppTheme.softShadow(blur: 6, dy: 1),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.arrow_back_rounded, size: 16, color: isDark ? Colors.white : const Color(0xFF334155)),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Back to Dashboard',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF334155)),
-                                ),
-                              ],
+                          child: Tooltip(
+                            message: 'Back to Dashboard',
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                boxShadow: AppTheme.softShadow(blur: 6, dy: 1),
+                              ),
+                              child: Icon(Icons.arrow_back_rounded, size: 20, color: isDark ? Colors.white : const Color(0xFF0F172A)),
                             ),
                           ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Orders & Dispatches',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -1370,7 +1376,7 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
             ),
           ),
 
-          // Tier 2: Accessible Full-Width Action Buttons (Role-Tailored: Deliver, Collect Payment, View Bill)
+          // Tier 2: Accessible Full-Width Action Buttons (Role-Tailored: Deliver, View Bill)
           Builder(
             builder: (ctx) {
               final actionWidgets = <Widget>[];
@@ -1486,68 +1492,7 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                 }
               }
 
-              // 2. Collect Payment button (Only for roles authorized to collect money)
-              final canCollectPayment = !appState.isStoreManagerRole &&
-                  (appState.isOwnerRole ||
-                      appState.canAccessModule('accounts') ||
-                      appState.canAccessModule('collections') ||
-                      appState.isDeliveryRole ||
-                      appState.isFieldSalesRole);
-
-              if (canCollectPayment) {
-                if (actionWidgets.isNotEmpty) actionWidgets.add(const SizedBox(width: 8));
-                actionWidgets.add(
-                  Expanded(
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          showDialog(
-                            context: context,
-                            builder: (_) => CollectPaymentDialog(
-                              shop: shop,
-                              initialAmount: order.grandTotal,
-                              orderId: order.orderId,
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.3) : const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: isDark ? const Color(0xFF1D4ED8) : const Color(0xFFBFDBFE)),
-                          ),
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.payments_outlined, size: 15, color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF)),
-                              const SizedBox(width: 5),
-                              Flexible(
-                                child: Text(
-                                  'Collect Payment',
-                                  style: TextStyle(
-                                    color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12.5,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              // 3. Billing actions (View Bill if already billed, or Generate Bill if unbilled)
+              // 2. Billing actions (View Bill if already billed, or Generate Bill if unbilled)
               final invoiceMatch = appState.invoices.where((inv) => inv.orderId == order.orderId);
               final hasInvoice = invoiceMatch.isNotEmpty;
 
