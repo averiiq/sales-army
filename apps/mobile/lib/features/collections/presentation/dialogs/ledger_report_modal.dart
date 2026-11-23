@@ -822,7 +822,7 @@ class _LedgerReportModalState extends State<LedgerReportModal> {
                 ? Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      'No ledger entries found for this period. Current balance due: ₹4,500.',
+                      'No ledger entries found for this period.',
                       style: TextStyle(fontSize: 12, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF6B7280), fontStyle: FontStyle.italic),
                     ),
                   )

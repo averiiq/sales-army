@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
 import 'package:salesarmy/features/collections/data/models/payment_model.dart';
 import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/utils/formatters.dart';
+import 'package:salesarmy/core/services/printer_service.dart';
+import 'package:salesarmy/core/services/notification_service.dart' show rootNavigatorKey;
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -62,10 +67,14 @@ Future<void> showGatewayPaymentDialog(
 
 /// Shows a digital payment receipt modal with WhatsApp and Thermal print actions.
 void showPaymentReceiptModal(BuildContext context, PaymentModel payment, ShopModel shop) {
+  // Callers often pass the context of a dialog they just closed; fall back to
+  // the root navigator so opening the receipt never touches a dead context.
+  final hostContext = context.mounted ? context : rootNavigatorKey.currentContext;
+  if (hostContext == null) return;
   showDialog(
-    context: context,
+    context: hostContext,
     builder: (ctx) {
-      final appState = context.read<AppState>();
+      final appState = ctx.read<AppState>();
       final isDark = appState.isDarkMode;
       final tenant = appState.tenant;
       final firmName = tenant.firmName ?? 'SalesArmy Agency HQ';
@@ -278,15 +287,32 @@ void showPaymentReceiptModal(BuildContext context, PaymentModel payment, ShopMod
                         side: const BorderSide(color: Color(0xFF22C55E)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () {
+                      // Opens WhatsApp with the receipt text (falls back to the share sheet).
+                      // Uses the receipt dialog's own context: the screen that opened it may
+                      // already be closed, which previously crashed this button.
+                      onPressed: () async {
                         HapticFeedback.lightImpact();
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Payment acknowledgment sent to ${shop.shopName} via WhatsApp!'),
-                            backgroundColor: const Color(0xFF15803D),
-                          ),
-                        );
+                        final text = StringBuffer()
+                          ..writeln('*Payment Receipt — $firmName*')
+                          ..writeln('Receipt: ${payment.paymentId}')
+                          ..writeln('Party: ${shop.shopName}')
+                          ..writeln('Date: ${AppFormatters.dateTime(payment.date)}')
+                          ..writeln('Mode: ${payment.paymentMode}')
+                          ..writeln(payment.referenceNumber != null && payment.referenceNumber!.isNotEmpty
+                              ? 'Ref: ${payment.referenceNumber}'
+                              : '')
+                          ..writeln('Amount received: ${AppFormatters.currency(payment.amount)}')
+                          ..writeln('Balance due: ${AppFormatters.currency(shop.currentOutstanding)}')
+                          ..writeln('Thank you! — $repName');
+                        final phone = (shop.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                        final waPhone = phone.length == 10 ? '91$phone' : phone;
+                        final uri = Uri.parse(
+                            'https://wa.me/${waPhone.isEmpty ? '' : waPhone}?text=${Uri.encodeComponent(text.toString().replaceAll(RegExp(r'\n\n+'), '\n'))}');
+                        final ok = await AppError.guard(ctx, () async {
+                          final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          if (!launched) await Share.share(text.toString());
+                        }, action: 'open WhatsApp');
+                        if (ok && ctx.mounted) Navigator.pop(ctx);
                       },
                       icon: const Icon(Icons.share_rounded, size: 16, color: Color(0xFF15803D)),
                       label: const Text('WhatsApp', style: TextStyle(color: Color(0xFF15803D), fontWeight: FontWeight.w700, fontSize: 13)),
@@ -301,15 +327,22 @@ void showPaymentReceiptModal(BuildContext context, PaymentModel payment, ShopMod
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      onPressed: () {
+                      // Real Bluetooth thermal print via PrinterService (it reports
+                      // "no printer connected" / failures itself).
+                      onPressed: () async {
                         HapticFeedback.lightImpact();
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Collection receipt sent to Bluetooth Thermal POS Printer!'),
-                            backgroundColor: Color(0xFF0F172A),
-                          ),
+                        final printed = await PrinterService.instance.printPaymentReceipt(
+                          firmName: firmName,
+                          paymentId: payment.paymentId,
+                          shopName: shop.shopName,
+                          date: payment.date,
+                          paymentMode: payment.paymentMode,
+                          reference: payment.referenceNumber,
+                          amount: payment.amount,
+                          remainingBalance: shop.currentOutstanding,
+                          context: ctx,
                         );
+                        if (printed && ctx.mounted) Navigator.pop(ctx);
                       },
                       icon: const Icon(Icons.print_rounded, size: 16, color: Colors.white),
                       label: const Text('Thermal Print', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
@@ -348,7 +381,7 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
   late final TextEditingController _refCtrl;
   late final TextEditingController _notesCtrl;
 
-  String _paymentMode = 'UPI'; // 'UPI', 'Cash'
+  String _paymentMode = 'UPI'; // 'UPI', 'Cash', 'Bank Transfer'
   bool _isSubmitting = false;
 
   @override
@@ -361,8 +394,8 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
       _paymentMode = widget.existingPayment!.paymentMode;
     } else {
       final defaultAmt = widget.initialAmount != null
-          ? widget.initialAmount!.toStringAsFixed(0)
-          : (widget.shop.currentOutstanding > 0 ? widget.shop.currentOutstanding.toInt().toString() : '0');
+          ? roundUpRupee(widget.initialAmount!).toStringAsFixed(0)
+          : (widget.shop.currentOutstanding > 0 ? roundUpRupee(widget.shop.currentOutstanding).toStringAsFixed(0) : '0');
       _amountCtrl = TextEditingController(text: defaultAmt);
       _refCtrl = TextEditingController();
       _notesCtrl = TextEditingController(
@@ -382,7 +415,7 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
   void _setAmount(double value) {
     HapticFeedback.lightImpact();
     setState(() {
-      _amountCtrl.text = value.toInt().toString();
+      _amountCtrl.text = roundUpRupee(value).toStringAsFixed(0);
     });
   }
 
@@ -425,7 +458,7 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.existingPayment != null ? 'Edit Recorded Payment' : 'Collect Payment',
+                                widget.existingPayment != null ? 'Edit Recorded Payment' : 'Record Payment',
                                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: isDark ? Colors.white : const Color(0xFF0F172A)),
                               ),
                               Text(
@@ -503,7 +536,7 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
                 child: Row(
                   children: [
                     if (outstanding > 0) ...[
-                      _buildQuickPill('Full Due (₹${outstanding.toInt()})', outstanding, isDark: isDark, isPrimary: true),
+                      _buildQuickPill('Full Due (₹${roundUpRupee(outstanding).toStringAsFixed(0)})', roundUpRupee(outstanding), isDark: isDark, isPrimary: true),
                       const SizedBox(width: 6),
                     ],
                     _buildQuickPill('₹500', 500, isDark: isDark),
@@ -559,6 +592,8 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
                   _buildPaymentChip('UPI', '⚡ UPI', isDark: isDark),
                   const SizedBox(width: 8),
                   _buildPaymentChip('Cash', '💵 Cash', isDark: isDark),
+                  const SizedBox(width: 8),
+                  _buildPaymentChip('Bank Transfer', '🏦 Bank', isDark: isDark),
                 ],
               ),
               const SizedBox(height: 14),
@@ -570,7 +605,9 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
                 decoration: InputDecoration(
                   labelText: _paymentMode == 'Cash'
                       ? 'Receipt / Slip # (Optional)'
-                      : 'UTR / Transaction Ref ID (Optional)',
+                      : (_paymentMode == 'Bank Transfer'
+                          ? 'Cheque / NEFT / IMPS Ref (Optional)'
+                          : 'UTR / Transaction Ref ID (Optional)'),
                   labelStyle: TextStyle(color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B), fontSize: 13),
                   filled: true,
                   fillColor: isDark ? const Color(0xFF0F172A) : Colors.white,
@@ -599,64 +636,32 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
               ),
               const SizedBox(height: 20),
 
-              // Action Buttons: Record Collection (ledger-only) and Collect Payment (ledger + receipt + sync)
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF1E56E2),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: const BorderSide(color: Color(0xFF1E56E2), width: 1.3),
-                      ),
-                      onPressed: _isSubmitting ? null : () => _handleSubmit(showReceipt: false),
-                      child: const FittedBox(
+              // Action Button: Record Payment (ledger + receipt + sync)
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: _isSubmitting ? null : _handleSubmit,
+                child: _isSubmitting
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.edit_note_rounded, size: 17, color: Color(0xFF1E56E2)),
-                            SizedBox(width: 6),
+                            const Icon(Icons.account_balance_wallet_rounded, size: 17, color: Colors.white),
+                            const SizedBox(width: 6),
                             Text(
-                              'Record Collection',
-                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF1E56E2)),
+                              widget.existingPayment != null ? 'Update Payment' : 'Record Payment',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      onPressed: _isSubmitting ? null : () => _handleSubmit(showReceipt: true),
-                      child: _isSubmitting
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.account_balance_wallet_rounded, size: 17, color: Colors.white),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    widget.existingPayment != null ? 'Update Payment' : 'Collect Payment',
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -747,18 +752,12 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
     );
   }
 
-  /// Finalises a payment.
-  ///
-  /// [showReceipt] = `true` → "Collect Payment" primary CTA. Writes the
-  /// payment, opens the printable receipt modal, surfaces a green toast.
-  ///
-  /// [showReceipt] = `false` → "Record Collection" secondary CTA. Writes the
-  /// payment to the ledger silently (no receipt popup). Used when the rep
-  /// collected cash offline and is backfilling the system after the fact.
-  Future<void> _handleSubmit({required bool showReceipt}) async {
+  /// Finalises a payment: writes it to the ledger, opens the printable
+  /// receipt modal and surfaces a green toast.
+  Future<void> _handleSubmit() async {
     if (_isSubmitting) return;
 
-    final amt = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
+    final amt = roundUpRupee(double.tryParse(_amountCtrl.text.trim()) ?? 0.0);
     if (amt <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid payment amount greater than zero.')),
@@ -770,7 +769,9 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
         ? _refCtrl.text.trim()
         : (_paymentMode == 'Cash'
             ? 'CASH-REC-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}'
-            : 'UPI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}');
+            : (_paymentMode == 'Bank Transfer'
+                ? 'BANK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}'
+                : 'UPI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}'));
 
     setState(() => _isSubmitting = true);
     HapticFeedback.mediumImpact();
@@ -813,25 +814,23 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
       // 15s timeout so a hanging Supabase insert can't lock the spinner
       // forever. If the write exceeds the budget we surface an error toast
       // and give the user a chance to retry rather than silently spinning.
-      await appState.recordPayment(payment).timeout(const Duration(seconds: 15));
+      await appState
+          .recordPayment(payment, targetRef: widget.orderId)
+          .timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
       Navigator.pop(context);
 
-      if (showReceipt) {
-        final updatedShop = appState.shops.firstWhere(
-          (s) => s.shopId == widget.shop.shopId,
-          orElse: () => widget.shop,
-        );
-        showPaymentReceiptModal(context, payment, updatedShop);
-      }
+      final updatedShop = appState.shops.firstWhere(
+        (s) => s.shopId == widget.shop.shopId,
+        orElse: () => widget.shop,
+      );
+      showPaymentReceiptModal(context, payment, updatedShop);
 
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
-            showReceipt
-                ? 'Collected ${AppFormatters.currency(amt)} from ${widget.shop.shopName}! Status: SETTLED'
-                : 'Recorded ${AppFormatters.currency(amt)} against ${widget.shop.shopName}.',
+            'Recorded ${AppFormatters.currency(amt)} against ${widget.shop.shopName}.',
           ),
           backgroundColor: const Color(0xFF059669),
           duration: const Duration(seconds: 4),
@@ -839,13 +838,7 @@ class _CollectPaymentDialogState extends State<CollectPaymentDialog> {
       );
     } catch (e) {
       if (!mounted) return;
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('Could not save payment: $e'),
-          backgroundColor: const Color(0xFFDC2626),
-          duration: const Duration(seconds: 5),
-        ),
-      );
+      showAppError(context, e, action: 'save the payment');
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -875,6 +868,7 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
   late TextEditingController _amountCtrl;
   bool _isProcessing = false;
   String? _amountError;
+  String _collectMode = 'UPI'; // 'UPI' (QR / Razorpay) or 'Cash'
 
   @override
   void initState() {
@@ -882,7 +876,7 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
     final defaultAmt = widget.initialAmount != null && widget.initialAmount! > 0
         ? widget.initialAmount!
         : (widget.shop.currentOutstanding > 0 ? widget.shop.currentOutstanding : 1000.0);
-    _amountCtrl = TextEditingController(text: defaultAmt.toStringAsFixed(0));
+    _amountCtrl = TextEditingController(text: roundUpRupee(defaultAmt).toStringAsFixed(0));
   }
 
   @override
@@ -892,13 +886,13 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
   }
 
   double get _currentAmount {
-    return double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
+    return roundUpRupee(double.tryParse(_amountCtrl.text.trim()) ?? 0.0);
   }
 
   void _setAmount(double val) {
     HapticFeedback.selectionClick();
     setState(() {
-      _amountCtrl.text = val.toStringAsFixed(0);
+      _amountCtrl.text = roundUpRupee(val).toStringAsFixed(0);
       _amountError = null;
     });
   }
@@ -941,7 +935,7 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
         createdAt: DateTime.now(),
       );
 
-      await appState.recordPayment(payment);
+      await appState.recordPayment(payment, targetRef: widget.orderId);
 
       if (!mounted) return;
       final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -963,12 +957,7 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error launching payment: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
-        );
+        showAppError(context, e, action: 'start the online payment');
       }
     } finally {
       if (mounted) {
@@ -977,7 +966,7 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
     }
   }
 
-  Future<void> _confirmUpiPayment(AppState appState) async {
+  Future<void> _confirmDirectPayment(AppState appState, {required bool isCash}) async {
     final amt = _currentAmount;
     if (amt <= 0) {
       setState(() => _amountError = 'Please enter a valid amount');
@@ -988,21 +977,25 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
     HapticFeedback.mediumImpact();
 
     try {
+      final now = DateTime.now();
+      final label = isCash ? 'Cash' : 'UPI';
       final payment = PaymentModel(
-        paymentId: 'PAY-UPI-${DateTime.now().millisecondsSinceEpoch}',
+        paymentId: isCash ? 'PAY-CASH-${now.millisecondsSinceEpoch}' : 'PAY-UPI-${now.millisecondsSinceEpoch}',
         shopId: widget.shop.shopId,
         createdByUid: appState.currentUid ?? 'rep_user',
         amount: amt,
-        paymentMode: 'Online / UPI',
-        referenceNumber: 'UPI-APP-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
+        paymentMode: isCash ? 'Cash' : 'Online / UPI',
+        referenceNumber: isCash
+            ? 'CASH-REC-${now.millisecondsSinceEpoch.toString().substring(7)}'
+            : 'UPI-APP-${now.millisecondsSinceEpoch.toString().substring(5)}',
         notes: widget.orderId != null
-            ? 'UPI Payment for Order ${widget.orderId} (${widget.shop.shopName})'
-            : 'UPI Counter Payment (${widget.shop.shopName})',
-        date: DateTime.now(),
-        createdAt: DateTime.now(),
+            ? '$label Payment for Order ${widget.orderId} (${widget.shop.shopName})'
+            : '$label Counter Payment (${widget.shop.shopName})',
+        date: now,
+        createdAt: now,
       );
 
-      await appState.recordPayment(payment);
+      await appState.recordPayment(payment, targetRef: widget.orderId);
 
       if (!mounted) return;
       final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -1017,19 +1010,14 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
 
       scaffoldMessenger.showSnackBar(
         SnackBar(
-          content: Text('UPI Payment of ${AppFormatters.currency(amt)} confirmed for ${widget.shop.shopName}!'),
+          content: Text('$label payment of ${AppFormatters.currency(amt)} confirmed for ${widget.shop.shopName}!'),
           backgroundColor: const Color(0xFF059669),
           duration: const Duration(seconds: 4),
         ),
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error confirming UPI payment: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
-        );
+        showAppError(context, e, action: 'record the payment');
       }
     } finally {
       if (mounted) {
@@ -1090,7 +1078,7 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'UPI & Razorpay Payment',
+                                'Collect Payment',
                                 style: TextStyle(
                                   fontSize: 16.5,
                                   fontWeight: FontWeight.w900,
@@ -1249,7 +1237,7 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
                   if (due > 0)
                     _buildPresetChip('Full Due', due),
                   if (due > 0)
-                    _buildPresetChip('50%', (due / 2).roundToDouble()),
+                    _buildPresetChip('50%', roundUpRupee(due / 2)),
                   _buildPresetChip('₹1,000', 1000.0),
                   _buildPresetChip('₹2,000', 2000.0),
                   _buildPresetChip('₹5,000', 5000.0),
@@ -1257,6 +1245,66 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
               ),
               const SizedBox(height: 14),
 
+              // Collection Mode Toggle: UPI QR or Cash
+              Row(
+                children: [
+                  _buildModeChip('UPI', 'UPI QR', Icons.qr_code_2_rounded, isDark: isDark),
+                  const SizedBox(width: 8),
+                  _buildModeChip('Cash', 'Cash', Icons.payments_rounded, isDark: isDark),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              if (_collectMode == 'Cash') ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF064E3B).withValues(alpha: 0.35) : const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.payments_rounded, size: 28, color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Take ${AppFormatters.currency(amt > 0 ? amt : 0)} in cash from the retailer, then confirm below.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFD1FAE5) : const Color(0xFF065F46),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _isProcessing ? null : () => _confirmDirectPayment(appState, isCash: true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                  ),
+                  child: _isProcessing
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check_circle_rounded, size: 18),
+                              SizedBox(width: 6),
+                              Text('Confirm Cash Received', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+                            ],
+                          ),
+                        ),
+                ),
+              ] else ...[
               // Dynamic UPI QR Code Box
               Container(
                 padding: const EdgeInsets.all(14),
@@ -1397,7 +1445,7 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
 
               // 3. Instant Confirm UPI Received
               TextButton.icon(
-                onPressed: _isProcessing ? null : () => _confirmUpiPayment(appState),
+                onPressed: _isProcessing ? null : () => _confirmDirectPayment(appState, isCash: false),
                 icon: const Icon(Icons.check_circle_rounded, size: 17, color: Color(0xFF059669)),
                 label: const Text(
                   'Confirm UPI Received Directly',
@@ -1409,6 +1457,52 @@ class _GatewayPaymentDialogState extends State<GatewayPaymentDialog> {
                 ),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeChip(String mode, String label, IconData icon, {required bool isDark}) {
+    final isSelected = _collectMode == mode;
+    final accent = isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
+    final muted = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _collectMode = mode);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? (isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.35) : const Color(0xFFEFF6FF))
+                : (isDark ? const Color(0xFF0F172A) : Colors.white),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? (isDark ? const Color(0xFF3B82F6) : const Color(0xFF2563EB))
+                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+              width: isSelected ? 1.5 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: isSelected ? accent : muted),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? accent : muted,
                 ),
               ),
             ],

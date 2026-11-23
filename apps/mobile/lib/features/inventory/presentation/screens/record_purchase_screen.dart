@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -329,12 +330,7 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
   void _savePurchase(AppState appState) {
     if (!_formKey.currentState!.validate()) return;
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please add at least one product or item to the purchase bill.'),
-          backgroundColor: Color(0xFFDC2626),
-        ),
-      );
+      showAppError(context, 'Please add at least one product or item to the purchase bill.');
       return;
     }
 

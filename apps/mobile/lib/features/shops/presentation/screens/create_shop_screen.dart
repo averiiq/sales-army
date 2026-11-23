@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
+import 'package:salesarmy/core/services/location_service.dart';
 import 'package:salesarmy/core/utils/app_image_helper.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
 
@@ -21,11 +23,14 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
   final _phoneCtrl = TextEditingController();
   final _gstinCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+  final _stateCtrl = TextEditingController();
+  final _pincodeCtrl = TextEditingController();
   final _creditLimitCtrl = TextEditingController();
   final _photoUrlCtrl = TextEditingController();
 
   String _selectedType = 'Kirana';
-  String _selectedSellerCategory = 'Retailer'; // 'Retailer', 'Wholesaler'
+  String _selectedSellerCategory = 'Retailer'; // 'Retailer', 'Wholesaler', 'Walk-in Customer'
   String _visitFreq = 'weekly';
 
   double? _currentLat;
@@ -58,6 +63,9 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       _phoneCtrl.text = s.phone ?? '';
       _gstinCtrl.text = s.gstin ?? '';
       _addressCtrl.text = s.address ?? '';
+      _cityCtrl.text = s.city ?? '';
+      _stateCtrl.text = s.state ?? '';
+      _pincodeCtrl.text = s.pincode ?? '';
       _creditLimitCtrl.text = s.creditLimit > 0 ? s.creditLimit.toStringAsFixed(0) : '';
       _photoUrlCtrl.text = s.imageUrl ?? '';
       _selectedImageUrl = s.imageUrl;
@@ -79,6 +87,9 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
     _phoneCtrl.dispose();
     _gstinCtrl.dispose();
     _addressCtrl.dispose();
+    _cityCtrl.dispose();
+    _stateCtrl.dispose();
+    _pincodeCtrl.dispose();
     _creditLimitCtrl.dispose();
     _photoUrlCtrl.dispose();
     super.dispose();
@@ -107,35 +118,76 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessingPhoto = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick storefront photo: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
-        );
+        showAppError(context, e, action: 'add the shop photo');
       }
     }
   }
 
-  void _captureGps() async {
+  /// Real device GPS: asks for permission, gets the current position and
+  /// fills any empty address / city / state / pincode fields from it.
+  Future<void> _captureGps() async {
     HapticFeedback.lightImpact();
-    setState(() => _isCapturingGps = true);
-    // GPS capture requires geolocator package integration.
-    // Until then, inform the user honestly rather than fabricating coordinates.
-    await Future.delayed(const Duration(milliseconds: 400));
     setState(() {
-      _isCapturingGps = false;
-      _gpsStatus = 'GPS unavailable — location service not configured';
+      _isCapturingGps = true;
+      _gpsStatus = 'Fetching current location…';
     });
-    if (mounted) {
+
+    final fix = await LocationService.instance.captureCurrentLocation();
+    if (!mounted) return;
+
+    if (!fix.ok) {
+      setState(() {
+        _isCapturingGps = false;
+        _gpsStatus = (_currentLat != null && _currentLng != null)
+            ? 'GPS Location Tagged (${_currentLat!.toStringAsFixed(5)}, ${_currentLng!.toStringAsFixed(5)})'
+            : 'No GPS location tagged';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('GPS location service not yet configured. Shop will be saved without coordinates.'),
-          backgroundColor: Color(0xFFD97706),
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: Text(fix.error ?? 'Could not fetch location.'),
+          backgroundColor: const Color(0xFFD97706),
+          duration: const Duration(seconds: 4),
+          action: fix.needsSettings
+              ? SnackBarAction(
+                  label: 'Settings',
+                  textColor: Colors.white,
+                  onPressed: () => LocationService.instance.openSettings(),
+                )
+              : null,
         ),
       );
+      return;
     }
+
+    var filled = 0;
+    void fillIfEmpty(TextEditingController c, String? v) {
+      if (v != null && v.isNotEmpty && c.text.trim().isEmpty) {
+        c.text = v;
+        filled++;
+      }
+    }
+
+    setState(() {
+      _currentLat = fix.latitude;
+      _currentLng = fix.longitude;
+      _isCapturingGps = false;
+      final acc = fix.accuracyMeters != null ? ' • ±${fix.accuracyMeters!.round()} m' : '';
+      _gpsStatus = 'GPS Location Tagged (${_currentLat!.toStringAsFixed(5)}, ${_currentLng!.toStringAsFixed(5)})$acc';
+      fillIfEmpty(_addressCtrl, fix.street);
+      fillIfEmpty(_cityCtrl, fix.city);
+      fillIfEmpty(_stateCtrl, fix.state);
+      fillIfEmpty(_pincodeCtrl, fix.pincode);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(filled > 0
+            ? 'Location tagged and address details filled from GPS.'
+            : 'Location tagged successfully.'),
+        backgroundColor: const Color(0xFF059669),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _showAddCustomCategoryDialog() {
@@ -181,11 +233,15 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
 
   Future<void> _submitShop() async {
     if (_nameCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a shop / outlet name'), backgroundColor: Color(0xFFDC2626)),
-      );
+      showAppError(context, 'Please enter a party / shop name');
       return;
     }
+    final pin = _pincodeCtrl.text.trim();
+    if (pin.isNotEmpty && !RegExp(r'^[0-9]{6}$').hasMatch(pin)) {
+      showAppError(context, 'Pincode must be 6 digits');
+      return;
+    }
+    String? opt(TextEditingController c) => c.text.trim().isNotEmpty ? c.text.trim() : null;
 
     final rawImage = _selectedImageUrl?.trim();
     String? finalImageUrl;
@@ -202,6 +258,9 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
         ownerName: _ownerCtrl.text.trim().isNotEmpty ? _ownerCtrl.text.trim() : 'Store Manager',
         phone: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : '',
         address: _addressCtrl.text.trim().isNotEmpty ? _addressCtrl.text.trim() : 'Main Market Road',
+        city: opt(_cityCtrl),
+        state: opt(_stateCtrl),
+        pincode: opt(_pincodeCtrl),
         gstin: _gstinCtrl.text.trim().isNotEmpty ? _gstinCtrl.text.trim().toUpperCase() : null,
         businessType: _selectedType,
         sellerCategory: _selectedSellerCategory,
@@ -218,7 +277,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Shop "${updatedShop.shopName}" updated successfully!'),
+          content: Text('Party "${updatedShop.shopName}" updated successfully!'),
           backgroundColor: const Color(0xFF059669),
         ),
       );
@@ -231,6 +290,9 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       ownerName: _ownerCtrl.text.trim().isNotEmpty ? _ownerCtrl.text.trim() : 'Store Manager',
       phone: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : '',
       address: _addressCtrl.text.trim().isNotEmpty ? _addressCtrl.text.trim() : 'Main Market Road',
+      city: opt(_cityCtrl),
+      state: opt(_stateCtrl),
+      pincode: opt(_pincodeCtrl),
       gstin: _gstinCtrl.text.trim().isNotEmpty ? _gstinCtrl.text.trim().toUpperCase() : null,
       businessType: _selectedType,
       sellerCategory: _selectedSellerCategory,
@@ -249,8 +311,53 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Shop "${newShop.shopName}" registered successfully!'),
+        content: Text('Party "${newShop.shopName}" registered successfully!'),
         backgroundColor: const Color(0xFF059669),
+      ),
+    );
+  }
+
+  Widget _buildSellerCategoryChip(String value, String label, IconData icon, bool isDark) {
+    final selected = _selectedSellerCategory == value;
+    final fg = selected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF475569));
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _selectedSellerCategory = value);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF1E56E2) : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? const Color(0xFF1E56E2) : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+              width: selected ? 1.5 : 1.0,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: fg),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -266,7 +373,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         title: Text(
-          widget.initialShop != null ? 'Edit Retail Outlet' : 'Register New Retail Outlet',
+          widget.initialShop != null ? 'Edit Party' : 'Register New Party',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: isDark ? Colors.white : const Color(0xFF0F172A)),
         ),
         centerTitle: true,
@@ -521,7 +628,10 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                         ),
                         child: _isCapturingGps
                             ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text('Re-Tag', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+                            : Text(
+                                _currentLat != null ? 'Re-Tag' : 'Fetch GPS',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                              ),
                       ),
                     ],
                   ),
@@ -545,7 +655,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Seller Category Selector (Retailer / Wholesaler)
+                      // Seller Category Selector (Retailer / Wholesaler / Walk-in Customer)
                       Text(
                         'Seller Category *',
                         style: TextStyle(
@@ -557,97 +667,11 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                setState(() => _selectedSellerCategory = 'Retailer');
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.symmetric(vertical: 11),
-                                decoration: BoxDecoration(
-                                  color: _selectedSellerCategory == 'Retailer'
-                                      ? const Color(0xFF1E56E2)
-                                      : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: _selectedSellerCategory == 'Retailer'
-                                        ? const Color(0xFF1E56E2)
-                                        : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                                    width: _selectedSellerCategory == 'Retailer' ? 1.5 : 1.0,
-                                  ),
-                                ),
-                                alignment: Alignment.center,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.storefront_rounded,
-                                      size: 17,
-                                      color: _selectedSellerCategory == 'Retailer' ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Retailer',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: _selectedSellerCategory == 'Retailer' ? FontWeight.w800 : FontWeight.w600,
-                                        color: _selectedSellerCategory == 'Retailer' ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                setState(() => _selectedSellerCategory = 'Wholesaler');
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.symmetric(vertical: 11),
-                                decoration: BoxDecoration(
-                                  color: _selectedSellerCategory == 'Wholesaler'
-                                      ? const Color(0xFF1E56E2)
-                                      : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: _selectedSellerCategory == 'Wholesaler'
-                                        ? const Color(0xFF1E56E2)
-                                        : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                                    width: _selectedSellerCategory == 'Wholesaler' ? 1.5 : 1.0,
-                                  ),
-                                ),
-                                alignment: Alignment.center,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.warehouse_rounded,
-                                      size: 17,
-                                      color: _selectedSellerCategory == 'Wholesaler' ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Wholesaler',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: _selectedSellerCategory == 'Wholesaler' ? FontWeight.w800 : FontWeight.w600,
-                                        color: _selectedSellerCategory == 'Wholesaler' ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+                          _buildSellerCategoryChip('Retailer', 'Retailer', Icons.storefront_rounded, isDark),
+                          const SizedBox(width: 8),
+                          _buildSellerCategoryChip('Wholesaler', 'Wholesaler', Icons.warehouse_rounded, isDark),
+                          const SizedBox(width: 8),
+                          _buildSellerCategoryChip('Walk-in Customer', 'Walk-in Customer', Icons.directions_walk_rounded, isDark),
                         ],
                       ),
                       const SizedBox(height: 14),
@@ -705,9 +729,50 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                         controller: _addressCtrl,
                         maxLines: 2,
                         decoration: const InputDecoration(
-                          labelText: 'Full Street Address & Landmark *',
+                          labelText: 'Full Address *',
                           hintText: 'Shop No. 4, Market Road, Near Post Office',
                           prefixIcon: Icon(Icons.map_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _cityCtrl,
+                              textCapitalization: TextCapitalization.words,
+                              decoration: const InputDecoration(
+                                labelText: 'City',
+                                hintText: 'e.g. Pune',
+                                prefixIcon: Icon(Icons.location_city_outlined),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _stateCtrl,
+                              textCapitalization: TextCapitalization.words,
+                              decoration: const InputDecoration(
+                                labelText: 'State',
+                                hintText: 'e.g. Maharashtra',
+                                prefixIcon: Icon(Icons.flag_outlined),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _pincodeCtrl,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        decoration: const InputDecoration(
+                          labelText: 'Pincode',
+                          hintText: '411001',
+                          counterText: '',
+                          prefixIcon: Icon(Icons.markunread_mailbox_outlined),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -833,7 +898,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
               const Icon(Icons.check_circle_rounded, size: 20),
               const SizedBox(width: 8),
               Text(
-                widget.initialShop != null ? 'Save Changes' : 'Register & Save Shop',
+                widget.initialShop != null ? 'Save Changes' : 'Register & Save Party',
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
               ),
             ],

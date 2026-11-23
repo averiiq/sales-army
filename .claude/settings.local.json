@@ -20,7 +20,11 @@
       "PowerShell(Get-Item *)",
       "Bash(flutter pub *)",
       "Bash(awk 'NR<=755 || NR>=1197' lib/features/collections/presentation/screens/collections_tab.dart)",
-      "Bash(mv /tmp/collections_tab_fixed.dart lib/features/collections/presentation/screens/collections_tab.dart)"
+      "Bash(mv /tmp/collections_tab_fixed.dart lib/features/collections/presentation/screens/collections_tab.dart)",
+      "Bash(cd \"/c/Users/somve/Desktop/projects/client projects/navn\"*)",
+      "Bash(xargs cat:*)",
+      "Bash(cat \"/c/Users/somve/Desktop/projects/client projects/navn\"*/sales_army/apps/mobile/lib/core/utils/csv_report_helper.dart)",
+      "Bash(find . -name \"csv_report_helper.dart\" -exec cat {})"
     ]
   }
 }

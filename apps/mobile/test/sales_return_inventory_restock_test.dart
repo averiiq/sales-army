@@ -77,8 +77,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify dialog elements
-    expect(find.text('Process Sales Return'), findsOneWidget);
-    expect(find.text('Select Retailer / Outlet *'), findsOneWidget);
+    expect(find.text('Sales Return'), findsOneWidget); // now a full page
+    expect(find.text('Select Party *'), findsOneWidget);
     expect(find.text('Select Product to Return *'), findsOneWidget);
     expect(find.text('Return Quantity *'), findsOneWidget);
     expect(find.text('Return Reason *'), findsOneWidget);

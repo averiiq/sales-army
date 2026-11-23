@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -58,13 +59,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     final devices = await PrinterService.instance.scanBluetoothDevices();
     if (!mounted) return;
     if (devices.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'No paired Bluetooth printers found. Pair the printer in Android Settings → Bluetooth first, then try again.'),
-          backgroundColor: Color(0xFFDC2626),
-        ),
-      );
+      showAppError(context, 'No paired Bluetooth printers found. Pair the printer in Android Settings → Bluetooth first, then try again.');
     }
   }
 

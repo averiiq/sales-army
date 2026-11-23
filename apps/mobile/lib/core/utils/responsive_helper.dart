@@ -62,12 +62,13 @@ extension ResponsiveContext on BuildContext {
 }
 
 /// A wrapper widget that constrains content to a sensible maximum width on tablets/desktops
-/// while centering it cleanly.
+/// while centering it cleanly without expanding unbounded vertically.
 class ResponsiveContainer extends StatelessWidget {
   final Widget child;
   final double maxWidth;
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
+  final AlignmentGeometry alignment;
 
   const ResponsiveContainer({
     super.key,
@@ -75,6 +76,7 @@ class ResponsiveContainer extends StatelessWidget {
     this.maxWidth = 1200,
     this.padding,
     this.margin,
+    this.alignment = Alignment.topCenter,
   });
 
   @override
@@ -91,6 +93,10 @@ class ResponsiveContainer extends StatelessWidget {
       content = Padding(padding: margin!, child: content);
     }
 
-    return Center(child: content);
+    return Align(
+      alignment: alignment,
+      heightFactor: 1.0,
+      child: content,
+    );
   }
 }

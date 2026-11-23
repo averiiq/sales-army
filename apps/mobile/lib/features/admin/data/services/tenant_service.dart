@@ -55,12 +55,10 @@ class TenantService {
     if (client != null) {
       try {
         final data = await client.from('tenants').select('*');
-        if (data is List) {
-          return data.map((row) {
-            final tid = (row['tenant_id'] ?? '').toString();
-            return TenantModel.fromMap(Map<String, dynamic>.from(row as Map), tid);
-          }).toList();
-        }
+        return data.map((row) {
+          final tid = (row['tenant_id'] ?? '').toString();
+          return TenantModel.fromMap(Map<String, dynamic>.from(row as Map), tid);
+        }).toList();
       } catch (e) {
         debugPrint('fetchAllTenants Supabase note: $e');
       }

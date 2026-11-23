@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/widgets/billing_error_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
 import 'package:salesarmy/features/inventory/data/models/product_model.dart';
@@ -10,7 +11,7 @@ import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/services/printer_service.dart';
 import 'package:salesarmy/features/billing/data/models/gst_slab_model.dart';
 import 'package:salesarmy/features/billing/data/services/gst_engine.dart';
-import 'package:salesarmy/features/profile/presentation/screens/gst_configuration_screen.dart';
+import 'package:salesarmy/core/utils/formatters.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:salesarmy/core/utils/app_image_helper.dart';
 
@@ -97,7 +98,13 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
     super.initState();
     final appState = Provider.of<AppState>(context, listen: false);
     _isGstCompliance = appState.isGstBillingEnabled && (widget.initialGstCompliance ?? true);
-    _selectedGstSlabId = widget.initialGstSlabId ?? 'sku_default';
+    // The order taker uses 'auto' for "per-SKU rates"; this modal calls the same
+    // option 'sku_default'. Normalise it, and fall back for any slab id that is
+    // no longer active, so the dropdown always has exactly one matching item.
+    final requestedSlabId = widget.initialGstSlabId;
+    final isKnownSlab = requestedSlabId != null &&
+        appState.activeGstSlabs.any((s) => s.id == requestedSlabId);
+    _selectedGstSlabId = isKnownSlab ? requestedSlabId : 'sku_default';
     _selectedPricingCategory = widget.initialPricingCategory ?? 'Wholesale Price';
 
     if (widget.cartQuantities.isNotEmpty) {
@@ -108,10 +115,22 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
       }
     }
 
+    // Money already collected against this order before it was billed
+    // (partial payments from the Collections page) — counted towards the bill.
+    _priorPaid = widget.existingOrder != null
+        ? appState.getOrderPaidAmount(widget.existingOrder!)
+        : 0.0;
+
     final amounts = _computeAmounts(appState, _isGstCompliance);
-    _cashReceivedCtrl = TextEditingController(
-      text: amounts.grandTotal.round().toString(),
-    );
+    _cashReceivedCtrl = TextEditingController(text: _defaultCashText(amounts));
+  }
+
+  double _priorPaid = 0.0;
+
+  /// Remaining amount to collect, rounded up to the next rupee.
+  String _defaultCashText(BillCalculationAmounts amounts) {
+    final remaining = (amounts.grandTotal - _priorPaid).clamp(0.0, double.infinity);
+    return roundUpRupee(remaining).toStringAsFixed(0);
   }
 
   @override
@@ -241,8 +260,12 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
       final invoiceId = 'inv_${now.millisecondsSinceEpoch}';
       final invoiceNumber = 'INV-${now.year}-${(appState.invoices.length + 1).toString().padLeft(4, '0')}-${now.millisecondsSinceEpoch % 10000}';
 
-      // Payment calculations
-      final paidAmount = cashOrPaidAmount.clamp(0.0, grandTotal);
+      // Payment calculations. priorPaid = partial payments already collected
+      // against this order before billing; paidNow = collected in this dialog
+      // (capped at what is still owed, so a rounded-up 58 on 57.47 settles it).
+      final priorPaid = _priorPaid.clamp(0.0, grandTotal);
+      final paidNow = cashOrPaidAmount.clamp(0.0, grandTotal - priorPaid);
+      final paidAmount = priorPaid + paidNow;
       final dueAmount = (grandTotal - paidAmount).clamp(0.0, double.infinity);
       final paymentStatus = (dueAmount <= 0.01)
           ? 'paid'
@@ -318,7 +341,9 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
         paymentStatus: paymentStatus,
       );
 
-      // 1. Add order & invoice to AppState
+      // 1. Add order & invoice to AppState (policy checked before any write,
+      //    so a blocked attempt doesn't confirm the order without a bill).
+      appState.ensureCanCreateBills();
       if (widget.existingOrder != null) {
         await appState.updateOrderStatus(orderId, 'confirmed');
         await appState.createInvoice(invoice);
@@ -327,18 +352,20 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
       }
 
       // 2. Record payment transaction if money was collected
-      if (paidAmount > 0.0) {
+      //    The bill already carries this money in paidAmount, so it must not be
+      //    allocated to bills again (that used to double-count partial payments).
+      if (paidNow > 0.0) {
         final payment = PaymentModel(
           paymentId: 'PAY-${now.millisecondsSinceEpoch}',
           shopId: widget.destinationShop.shopId,
           createdByUid: appState.currentUid ?? 'demo_user_01',
-          amount: paidAmount,
+          amount: paidNow,
           paymentMode: paymentMode,
           referenceNumber: referenceNumber ?? invoiceNumber,
           date: now,
           notes: 'Payment collected on order $orderId via $paymentMode',
         );
-        await appState.recordPayment(payment);
+        await appState.recordPayment(payment, allocateToInvoices: false);
       }
 
       if (!mounted) return;
@@ -349,23 +376,10 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
       }
       Navigator.of(context).pop(); // Close modal
       widget.onOrderCompleted(order, invoice);
-    } on InsufficientStockException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Not enough stock:\n${e.toString()}'),
-          backgroundColor: const Color(0xFFDC2626),
-          duration: const Duration(seconds: 5),
-        ),
-      );
     } catch (e) {
+      // Dialog, not SnackBar: a SnackBar would render underneath this modal.
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to complete order: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      await showBillingErrorDialog(context, e);
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
@@ -379,14 +393,20 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
     final isDark = appState.isDarkMode;
     final amounts = _computeAmounts(appState, _isGstCompliance);
 
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenHeight < 700;
+    final horizontalInset = screenWidth < 380 ? 10.0 : 16.0;
+    final contentPadH = screenWidth < 380 ? 14.0 : 20.0;
+
     return Dialog(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F4F9),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: EdgeInsets.symmetric(horizontal: horizontalInset, vertical: isCompact ? 12 : 24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
+        constraints: BoxConstraints(maxWidth: 440, maxHeight: screenHeight * 0.9),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+          padding: EdgeInsets.fromLTRB(contentPadH, isCompact ? 14 : 18, contentPadH, contentPadH),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -404,11 +424,13 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                               ? 'Generate Bill: ${widget.existingOrder!.orderId}'
                               : 'Complete & Bill Order',
                           style: TextStyle(
-                            fontSize: 21,
+                            fontSize: screenWidth < 380 ? 17 : 21,
                             fontWeight: FontWeight.w800,
                             color: isDark ? Colors.white : const Color(0xFF0F172A),
                             letterSpacing: -0.3,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 3),
                         Text(
@@ -510,110 +532,16 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                   setState(() {
                     _isGstCompliance = val;
                     final newAmounts = _computeAmounts(appState, _isGstCompliance);
-                    _cashReceivedCtrl.text = newAmounts.grandTotal.round().toString();
+                    _cashReceivedCtrl.text = _defaultCashText(newAmounts);
                   });
                 } : null,
               ),
             ],
           ),
 
-          // Custom GST Slab Selector Box (When GST Compliance is Enabled)
+          // GST slab info (slab chosen in the Order Taker still applies; the
+          // slab dropdown was removed from this dialog — only the toggle remains).
           if (_isGstCompliance) ...[
-            Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(Icons.percent_rounded, size: 16, color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB)),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Apply Custom GST Slab:',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const GstConfigurationScreen()),
-                    ).then((_) {
-                      if (mounted) setState(() {});
-                    });
-                  },
-                  child: const Text(
-                    '+ Manage Slabs',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF2563EB),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedGstSlabId,
-              isExpanded: true,
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
-              items: [
-                const DropdownMenuItem(
-                  value: 'sku_default',
-                  child: Text(
-                    'Default Catalog Slabs (Per-SKU defined)',
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                ...appState.activeGstSlabs.map((slab) {
-                  return DropdownMenuItem(
-                    value: slab.id,
-                    child: Text(
-                      '${slab.formattedRate} - ${slab.name} (${slab.category})',
-                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }),
-              ],
-              onChanged: (newSlabId) {
-                if (newSlabId == null) return;
-                setState(() {
-                  _selectedGstSlabId = newSlabId;
-                  final newAmounts = _computeAmounts(appState, _isGstCompliance);
-                  _cashReceivedCtrl.text = newAmounts.grandTotal.round().toString();
-                });
-              },
-            ),
-
             if (amounts.appliedSlab != null) ...[
               const SizedBox(height: 10),
               Container(
@@ -671,7 +599,7 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
 
           Divider(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), height: 24),
 
-          // Pricing Category Selector (Retail Price, Wholesale Price, MRP)
+          // Pricing Category Selector (Retail, Wholesale, MRP)
           Row(
             children: [
               Icon(Icons.sell_outlined, size: 15, color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB)),
@@ -698,7 +626,7 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                       setState(() {
                         _selectedPricingCategory = category;
                         final newAmounts = _computeAmounts(appState, _isGstCompliance);
-                        _cashReceivedCtrl.text = newAmounts.grandTotal.round().toString();
+                        _cashReceivedCtrl.text = _defaultCashText(newAmounts);
                       });
                     },
                     borderRadius: BorderRadius.circular(8),
@@ -717,7 +645,8 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        category,
+                        // Display label only — the stored category value is unchanged.
+                        category.replaceAll(' Price', ''),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 11.5,
@@ -995,6 +924,18 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
               ),
+              if (_priorPaid > 0.009) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Already paid on this order: ${AppFormatters.currency(_priorPaid)} • '
+                  'Remaining: ${AppFormatters.currency((amounts.grandTotal - _priorPaid).clamp(0.0, double.infinity))}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF047857),
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
 
               // Confirm Cash Payment Button
@@ -1022,9 +963,12 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text(
-                        'Confirm Cash Payment & Print Invoice',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                    : const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Confirm Cash Payment & Print Invoice',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        ),
                       ),
               ),
             ],
@@ -1113,7 +1057,7 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                     );
                   },
             child: Text(
-              'Deliver as Credit / Pay Later (₹0 now)',
+              'Book Order',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -1464,16 +1408,19 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check_circle_outline, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Confirm UPI Payment & Print Invoice',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-                          ),
-                        ],
+                    : const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_outline, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Confirm UPI Payment & Print Invoice',
+                              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
                       ),
               ),
             ],
@@ -1572,9 +1519,13 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 icon: const Icon(Icons.send_rounded, size: 16),
-                label: const Text(
-                  'Send Payment Link to Retailer WhatsApp/SMS',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                label: const Flexible(
+                  child: Text(
+                    'Send Payment Link to Retailer WhatsApp/SMS',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 onPressed: () {
                   setState(() {
@@ -1626,16 +1577,19 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.verified_outlined, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Confirm Razorpay Payment & Print Invoice',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-                          ),
-                        ],
+                    : const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.verified_outlined, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Confirm Razorpay Payment & Print Invoice',
+                              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
                       ),
               ),
             ],

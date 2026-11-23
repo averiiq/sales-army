@@ -36,6 +36,9 @@ window.fetch = async (input, options = {}) => {
     const body = await response.clone().json().catch(() => ({}));
     const message = body.error || `Request failed (${response.status})`;
     if (response.status === 401 && !url.pathname.startsWith('/api/auth/')) {
+      // Session expired or revoked: drop the token and every cached record.
+      for (const key of Object.values(STORAGE_KEYS)) localStorage.removeItem(key);
+      window.adminApp?.stopBridge?.();
       document.getElementById('authGate')?.classList.remove('hidden');
     }
     document.dispatchEvent(new CustomEvent('api-error', { detail: message }));
@@ -583,13 +586,28 @@ class AdminPortal {
     this.initAuth();
     this.initTheme();
     this.initBroadcastChannel();
-    // Supabase/bridge is authoritative for platform administration.
-    this.initSupabase();
-    this.initBridge();
     this.initElements();
     this.bindEvents();
     this.initKeyboardShortcuts();
     this.renderAll();
+    // Data is only fetched for a signed-in Super Admin; the server verifies
+    // the session on every request (the login gate is not a security boundary).
+    if (this.hasSession()) this.startDataSync();
+  }
+
+  hasSession() {
+    const s = this.loadData(STORAGE_KEYS.AUTH, null);
+    return Boolean(s && s.token && s.role === 'super_admin');
+  }
+
+  async startDataSync() {
+    await this.initSupabase();
+    await this.initBridge();
+  }
+
+  clearLocalData() {
+    for (const key of Object.values(STORAGE_KEYS)) localStorage.removeItem(key);
+    localStorage.removeItem('sa_admin_shops');
   }
 
   // --- Theme & Accessibility ---
@@ -732,7 +750,9 @@ class AdminPortal {
       if (!silent) this.showToast(msg, '⚠️', 'warning');
       return false;
     } catch (err) {
-      if (!silent) this.showToast(`Network error: ${err.message}`, '⚠️', 'warning');
+      // The global fetch wrapper has already shown the server's error message
+      // for HTTP failures; only report genuine network failures here.
+      if (!silent && err instanceof TypeError) this.showToast(`Network error: ${err.message}`, '⚠️', 'warning');
       return false;
     }
   }
@@ -841,738 +861,161 @@ class AdminPortal {
     }
   }
 
-  // --- SUPABASE POSTGRESQL CLOUD & REAL-TIME INTEROPERABILITY ---
+  // --- SUPABASE (session + realtime change notifications only) ---
+  // All reads and writes go through the admin API (/api/platform/*), which
+  // verifies the Super Admin session and records an audit log. The browser
+  // Supabase client is used only to receive realtime change events.
   async initSupabase() {
-    // Supabase credentials come from the server config endpoint. The anon
-    // key is NOT read from localStorage any more — a DOM-based XSS could
-    // otherwise overwrite it and redirect every request to an attacker-
-    // controlled Supabase project.
-    let url = (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.url) || null;
-    let anonKey = (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.anonKey) || null;
+    let url = null;
+    let anonKey = null;
+    try {
+      const res = await fetch('/api/config/supabase');
+      const conf = await res.json();
+      url = conf.supabaseUrl;
+      anonKey = conf.supabaseAnonKey;
+    } catch (_) {}
 
-    // Auto-discover credentials from local server bridge (/api/config/supabase) if needed
-    if (!url || !anonKey) {
-      try {
-        const res = await fetch('/api/config/supabase');
-        if (res.ok) {
-          const conf = await res.json();
-          if (conf.supabaseUrl && conf.supabaseAnonKey) {
-            url = conf.supabaseUrl;
-            anonKey = conf.supabaseAnonKey;
-          }
-        }
-      } catch (_) {}
+    if (typeof supabase === 'undefined' || !supabase.createClient || !url || !anonKey) {
+      this.updateSupabaseStatus(false, 'Realtime unavailable');
+      return;
     }
-
-    if (typeof supabase !== 'undefined' && supabase.createClient && url && anonKey) {
-      try {
-        this.supabaseClient = supabase.createClient(url, anonKey);
+    try {
+      if (!this.supabaseClient) {
+        this.supabaseClient = supabase.createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: true } });
         this.supabaseClient.auth.onAuthStateChange((_event, session) => {
           if (!session) return;
           const saved = this.loadData(STORAGE_KEYS.AUTH, null);
           if (saved && saved.id === session.user.id) {
-            localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify({ ...saved, token: session.access_token }));
+            localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify({ ...saved, token: session.access_token, refreshToken: session.refresh_token }));
           }
         });
-        console.log('⚡ Supabase Client initialized for Web Admin Portal:', url);
-        this.updateSupabaseStatus(true);
-        this.initSupabaseRealtimeListeners();
-        
-        // Fetch all production data live from Supabase
-        await Promise.allSettled([
-          this.fetchSettingsFromSupabase(),
-          this.fetchTenantsFromSupabase(),
-          this.fetchProfilesFromSupabase(),
-          this.fetchOrdersFromSupabase()
-        ]);
-        this.renderAll();
-      } catch (err) {
-        console.warn('Supabase initialization notice in Web Admin:', err);
-        this.updateSupabaseStatus(false, err.message);
-        await Promise.allSettled([
-          this.fetchTenantsFromSupabase(),
-          this.fetchProfilesFromSupabase()
-        ]);
-        this.renderAll();
       }
-    } else {
-      this.updateSupabaseStatus(false, 'Waiting for credentials');
-      await Promise.allSettled([
-        this.fetchTenantsFromSupabase(),
-        this.fetchProfilesFromSupabase()
-      ]);
-      this.renderAll();
+      const saved = this.loadData(STORAGE_KEYS.AUTH, null);
+      if (saved?.token && saved?.refreshToken) {
+        await this.supabaseClient.auth.setSession({ access_token: saved.token, refresh_token: saved.refreshToken }).catch(() => {});
+      }
+      this.updateSupabaseStatus(true);
+      this.initSupabaseRealtimeListeners();
+    } catch (err) {
+      console.warn('Supabase realtime init notice:', err);
+      this.updateSupabaseStatus(false, err.message);
     }
   }
 
   updateSupabaseStatus(connected, message = '') {
     const el = document.getElementById('supabaseBridgeStatusText');
     if (el) {
-      if (connected) {
-        el.textContent = '● Supabase PostgreSQL: Connected & Synced';
-        el.style.color = '#10B981';
-      } else {
-        el.textContent = `○ Supabase: ${message || 'Local Mock'}`;
-        el.style.color = '#94A3B8';
-      }
+      el.textContent = connected ? '● Supabase: Connected (live updates)' : `○ Supabase: ${message || 'Offline'}`;
+      el.style.color = connected ? '#10B981' : '#94A3B8';
     }
   }
 
   initSupabaseRealtimeListeners() {
-    if (!this.supabaseClient) return;
-    try {
-      // 1. Live Platform Settings Listener (pricing, remote config, broadcast)
-      this.supabaseClient
-        .channel('web_admin:platform_settings')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'platform_settings',
-        }, (payload) => {
-          if (payload.new && payload.new.data) {
-            const rowId = payload.new.id;
-            const d = payload.new.data;
-            if (rowId === 'pricing_and_plans') {
-              if (d.plans) { this.plans = d.plans; this.saveData(STORAGE_KEYS.PLANS, this.plans); }
-              if (d.printerOptions) { this.printerOptions = d.printerOptions; this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions); }
-              if (d.subscriptionAddons) { this.subscriptionAddons = d.subscriptionAddons; this.saveData(STORAGE_KEYS.SUBSCRIPTION_ADDONS, this.subscriptionAddons); }
-              if (d.coupons) { this.coupons = d.coupons; this.saveData(STORAGE_KEYS.COUPONS, this.coupons); }
-              this.renderAll();
-            } else if (rowId === 'remote_config') {
-              this.remoteConfig = { ...this.remoteConfig, ...d };
-              this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig);
-              this.renderRemoteAppControl();
-            } else if (rowId === 'broadcast') {
-              this.broadcast = { ...this.broadcast, ...d };
-              this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast);
-              this.renderBroadcastCenter();
-            } else if (rowId === 'general_settings') {
-              this.settings = { ...this.settings, ...d };
-              this.saveData(STORAGE_KEYS.SETTINGS, this.settings);
-              this.renderPlatformSettings();
-            }
-          }
-        })
-        .subscribe();
-
-      // 2. Live Tenants Listener
-      this.supabaseClient
-        .channel('web_admin:tenants')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'tenants',
-        }, () => {
-          this.fetchTenantsFromSupabase();
-        })
-        .subscribe();
-
-      // 3. Live Hardware Orders Listener
-      this.supabaseClient
-        .channel('web_admin:hardware_orders')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'printer_hardware_orders',
-        }, (payload) => {
-          if (payload.new) {
-            const po = payload.new;
-            const idx = this.printerOrders.findIndex(x => x.id === po.order_id);
-            const mapped = {
-              id: po.order_id,
-              userId: po.tenant_id || 'platform_tenant',
-              customerName: po.contact_person || po.business_name,
-              agencyName: po.business_name,
-              phone: po.phone,
-              plan: 'Active Plan',
-              printerItem: po.printer_model,
-              price: Number(po.total_amount || 2499),
-              shippingAddress: po.shipping_address,
-              orderedAt: po.created_at ? po.created_at.replace('T', ' ').substring(0, 16) : new Date().toISOString(),
-              status: (po.fulfillment_status || 'Processing').replace(/^\w/, c => c.toUpperCase()),
-              courierName: 'Delhivery / BlueDart',
-              trackingNumber: po.tracking_number || 'Unassigned'
-            };
-            if (idx !== -1) {
-              this.printerOrders[idx] = { ...this.printerOrders[idx], ...mapped };
-            } else {
-              this.printerOrders.unshift(mapped);
-              this.showToast(`New Hardware Order from Supabase! (#${po.order_id})`, '🖨️');
-            }
-            this.saveData(STORAGE_KEYS.PRINTER_ORDERS, this.printerOrders);
-            this.renderPrintersTable();
-          }
-        })
-        .subscribe();
-
-      // 4. Live Profiles & RBAC Listener
-      this.supabaseClient
-        .channel('web_admin:profiles')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'profiles',
-        }, () => {
-          this.fetchProfilesFromSupabase();
-        })
-        .subscribe();
-
-      // 5. Live Retail Orders Listener
-      this.supabaseClient
-        .channel('web_admin:orders')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-        }, () => {
-          this.fetchOrdersFromSupabase();
-        })
-        .subscribe();
-    } catch (err) {
-      console.warn('Supabase realtime listener setup error:', err);
-    }
-  }
-
-  async fetchSettingsFromSupabase() {
-    let loaded = false;
-    if (this.supabaseClient) {
+    if (!this.supabaseClient || this._realtimeStarted) return;
+    this._realtimeStarted = true;
+    const tables = ['platform_settings', 'tenants', 'profiles', 'orders', 'printer_hardware_orders', 'notifications', 'subscription_checkouts'];
+    for (const table of tables) {
       try {
-        const { data, error } = await this.supabaseClient
-          .from('platform_settings')
-          .select('*');
-
-        if (!error && Array.isArray(data) && data.length > 0) {
-          for (const row of data) {
-            if (row.id === 'pricing_and_plans' && row.data) {
-              if (row.data.plans) {
-                this.plans = { ...this.plans, ...row.data.plans };
-                this.saveData(STORAGE_KEYS.PLANS, this.plans);
-              }
-              if (row.data.printerOptions && Array.isArray(row.data.printerOptions)) {
-                this.printerOptions = row.data.printerOptions;
-                this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions);
-              }
-              if (row.data.subscriptionAddons && Array.isArray(row.data.subscriptionAddons)) {
-                this.subscriptionAddons = row.data.subscriptionAddons;
-                this.saveData(STORAGE_KEYS.SUBSCRIPTION_ADDONS, this.subscriptionAddons);
-              }
-              if (row.data.coupons && Array.isArray(row.data.coupons)) {
-                this.coupons = row.data.coupons;
-                this.saveData(STORAGE_KEYS.COUPONS, this.coupons);
-              }
-            }
-            if (row.id === 'remote_config' && row.data) {
-              this.remoteConfig = { ...this.remoteConfig, ...row.data };
-              this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig);
-            }
-            if (row.id === 'broadcast' && row.data) {
-              this.broadcast = { ...this.broadcast, ...row.data };
-              this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast);
-            }
-            if (row.id === 'general_settings' && row.data) {
-              this.settings = { ...this.settings, ...row.data };
-              this.saveData(STORAGE_KEYS.SETTINGS, this.settings);
-            }
-          }
-          loaded = true;
-        }
+        this.supabaseClient
+          .channel(`web_admin:${table}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table }, () => this.scheduleRefresh())
+          .subscribe();
       } catch (err) {
-        console.warn('Supabase fetchSettings error:', err);
-      }
-    }
-
-    if (!loaded) {
-      try {
-        const res = await fetch('/api/platform/all', { headers: this.getAuthHeaders() });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data) {
-            const d = json.data;
-            if (d.plans) { this.plans = { ...this.plans, ...d.plans }; this.saveData(STORAGE_KEYS.PLANS, this.plans); }
-            if (d.printerOptions) { this.printerOptions = d.printerOptions; this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions); }
-            if (d.subscriptionAddons) { this.subscriptionAddons = d.subscriptionAddons; this.saveData(STORAGE_KEYS.SUBSCRIPTION_ADDONS, this.subscriptionAddons); }
-            if (d.coupons) { this.coupons = d.coupons; this.saveData(STORAGE_KEYS.COUPONS, this.coupons); }
-            if (d.remoteConfig) { this.remoteConfig = { ...this.remoteConfig, ...d.remoteConfig }; this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig); }
-            if (d.broadcast) { this.broadcast = { ...this.broadcast, ...d.broadcast }; this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast); }
-            if (d.settings) { this.settings = { ...this.settings, ...d.settings }; this.saveData(STORAGE_KEYS.SETTINGS, this.settings); }
-            loaded = true;
-          }
-        }
-      } catch (err) {
-        console.warn('Fallback /api/platform/all notice:', err);
+        console.warn('Realtime listener error:', table, err);
       }
     }
   }
 
-  async fetchTenantsFromSupabase() {
-    let tenantsLoaded = false;
-    if (this.supabaseClient) {
-      try {
-        const { data, error } = await this.supabaseClient
-          .from('tenants')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!error && Array.isArray(data) && data.length > 0) {
-          this.tenants = data.map(t => ({
-            id: t.tenant_id,
-            tenantId: t.tenant_id,
-            userId: t.tenant_id,
-            firmName: t.business_name || 'Commercial Distributor',
-            ownerName: t.contact_person || 'Agency Proprietor',
-            phone: t.mobile || '',
-            email: t.email || '',
-            gstin: t.gstin || '',
-            pan: t.pan || '',
-            city: t.city || 'Delhi',
-            subscriptionStatus: t.subscription_status || 'active',
-            planName: `${(t.plan_id || 'startup').toUpperCase()} Plan`,
-            subscriptionPlanId: t.plan_id || 'startup',
-            expiryDate: t.subscription_end_date ? t.subscription_end_date.split('T')[0] : 'Never (Freemium)',
-            freemiumSelling: true,
-            ordersCount: 0,
-            revenue: 0,
-            isSuspended: t.subscription_status === 'suspended' || !t.is_active,
-            createdAt: t.created_at
-          }));
-          tenantsLoaded = true;
-        }
-      } catch (err) {
-        console.warn('Supabase fetchTenants error:', err);
-      }
-    }
-
-    // Fallback to server API /api/platform/tenants if direct Supabase returned empty/blocked by RLS
-    if (!tenantsLoaded || !this.tenants || this.tenants.length === 0) {
-      try {
-        const res = await fetch('/api/platform/tenants', { headers: this.getAuthHeaders() });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && Array.isArray(json.tenants) && json.tenants.length > 0) {
-            this.tenants = json.tenants;
-            tenantsLoaded = true;
-          }
-        }
-      } catch (err) {
-        console.warn('Server /api/platform/tenants fallback error:', err);
-      }
-    }
-
-    if (this.tenants && this.tenants.length > 0) {
-      this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-      const badgeCount = document.getElementById('badgeTenantsCount');
-      if (badgeCount) badgeCount.textContent = this.tenants.length;
-      if (this.currentView === 'tenants' || this.currentView === 'dashboard') {
-        this.renderTenantsTable();
-        this.renderStats();
-      }
-    }
+  // Debounced refresh after realtime events or mutations.
+  scheduleRefresh(delay = 800) {
+    clearTimeout(this._refreshTimer);
+    this._refreshTimer = setTimeout(() => this.fetchPlatformState(true), delay);
   }
 
-  async fetchShopsFromSupabase() {
-    if (!this.supabaseClient) return;
-    try {
-      const { data, error } = await this.supabaseClient.from('shops').select('*');
-      if (!error && Array.isArray(data)) {
-        this.shops = data.map(s => ({
-          id: s.shop_id || s.id,
-          shopId: s.shop_id || s.id,
-          shopName: s.shop_name,
-          ownerName: s.owner_name,
-          phone: s.phone,
-          city: s.city,
-          address: s.address,
-          creditLimit: s.credit_limit,
-          outstanding: s.current_outstanding,
-          tenantId: s.tenant_id
-        }));
-        this.saveData('sa_admin_shops', this.shops);
-      }
-    } catch (err) {
-      console.warn('Supabase fetchShops error:', err);
-    }
-  }
+  // Legacy entry points kept for existing call sites; all resolve to the
+  // authoritative admin API snapshot.
+  fetchSettingsFromSupabase() { return this.fetchPlatformState(true); }
+  fetchTenantsFromSupabase() { return this.fetchPlatformState(true); }
+  fetchShopsFromSupabase() { return Promise.resolve(); }
+  fetchOrdersFromSupabase() { return this.fetchPlatformState(true); }
+  fetchProfilesFromSupabase() { return this.fetchPlatformState(true); }
 
-  async fetchOrdersFromSupabase() {
-    if (!this.supabaseClient) return;
-    try {
-      const { data, error } = await this.supabaseClient
-        .from('orders')
-        .select('*')
-        .order('order_date', { ascending: false })
-        .limit(100);
-
-      if (!error && Array.isArray(data)) {
-        if (data.length === 0) {
-          this.retailOrders = [];
-          this.saveData(STORAGE_KEYS.RETAIL_ORDERS, []);
-          this.renderOrdersView();
-          this.renderStats();
-          this.renderDashboard();
-          return;
-        }
-        const tenantMap = {
-          'tenant_shree_ganesh_traders': 'Verma Confectionery Store',
-          'platform_tenant': 'Selxo FMCG Distributions Pvt Ltd',
-          'tenant_verma_004160': 'Verma Enterprises',
-          'tenant_apex_fmcg_distributors_267380': 'Apex FMCG Distributors',
-          'tenant_mahadev_departmental_337726': 'Mahadev Departmental Store'
-        };
-        (this.tenants || []).forEach(t => {
-          tenantMap[t.id || t.tenantId] = t.firmName || t.businessName || t.name;
-        });
-
-        const shopMap = {
-          'SHP-LIVE-TEST-01': 'Shree Ganesh Supermarket',
-          'shp_test_1792836203254': 'Balaji Super Bazaar',
-          'SHP-002': 'Balaji Daily Provisions',
-          'shop_001': 'Metro Cash & Carry Partner',
-          'shop_1792233185017': 'Shree Ganesh Kirana Store',
-          'shop_default': 'Kalyan Provision Mart',
-          'SHP-001': 'Shree Ganesh Supermarket',
-          'shop_1792840533634': 'Ganesh Kirana Store'
-        };
-        (this.shops || []).forEach(s => {
-          shopMap[s.shopId || s.id] = s.shopName;
-        });
-
-        const staffMap = {};
-        (this.users || []).forEach(u => {
-          staffMap[u.id || u.uid] = u.name;
-        });
-
-        this.retailOrders = data.map((ro, idx) => {
-          const rawStatus = (ro.status || 'confirmed').toLowerCase();
-          let displayStatus = 'Processing';
-          if (rawStatus === 'completed' || rawStatus === 'delivered') displayStatus = 'Delivered';
-          else if (rawStatus === 'confirmed') displayStatus = 'Processing';
-          else if (rawStatus === 'pending') displayStatus = 'Pending';
-          else if (rawStatus === 'cancelled') displayStatus = 'Cancelled';
-          else displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
-
-          let resolvedShop = shopMap[ro.shop_id];
-          if (!resolvedShop) {
-            if (ro.shop_id && ro.shop_id.startsWith('shop-sync')) resolvedShop = 'Metro Cash & Carry Partner';
-            else if (ro.shop_id === 'shop_001') resolvedShop = 'Metro Cash & Carry Partner';
-            else resolvedShop = `Shop ${ro.shop_id || '101'}`;
-          }
-
-          let resolvedTenant = tenantMap[ro.tenant_id];
-          if (!resolvedTenant) {
-            if (ro.tenant_id && ro.tenant_id.includes('kalyan')) resolvedTenant = 'Kalyan FMCG Agency';
-            else resolvedTenant = 'Verma Confectionery Store';
-          }
-
-          return {
-            id: ro.order_id,
-            orderId: ro.order_id,
-            orderNumber: `SO-${ro.order_id}`,
-            tenantId: ro.tenant_id,
-            tenantName: resolvedTenant,
-            shopId: ro.shop_id || 'SH-101',
-            shopName: resolvedShop,
-            salesmanName: staffMap[ro.sales_person_uid] || (idx % 2 === 0 ? 'Sunil Kadam' : 'Suresh Kumar'),
-            subtotal: Number(ro.subtotal || 0),
-            totalGst: Number(ro.total_gst || 0),
-            grandTotal: Number(ro.grand_total || 0),
-            status: displayStatus,
-            paymentStatus: displayStatus === 'Delivered' ? 'Paid' : 'Pending',
-            paymentMethod: 'UPI / Cash',
-            orderDate: ro.order_date || ro.created_at || new Date().toISOString(),
-            notes: ro.notes || ''
-          };
-        });
-
-        this.saveData(STORAGE_KEYS.RETAIL_ORDERS, this.retailOrders);
-        this.renderOrdersView();
-        this.renderStats();
-        this.renderDashboard();
-      }
-    } catch (err) {
-      console.warn('Supabase fetchOrders error:', err);
-    }
-  }
-
-  async fetchProfilesFromSupabase() {
-    let profilesLoaded = false;
-    if (this.supabaseClient) {
-      try {
-        const { data, error } = await this.supabaseClient
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const tenantMap = {};
-          (this.tenants || []).forEach(t => {
-            tenantMap[t.id || t.tenantId] = t.firmName || t.businessName || t.name;
-          });
-
-          const mapped = data.map(p => ({
-            id: p.id,
-            uid: p.id,
-            name: p.name || 'Platform User',
-            email: p.email || 'N/A',
-            phone: p.phone || '',
-            role: p.role || 'salesman',
-            tenantId: p.tenant_id || 'platform_tenant',
-            tenantName: tenantMap[p.tenant_id] || (p.tenant_id ? p.tenant_id : 'Platform Central'),
-            status: p.account_status || 'active',
-            createdAt: p.created_at,
-            updatedAt: p.updated_at
-          }));
-
-          this.users = mapped;
-          profilesLoaded = true;
-        }
-      } catch (err) {
-        console.warn('Supabase fetchProfiles error:', err);
-      }
-    }
-
-    // Fallback to server API /api/platform/users if direct Supabase returned empty/blocked by RLS
-    if (!profilesLoaded || !this.users || this.users.length <= 1) {
-      try {
-        const res = await fetch('/api/platform/users', { headers: this.getAuthHeaders() });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && Array.isArray(json.users) && json.users.length > 0) {
-            this.users = json.users;
-            profilesLoaded = true;
-          }
-        }
-      } catch (err) {
-        console.warn('Server /api/platform/users fallback error:', err);
-      }
-    }
-
-    if (this.users && this.users.length > 0) {
-      this.saveData(STORAGE_KEYS.USERS, this.users);
-      const badgeCount = document.getElementById('badgeUsersCount');
-      if (badgeCount) badgeCount.textContent = this.users.length;
-      if (this.currentView === 'users' || this.currentView === 'dashboard') {
-        this.renderUsersTable();
-        this.renderStats();
-      }
-    }
-  }
-
+  // Persist one settings document through the admin API.
   async syncToSupabase(settingId, data) {
-    let cloudSynced = false;
-    if (this.supabaseClient) {
-      try {
-        const { error } = await this.supabaseClient.from('platform_settings').upsert({
-          id: settingId,
-          data: data,
-          updated_at: new Date().toISOString(),
-        });
-        if (!error) cloudSynced = true;
-      } catch (err) {
-        console.warn('Direct Supabase write notice:', err);
-      }
-    }
-
-    if (!cloudSynced) {
-      try {
-        const res = await fetch('/api/platform/settings', {
-          method: 'POST',
-          headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ id: settingId, data })
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success) cloudSynced = true;
-        }
-      } catch (err) {
-        console.warn('Server settings sync notice:', err);
-      }
-    }
-
-    if (cloudSynced) {
-      console.log(`⚡ Supabase: Saved platform_settings/${settingId} to cloud`);
-      this.updateCloudStatus(true);
-    } else {
-      this.updateCloudStatus(false);
-      this.showToast(`❌ Cloud write (${settingId}) failed.`, '☁️');
-      throw new Error(`Cloud write (${settingId}) failed`);
-    }
+    const map = {
+      pricing_and_plans: () => ({ plans: data.plans, printerOptions: data.printerOptions, subscriptionAddons: data.subscriptionAddons, coupons: data.coupons }),
+      remote_config: () => ({ remoteConfig: data }),
+      broadcast: () => ({ broadcast: data }),
+      general_settings: () => ({ settings: data }),
+    };
+    if (!map[settingId]) throw new Error(`Unknown setting ${settingId}`);
+    const payload = Object.fromEntries(Object.entries(map[settingId]()).filter(([, v]) => v !== undefined));
+    const ok = await this.saveToBridge(payload);
+    if (!ok) throw new Error(`Saving ${settingId} failed`);
   }
 
-  async syncPricingToSupabase() {
-    if (!this.supabaseClient) {
-      this.showToast('⚠️ Supabase client not initialised — pricing saved locally only.', '☁️');
-      return;
-    }
-    try {
-      await this.syncToSupabase('pricing_and_plans', {
-        plans: this.plans,
-        printerOptions: this.printerOptions,
-        subscriptionAddons: this.subscriptionAddons || [],
-        coupons: this.coupons,
-        updatedAt: new Date().toISOString(),
-      });
-    } catch (err) {
-      console.warn('Supabase pricing sync error:', err);
-      this.showToast(`❌ Cloud sync failed: ${err.message || err}`, '☁️');
-    }
-  }
+  // saveToBridge() already persists these; kept as no-ops for old call sites.
+  async syncPricingToSupabase() {}
+  async syncRemoteConfigToSupabase() {}
+  async syncBroadcastToSupabase() {}
+  async syncPrinterOrderToSupabase() {}
 
-  /// Reads pricing_and_plans back from Supabase and compares to local state.
-  /// Shows a toast with the match status and the cloud timestamp.
   async verifyPricingSync() {
-    if (!this.supabaseClient) {
-      this.showToast('⚠️ Supabase client not initialised. Check env vars.', '☁️');
-      return;
-    }
-    try {
-      const { data, error } = await this.supabaseClient
-        .from('platform_settings')
-        .select('data, updated_at')
-        .eq('id', 'pricing_and_plans')
-        .maybeSingle();
-
-      if (error) {
-        this.showToast(`❌ Cloud read failed: ${error.message}`, '☁️');
-        return;
-      }
-      if (!data || !data.data) {
-        this.showToast('⚠️ No pricing_and_plans row in Supabase yet. Save plans to push.', '☁️');
-        return;
-      }
-
-      const cloud = data.data;
-      const localTierCount = (this.plans?.tiers || []).length;
-      const cloudTierCount = (cloud.plans?.tiers || cloud.plans || []).length || Object.keys(cloud.plans || {}).length;
-      const localAddonCount = (this.subscriptionAddons || []).length;
-      const cloudAddonCount = (cloud.subscriptionAddons || []).length;
-      const localJson = JSON.stringify(this.plans || {});
-      const cloudJson = JSON.stringify(cloud.plans || {});
-      const match = localJson === cloudJson;
-      const when = data.updated_at ? new Date(data.updated_at).toLocaleString() : 'unknown';
-
-      if (match) {
-        this.showToast(`✅ In sync (${cloudTierCount} tiers, ${cloudAddonCount} add-ons) · updated ${when}`, '☁️');
-      } else {
-        this.showToast(`⚠️ Local & cloud differ (local=${localTierCount} tiers, cloud=${cloudTierCount}). Click Save to push.`, '☁️');
-      }
-      console.log('[verifyPricingSync] cloud:', cloud, 'local:', this.plans);
-    } catch (err) {
-      console.warn('verifyPricingSync error:', err);
-      this.showToast(`❌ Verification error: ${err.message || err}`, '☁️');
-    }
+    await this.fetchPlatformState(true);
+    this.showToast(`Pricing reloaded from the database (${(this.plans?.tiers || []).length} tiers, ${(this.subscriptionAddons || []).length} add-ons).`, '☁️');
   }
 
-  async syncRemoteConfigToSupabase() {
-    if (!this.supabaseClient) return;
-    try {
-      await this.syncToSupabase('remote_config', this.remoteConfig);
-    } catch (err) {
-      console.warn('Supabase remote config sync error:', err);
-    }
-  }
-
-  async syncBroadcastToSupabase() {
-    if (!this.supabaseClient) return;
-    try {
-      await this.syncToSupabase('broadcast', this.broadcast);
-    } catch (err) {
-      console.warn('Supabase broadcast sync error:', err);
-    }
+  // Translate a tenant view-model into the explicit fields the API accepts.
+  tenantPatch(t) {
+    const patch = { id: t.id || t.tenantId };
+    const fields = {
+      firmName: t.firmName, ownerName: t.ownerName, phone: t.phone, email: t.email, gstin: t.gstin, pan: t.pan,
+      address: t.address, city: t.city, state: t.state, subscriptionPlanId: t.subscriptionPlanId,
+      subscriptionStatus: t.subscriptionStatus, expiryDate: t.expiryDate, maxUsers: t.maxUsers, maxShops: t.maxShops,
+    };
+    for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null) patch[k] = v;
+    return patch;
   }
 
   async syncTenantToSupabase(tenant) {
-    if (!tenant) return;
-    try {
-      fetch('/api/platform/sync-tenant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
-        body: JSON.stringify(tenant)
-      }).catch(() => {});
-
-      if (this.supabaseClient) {
-        const tid = tenant.id || tenant.tenantId;
-        await this.supabaseClient.from('tenants').upsert({
-          tenant_id: tid,
-          business_name: tenant.firmName || tenant.name || 'Commercial Distributor',
-          contact_person: tenant.ownerName || tenant.representativeName || '',
-          mobile: tenant.phone || tenant.mobile || '+91 9800000000',
-          city: tenant.city || tenant.territory || 'Delhi',
-          plan_id: tenant.subscriptionPlanId || tenant.planId || tenant.plan_id || 'startup',
-          subscription_status: tenant.subscriptionStatus || 'active',
-          subscription_end_date: (tenant.expiryDate && tenant.expiryDate.includes('-')) ? new Date(tenant.expiryDate).toISOString() : null,
-          is_active: tenant.subscriptionStatus !== 'suspended',
-          max_users: tenant.maxUsers || (tenant.subscriptionPlanId === 'enterprise' ? 50 : (tenant.subscriptionPlanId === 'grow' ? 5 : 1)),
-          max_shops: tenant.maxShops || (tenant.subscriptionPlanId === 'enterprise' ? 10000 : (tenant.subscriptionPlanId === 'grow' ? 1000 : 200)),
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'tenant_id' });
-        console.log(`⚡ Supabase: Synced tenant ${tid} to cloud`);
-      }
-    } catch (err) {
-      console.warn('Supabase tenant sync error:', err);
-    }
+    if (!tenant) return false;
+    const ok = await this.apiMutate('/api/platform/sync-tenant', this.tenantPatch(tenant));
+    this.scheduleRefresh(ok ? 200 : 0);
+    return ok;
   }
 
   async syncUserToSupabase(user) {
-    if (!user) return;
-    try {
-      fetch('/api/platform/sync-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
-        body: JSON.stringify(user)
-      }).catch(() => {});
-
-      if (this.supabaseClient) {
-        const uid = user.uid || user.id;
-        await this.supabaseClient.from('profiles').upsert({
-          id: uid,
-          tenant_id: user.tenantId || 'platform_tenant',
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role || 'salesman',
-          account_status: user.status || 'active',
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-        console.log(`⚡ Supabase: Synced user ${uid} to cloud`);
-      }
-    } catch (err) {
-      console.warn('Supabase user sync error:', err);
-    }
+    if (!user) return false;
+    const ok = await this.apiMutate('/api/platform/sync-user', {
+      id: user.id || user.uid, name: user.name, phone: user.phone, role: user.role, tenantId: user.tenantId, status: user.status,
+    });
+    this.scheduleRefresh(ok ? 200 : 0);
+    return ok;
   }
 
-  async syncPrinterOrderToSupabase(order) {
-    if (!this.supabaseClient || !order) return;
-    try {
-      await this.supabaseClient.from('printer_hardware_orders').upsert({
-        order_id: order.id,
-        tenant_id: order.userId || 'platform_tenant',
-        business_name: order.agencyName || 'Distributor Agency',
-        contact_person: order.customerName || 'Store Manager',
-        phone: order.phone || '+91 9800000000',
-        shipping_address: order.shippingAddress || 'Commercial Godown',
-        printer_model: order.printerItem || '58mm Standard Bluetooth POS Thermal Printer',
-        quantity: 1,
-        unit_price: Number(order.price || 2499),
-        total_amount: Number(order.price || 2499),
-        payment_status: 'paid',
-        fulfillment_status: (order.status || 'processing').toLowerCase(),
-        tracking_number: (order.trackingNumber && order.trackingNumber !== 'Unassigned') ? order.trackingNumber : null,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'order_id' });
-      console.log(`⚡ Supabase: Synced printer order ${order.id} to cloud`);
-    } catch (err) {
-      console.warn('Supabase printer order sync error:', err);
-    }
-  }
-
-  // --- REAL-TIME PLATFORM SYNC BRIDGE (Port 3000 Interoperability) ---
+  // --- ADMIN API SNAPSHOT (single source of truth: Supabase via /api) ---
   async initBridge() {
-    await this.fetchPlatformState();
-
+    await this.fetchPlatformState(true);
     this.stopBridge();
-    this._bridgeInterval = setInterval(() => {
-      this.fetchPlatformState();
-    }, 15000);
+    // Realtime events trigger refreshes; this interval is only a safety net.
+    this.refreshHealth();
+    this._bridgeInterval = setInterval(() => { this.fetchPlatformState(); this.refreshHealth(); }, 60000);
+  }
+
+  async refreshHealth() {
+    const set = (id, text, color) => { const el = document.getElementById(id); if (el) { el.textContent = text; if (color) el.style.color = color; } };
+    try {
+      const res = await fetch('/api/platform/health');
+      const data = await res.json();
+      set('healthValue', 'Healthy', '#10B981');
+      set('healthIndicator', '● Database reachable');
+      set('healthLatency', `${data.latencyMs}ms`);
+    } catch (_) {
+      set('healthValue', 'Degraded', '#DC2626');
+      set('healthIndicator', '● Database unreachable');
+      set('healthLatency', '—');
+    }
+    set('healthCheckedAt', new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
   }
 
   stopBridge() {
@@ -1583,107 +1026,72 @@ class AdminPortal {
   }
 
   async fetchPlatformState(force = false) {
-    try {
-      const url = force ? '/api/platform/all?refresh=true' : '/api/platform/all';
-      const res = await fetch(url, { headers: this.getAuthHeaders() });
-      if (res.ok) {
+    if (!this.hasSession()) return;
+    if (this._fetchInFlight) { this._fetchAgain = this._fetchAgain || force; return this._fetchInFlight; }
+    this._fetchInFlight = (async () => {
+      try {
+        const res = await fetch('/api/platform/all', { headers: this.getAuthHeaders() });
         const json = await res.json();
-        if (json.success && json.data) {
-          const d = json.data;
-          let changed = false;
-
-          if (d.plans && JSON.stringify(d.plans) !== JSON.stringify(this.plans)) {
-            this.plans = d.plans;
-            this.saveData(STORAGE_KEYS.PLANS, this.plans);
-            changed = true;
-          }
-          if (d.printerOptions && JSON.stringify(d.printerOptions) !== JSON.stringify(this.printerOptions)) {
-            this.printerOptions = d.printerOptions;
-            this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions);
-            changed = true;
-          }
-          if (d.subscriptionAddons && JSON.stringify(d.subscriptionAddons) !== JSON.stringify(this.subscriptionAddons)) {
-            this.subscriptionAddons = d.subscriptionAddons;
-            this.saveData(STORAGE_KEYS.SUBSCRIPTION_ADDONS, this.subscriptionAddons);
-            changed = true;
-          }
-          if (d.coupons && JSON.stringify(d.coupons) !== JSON.stringify(this.coupons)) {
-            this.coupons = d.coupons;
-            this.saveData(STORAGE_KEYS.COUPONS, this.coupons);
-            changed = true;
-          }
-          if (d.tenants && JSON.stringify(d.tenants) !== JSON.stringify(this.tenants)) {
-            this.tenants = d.tenants;
-            this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-            const badgeCount = document.getElementById('badgeTenantsCount');
-            if (badgeCount) badgeCount.textContent = this.tenants.length;
-            changed = true;
-          }
-          if (d.users && JSON.stringify(d.users) !== JSON.stringify(this.users)) {
-            this.users = d.users;
-            this.saveData(STORAGE_KEYS.USERS, this.users);
-            const badgeCount = document.getElementById('badgeUsersCount');
-            if (badgeCount) badgeCount.textContent = this.users.length;
-            changed = true;
-          }
-          if (d.remoteConfig && JSON.stringify(d.remoteConfig) !== JSON.stringify(this.remoteConfig)) {
-            this.remoteConfig = d.remoteConfig;
-            this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig);
-            changed = true;
-          }
-          if (d.broadcast && JSON.stringify(d.broadcast) !== JSON.stringify(this.broadcast)) {
-            this.broadcast = d.broadcast;
-            this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast);
-            changed = true;
-          }
-          if (d.printerOrders && JSON.stringify(d.printerOrders) !== JSON.stringify(this.printerOrders)) {
-            this.printerOrders = d.printerOrders;
-            this.saveData(STORAGE_KEYS.PRINTER_ORDERS, this.printerOrders);
-            changed = true;
-          }
-          if (d.retailOrders && JSON.stringify(d.retailOrders) !== JSON.stringify(this.retailOrders)) {
-            this.retailOrders = d.retailOrders;
-            this.saveData(STORAGE_KEYS.RETAIL_ORDERS, this.retailOrders);
-            changed = true;
-          }
-          if (d.notifications && JSON.stringify(d.notifications) !== JSON.stringify(this.notifications)) {
-            this.notifications = d.notifications;
-            this.saveData(STORAGE_KEYS.NOTIFICATIONS, this.notifications);
-            changed = true;
-          }
-          if (d.settings && JSON.stringify(d.settings) !== JSON.stringify(this.settings)) {
-            this.settings = d.settings;
-            this.saveData(STORAGE_KEYS.SETTINGS, this.settings);
-            changed = true;
-          }
-
-          this.updateCloudStatus(true);
-          if (changed) this.renderAll();
-        }
+        if (!json.success || !json.data) return;
+        const d = json.data;
+        const assign = (prop, key, value) => {
+          if (value === undefined) return false;
+          if (JSON.stringify(value) === JSON.stringify(this[prop])) return false;
+          this[prop] = value;
+          this.saveData(key, value);
+          return true;
+        };
+        let changed = false;
+        changed = assign('plans', STORAGE_KEYS.PLANS, d.plans) || changed;
+        changed = assign('printerOptions', STORAGE_KEYS.PRINTER_OPTIONS, d.printerOptions) || changed;
+        changed = assign('subscriptionAddons', STORAGE_KEYS.SUBSCRIPTION_ADDONS, d.subscriptionAddons) || changed;
+        changed = assign('coupons', STORAGE_KEYS.COUPONS, d.coupons) || changed;
+        changed = assign('tenants', STORAGE_KEYS.TENANTS, d.tenants) || changed;
+        changed = assign('users', STORAGE_KEYS.USERS, d.users) || changed;
+        changed = assign('remoteConfig', STORAGE_KEYS.REMOTE_CONFIG, d.remoteConfig) || changed;
+        changed = assign('broadcast', STORAGE_KEYS.BROADCAST, d.broadcast) || changed;
+        changed = assign('printerOrders', STORAGE_KEYS.PRINTER_ORDERS, d.printerOrders) || changed;
+        changed = assign('retailOrders', STORAGE_KEYS.RETAIL_ORDERS, d.retailOrders) || changed;
+        changed = assign('notifications', STORAGE_KEYS.NOTIFICATIONS, d.notifications) || changed;
+        changed = assign('settings', STORAGE_KEYS.SETTINGS, d.settings) || changed;
+        const tb = document.getElementById('badgeTenantsCount'); if (tb) tb.textContent = (this.tenants || []).length;
+        const ub = document.getElementById('badgeUsersCount'); if (ub) ub.textContent = (this.users || []).length;
+        this.updateCloudStatus(true);
+        if (changed || force) this.renderAll();
+      } catch (err) {
+        this.updateCloudStatus(false, err.message);
+      } finally {
+        this._fetchInFlight = null;
+        if (this._fetchAgain) { this._fetchAgain = false; this.fetchPlatformState(); }
       }
-    } catch (_) {}
+    })();
+    return this._fetchInFlight;
   }
 
+  // Persist catalog/config changes. Tenants, users and orders are NEVER sent
+  // as whole arrays; they have dedicated, validated endpoints.
   async saveToBridge(partialState) {
+    const allowed = ['plans', 'printerOptions', 'subscriptionAddons', 'coupons', 'remoteConfig', 'broadcast', 'settings'];
+    const payload = {};
+    for (const key of allowed) if (partialState && partialState[key] !== undefined) payload[key] = partialState[key];
+    if (!Object.keys(payload).length) return true;
     try {
       const res = await fetch('/api/platform/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
-        body: JSON.stringify(partialState)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data && data.success) {
-        this.updateCloudStatus(true);
-      }
-      return true;
+      this.updateCloudStatus(true);
+      this.scheduleRefresh(300);
+      return Boolean(data && data.success);
     } catch (err) {
-      console.warn('Bridge update notice:', err.message);
+      // The fetch wrapper already showed the server's error message.
       this.updateCloudStatus(false);
-      await this.fetchPlatformState();
+      await this.fetchPlatformState(true);
       return false;
     }
   }
-
 
   initFirestoreRealtimeListeners() {
     if (!this.db) return;
@@ -2043,7 +1451,6 @@ class AdminPortal {
 
     const gate = document.getElementById('authGate');
     const form = document.getElementById('loginForm');
-    const quickBtn = document.getElementById('btnQuickDemoLogin');
 
     if (form && !form._bound) {
       form._bound = true;
@@ -2052,20 +1459,6 @@ class AdminPortal {
         const email = document.getElementById('loginEmail')?.value || '';
         const pass = document.getElementById('loginPassword')?.value || '';
         this.handleLogin(email, pass);
-      });
-    }
-
-    if (quickBtn && !quickBtn._bound) {
-      quickBtn._bound = true;
-      quickBtn.hidden = false;
-      quickBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const emailInput = document.getElementById('loginEmail');
-        const passInput = document.getElementById('loginPassword');
-        if (emailInput) emailInput.value = 'superadmin@salesarmy.saas';
-        if (passInput) passInput.value = 'Password@123';
-        this.handleLogin('superadmin@salesarmy.saas', 'Password@123');
       });
     }
 
@@ -2113,40 +1506,20 @@ class AdminPortal {
     }
 
     // 1. Persist authenticated session
-    localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify({ ...loginData.user, token: loginData.token }));
+    // Clear any previous admin's cached data before storing the new session.
+    this.clearLocalData();
+    localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify({ ...loginData.user, token: loginData.token, refreshToken: loginData.refreshToken }));
     
     // 2. Hide gate immediately and clear errors
     const gate = document.getElementById('authGate');
     if (gate) gate.classList.add('hidden');
     if (errorEl) errorEl.style.display = 'none';
 
-    // 3. Non-fatal background Supabase session sync
-    if (this.supabaseClient && loginData.refreshToken) {
-      try {
-        await this.supabaseClient.auth.setSession({ access_token: loginData.token, refresh_token: loginData.refreshToken });
-      } catch (_) {}
-    }
-
-    // 4. Safe post-login data hydration (will NEVER revert session)
+    // 3. Load live data (realtime + admin API snapshot)
     try {
-      await this.fetchPlatformState();
+      await this.startDataSync();
     } catch (e) {
-      console.warn('Post-login platform state fetch notice:', e);
-    }
-
-    if (this.supabaseClient) {
-      Promise.allSettled([
-        this.fetchTenantsFromSupabase(),
-        this.fetchShopsFromSupabase(),
-        this.fetchProfilesFromSupabase(),
-        this.fetchOrdersFromSupabase()
-      ]).catch(() => {});
-    }
-
-    try {
-      this.renderAll();
-    } catch (renderErr) {
-      console.warn('Post-login renderAll notice:', renderErr);
+      console.warn('Post-login data load notice:', e);
     }
 
     this.showToast('Welcome back, Super Admin!', '👋');
@@ -2162,7 +1535,10 @@ class AdminPortal {
       // Stop background polling before clearing the bearer so a stray tick
       // doesn't hit the API with a now-invalid token.
       this.stopBridge();
-      localStorage.removeItem(STORAGE_KEYS.AUTH);
+      // Remove the session AND every cached tenant/user/order record.
+      this.clearLocalData();
+      ['coupons','printerOrders','tenants','users','retailOrders','notifications'].forEach(k => { this[k] = []; });
+      this.renderAll();
       document.getElementById('authGate')?.classList.remove('hidden');
       this.showToast('Signed out of admin portal.', '🚪');
     }
@@ -2641,15 +2017,18 @@ class AdminPortal {
       super_admin: 'Super Admin',
       distributor: 'Agency Owner',
       owner: 'Agency Owner',
+      sales_person: 'Field Sales',
       salesman: 'Field Sales',
+      delivery_agent: 'Van Delivery',
       delivery: 'Van Delivery',
       accountant: 'Accountant',
       manager: 'Store Manager'
     };
 
     tbody.innerHTML = filtered.map(u => {
-      const roleBadgeClass = `badge-role-${u.role || 'salesman'}`;
-      const statusBadgeClass = `badge-status-${u.status || 'active'}`;
+      const roleClassMap = { sales_person: 'salesman', delivery_agent: 'delivery', owner: 'distributor' };
+      const roleBadgeClass = `badge-role-${roleClassMap[u.role] || String(u.role || 'salesman').replace(/[^a-z_]/g, '')}`;
+      const statusBadgeClass = `badge-status-${String(u.status || 'active').replace(/[^a-z_]/g, '')}`;
       const roleName = roleLabels[u.role] || u.role;
       const createdDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Active';
 
@@ -2659,7 +2038,7 @@ class AdminPortal {
         <tr>
           <td>
             <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 32px; height: 32px; border-radius: var(--radius-xs); background: linear-gradient(135deg, #6366F1, #8B5CF6); color: white; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 800; flex-shrink: 0;">${initials}</div>
+              <div style="width: 32px; height: 32px; border-radius: var(--radius-xs); background: linear-gradient(135deg, #6366F1, #8B5CF6); color: white; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 800; flex-shrink: 0;">${this.escapeHtml(initials)}</div>
               <div>
                 <div style="font-weight: 700; color: var(--text-main); font-size: 13.5px;">${this.escapeHtml(u.name)}</div>
                 <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
@@ -2669,7 +2048,7 @@ class AdminPortal {
             </div>
           </td>
           <td>
-            <span class="${roleBadgeClass}">${roleName}</span>
+            <span class="${roleBadgeClass}">${this.escapeHtml(roleName)}</span>
           </td>
           <td>
             <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">${this.escapeHtml(u.tenantName || 'Platform Central')}</div>
@@ -2678,7 +2057,7 @@ class AdminPortal {
           <td>
             <span class="${statusBadgeClass}">
               <span style="width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; margin-right: 4px;"></span>
-              ${(u.status || 'active').toUpperCase()}
+              ${this.escapeHtml((u.status || 'active').toUpperCase())}
             </span>
           </td>
           <td style="font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums;">${createdDate}</td>
@@ -2713,7 +2092,7 @@ class AdminPortal {
     if (idInput) idInput.value = user.id || user.uid;
     if (nameEl) nameEl.textContent = user.name;
     if (emailEl) emailEl.textContent = `${user.email} (${(user.role || 'user').toUpperCase()})`;
-    if (passInput) passInput.value = `Sales@${Math.floor(1000 + Math.random() * 9000)}`;
+    if (passInput) passInput.value = this.generateStrongPassword();
 
     document.getElementById('userPasswordResetModal')?.classList.add('active');
   }
@@ -2724,7 +2103,13 @@ class AdminPortal {
 
   generateRandomPasswordForReset() {
     const passInput = document.getElementById('resetPassNewInput');
-    if (passInput) passInput.value = `Sales@${Math.floor(1000 + Math.random() * 9000)}!`;
+    if (passInput) passInput.value = this.generateStrongPassword();
+  }
+
+  generateStrongPassword() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    return 'Sa-' + Array.from(bytes, b => alphabet[b % alphabet.length]).join('') + '#7';
   }
 
   async handleSaveUserPasswordReset(e) {
@@ -2796,7 +2181,7 @@ class AdminPortal {
 
     if (tenantSelect) {
       tenantSelect.innerHTML = (this.tenants || []).map(t => `
-        <option value="${t.id || t.tenantId}">${t.firmName || t.name || t.id}</option>
+        <option value="${this.escapeHtml(t.id || t.tenantId)}">${this.escapeHtml(t.firmName || t.name || t.id)}</option>
       `).join('');
     }
 
@@ -2808,8 +2193,9 @@ class AdminPortal {
         if (nameInput) nameInput.value = u.name;
         if (emailInput) emailInput.value = u.email;
         if (phoneInput) phoneInput.value = u.phone || '';
-        if (roleInput) roleInput.value = u.role || 'salesman';
-        if (tenantSelect) tenantSelect.value = u.tenantId || (this.tenants[0]?.id || 'platform_tenant');
+        const uiRole = { salesman: 'sales_person', delivery: 'delivery_agent', distributor: 'owner' }[u.role] || u.role || 'sales_person';
+        if (roleInput) roleInput.value = uiRole;
+        if (tenantSelect) tenantSelect.value = u.tenantId || (this.tenants[0]?.id || '');
         if (statusInput) statusInput.value = u.status || 'active';
         const pwdRow = document.getElementById('usrPasswordRow');
         if (pwdRow) pwdRow.style.display = 'none';
@@ -2820,7 +2206,7 @@ class AdminPortal {
       if (nameInput) nameInput.value = '';
       if (emailInput) emailInput.value = '';
       if (phoneInput) phoneInput.value = '+91 ';
-      if (roleInput) roleInput.value = 'salesman';
+      if (roleInput) roleInput.value = 'sales_person';
       if (tenantSelect && this.tenants.length > 0) tenantSelect.value = this.tenants[0].id || this.tenants[0].tenantId;
       if (statusInput) statusInput.value = 'active';
       const pwdRow = document.getElementById('usrPasswordRow');
@@ -2842,117 +2228,62 @@ class AdminPortal {
     const name = document.getElementById('usrName')?.value.trim();
     const email = document.getElementById('usrEmail')?.value.trim();
     const phone = document.getElementById('usrPhone')?.value.trim();
-    const password = document.getElementById('usrPassword')?.value || 'Password@123';
+    const password = document.getElementById('usrPassword')?.value || '';
     const role = document.getElementById('usrRole')?.value;
     const tenantId = document.getElementById('usrTenantId')?.value;
-    const status = document.getElementById('usrStatus')?.value;
+    const status = document.getElementById('usrStatus')?.value || 'active';
 
     if (!name || !email) {
-      alert('Please enter both name and email.');
+      this.showToast('Please enter both name and email.', '⚠️', 'warning');
+      return;
+    }
+    if (role !== 'super_admin' && !tenantId) {
+      this.showToast('Select the agency this user belongs to.', '⚠️', 'warning');
       return;
     }
 
-    const tenantObj = (this.tenants || []).find(t => t.id === tenantId || t.tenantId === tenantId);
-    const tenantName = tenantObj ? (tenantObj.firmName || tenantObj.name) : 'Selxo FMCG Distributions';
-
+    let ok;
     if (id) {
-      const idx = (this.users || []).findIndex(u => u.id === id || u.uid === id);
-      if (idx !== -1) {
-        this.users[idx] = {
-          ...this.users[idx],
-          name,
-          email,
-          phone,
-          role,
-          tenantId,
-          tenantName,
-          status,
-          updatedAt: new Date().toISOString()
-        };
-      }
+      ok = await this.apiMutate('/api/platform/sync-user', {
+        id, name, email, phone, role, status,
+        tenantId: role === 'super_admin' ? null : tenantId,
+      });
     } else {
-      let newUid = `usr_${Date.now()}`;
-      const roleMap = {
-        'salesman': 'sales_person',
-        'delivery': 'delivery_agent',
-        'accountant': 'accountant',
-        'distributor': 'owner',
-        'manager': 'manager',
-        'super_admin': 'super_admin'
-      };
-      const dbRole = roleMap[role] || role;
-
-      try {
-        const resp = await fetch('/api/auth/signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountType: 'staff',
-            name,
-            email,
-            password,
-            phone,
-            role: dbRole,
-            tenantId: tenantId || 'platform_tenant',
-          })
-        });
-        if (resp.ok) {
-          const resData = await resp.json();
-          if (resData.uid) newUid = resData.uid;
-        }
-      } catch (err) {
-        console.warn('Backend user signup note:', err);
+      if (password.length < 8) {
+        this.showToast('Set an initial password of at least 8 characters.', '⚠️', 'warning');
+        return;
       }
-
-      const newUser = {
-        id: newUid,
-        uid: newUid,
-        name,
-        email,
-        phone,
-        role,
-        tenantId,
-        tenantName,
-        status: status || 'active',
-        createdAt: new Date().toISOString()
-      };
-      if (!Array.isArray(this.users)) this.users = [];
-      this.users.unshift(newUser);
+      ok = await this.apiMutate('/api/auth/signup', {
+        accountType: 'staff', name, email, password, phone, role,
+        tenantId: role === 'super_admin' ? null : tenantId,
+      });
     }
-
-    const savedUser = (this.users || []).find(u => u.email === email);
-    this.saveData(STORAGE_KEYS.USERS, this.users);
-    this.saveToBridge({ users: this.users });
-    if (savedUser) this.syncUserToSupabase(savedUser);
+    if (!ok) return;
 
     this.closeUserModal();
-    this.renderUsersTable();
-    this.showToast(`User "${name}" saved and synced with mobile app!`, '👤');
+    await this.fetchPlatformState(true);
+    this.showToast(`User "${name}" ${id ? 'updated' : 'created'}. They can sign in on the mobile app.`, '👤');
   }
 
-  toggleUserStatus(userId) {
+  async toggleUserStatus(userId) {
     const user = (this.users || []).find(u => u.id === userId || u.uid === userId);
     if (!user) return;
-    user.status = user.status === 'active' ? 'suspended' : 'active';
-    user.updatedAt = new Date().toISOString();
-    this.saveData(STORAGE_KEYS.USERS, this.users);
-    this.saveToBridge({ users: this.users });
-    this.syncUserToSupabase(user);
-    this.renderUsersTable();
-    this.showToast(`User "${user.name}" status updated to ${user.status.toUpperCase()}.`, user.status === 'active' ? '✓' : '⚠️');
+    const next = user.status === 'active' ? 'suspended' : 'active';
+    if (next === 'suspended' && !confirm(`Suspend "${user.name}"? They will be signed out and blocked from logging in.`)) return;
+    const ok = await this.apiMutate('/api/platform/sync-user', { id: user.id, status: next });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.showToast(`User "${user.name}" is now ${next.toUpperCase()}.`, next === 'active' ? '✓' : '⚠️');
   }
 
-  deleteUser(userId) {
+  async deleteUser(userId) {
     const user = (this.users || []).find(u => u.id === userId || u.uid === userId);
     if (!user) return;
-    if (!confirm(`Are you sure you want to delete user "${user.name}"?`)) return;
-
-    this.users = (this.users || []).filter(u => u.id !== userId && u.uid !== userId);
-    this.saveData(STORAGE_KEYS.USERS, this.users);
-    this.saveToBridge({ users: this.users });
-    fetch(`/api/platform/user/${userId}`, { method: 'DELETE' }).catch(() => {});
-    this.renderUsersTable();
-    this.showToast(`User "${user.name}" removed from platform.`, '🗑️');
+    if (!confirm(`Permanently delete "${user.name}" (${user.email})? Their login is removed and cannot be restored.`)) return;
+    const ok = await this.apiMutate(`/api/platform/user/${encodeURIComponent(userId)}`, null, { method: 'DELETE' });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.showToast(`User "${user.name}" deleted.`, '🗑️');
   }
 
   renderAll() {
@@ -3269,24 +2600,24 @@ class AdminPortal {
       else if (status === 'cancelled') badgeClass = 'badge-rose';
 
       const amount = Number(o.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const payStatus = o.paymentStatus || (status === 'delivered' ? 'Paid' : 'Pending');
+      const payStatus = o.paymentStatus || 'Not billed';
       const resolvedName = this.resolveShopName(o.shopId, o.shopName);
 
       return `
         <tr>
-          <td><strong style="font-family: var(--font-mono, monospace); font-size: 12px;">${o.orderNumber || o.orderId || o.id}</strong></td>
+          <td><strong style="font-family: var(--font-mono, monospace); font-size: 12px;">${this.escapeHtml(o.orderNumber || o.orderId || o.id)}</strong></td>
           <td>
             <div style="font-weight: 700; color: var(--text-main);">${this.escapeHtml(resolvedName)}</div>
-            <div style="font-size: 11px; color: var(--text-muted);">${o.salesmanName ? 'Rep: ' + this.escapeHtml(o.salesmanName) : 'Field Beat'}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${o.salesmanName ? 'Rep: ' + this.escapeHtml(o.salesmanName) : ''}</div>
           </td>
           <td><span style="font-size: 12px; font-weight: 600;">${this.escapeHtml(o.tenantName || 'Agency')}</span></td>
           <td><strong style="color: var(--text-main);">₹${amount}</strong></td>
           <td>
             <span style="font-size: 11px; font-weight: 600; color: ${payStatus === 'Paid' ? 'var(--emerald-text)' : 'var(--amber-text)'};">
-              ● ${payStatus}
+              ● ${this.escapeHtml(payStatus)}
             </span>
           </td>
-          <td><span class="badge ${badgeClass}">${(o.status || 'Confirmed').toUpperCase()}</span></td>
+          <td><span class="badge ${badgeClass}">${this.escapeHtml((o.status || 'Confirmed').toUpperCase())}</span></td>
           <td>
             <button class="btn btn-outline btn-xs" onclick="adminApp.openOrderDetailModal('${this.escapeJs(o.id || o.orderId)}')">
               <span>View</span>
@@ -3357,41 +2688,8 @@ class AdminPortal {
   }
 
   resolveShopName(shopId, rawName) {
-    const shopAliases = {
-      'shop_1793811921837': 'Sharma Confectionery Store',
-      'shop_1793886761248': 'Balaji Mega Mart',
-      'shop_1793887137393': 'Mega Mall',
-      'shop_1793886759593': 'Balaji Provisions',
-      'SHP-LIVE-TEST-01': 'Shree Ganesh Supermarket',
-      'shp_test_1792836203254': 'Balaji Super Bazaar',
-      'SHP-001': 'Shree Ganesh Supermarket',
-      'SHP-002': 'Balaji Daily Provisions',
-      'shop_001': 'Metro Cash & Carry Partner',
-      'shop_1792233185017': 'Shree Ganesh Kirana Store',
-      'shop_1792840533634': 'Ganesh Kirana Store'
-    };
-
-    if (shopId && shopAliases[shopId]) return shopAliases[shopId];
-
-    let name = (rawName || '').trim();
-    if (!name && shopId) name = shopId;
-    if (name.startsWith('Shop ')) {
-      const sub = name.substring(5).trim();
-      if (shopAliases[sub]) return shopAliases[sub];
-      name = sub;
-    }
-
-    if (shopAliases[name]) return shopAliases[name];
-
-    if (name.startsWith('shop_')) {
-      return 'Kirana Outlet #' + name.slice(-4);
-    }
-
-    if (name === name.toLowerCase()) {
-      name = name.replace(/\b\w/g, c => c.toUpperCase());
-    }
-
-    return name || 'Retail Outlet';
+    // Names come from the shops table via the API; never substitute aliases.
+    return (rawName || '').trim() || shopId || 'Retail outlet';
   }
 
   renderNativeRevenueTrajectory() {
@@ -4398,7 +3696,7 @@ class AdminPortal {
           </td>
           <td>
             <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: linear-gradient(135deg, #059669, #10B981); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;">${initials}</div>
+              <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: linear-gradient(135deg, #059669, #10B981); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;">${this.escapeHtml(initials)}</div>
               <div>
                 <strong style="color: var(--text-main); font-size: 13.5px; display: block;">${this.escapeHtml(o.shopName || 'Retail Kirana')}</strong>
                 <div style="font-size: 11.5px; color: var(--text-muted);">${this.escapeHtml(o.ownerName || '')}${o.phone ? ' • 📞 ' + this.escapeHtml(o.phone) : ''}</div>
@@ -4407,8 +3705,8 @@ class AdminPortal {
             </div>
           </td>
           <td>
-            <div style="font-weight: 600; color: var(--text-main); font-size: 13px;">${this.escapeHtml(o.salesmanName || 'Suresh Kumar')}</div>
-            <div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(o.tenantName || 'Selxo Distributions')}</div>
+            <div style="font-weight: 600; color: var(--text-main); font-size: 13px;">${this.escapeHtml(o.salesmanName || '—')}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(o.tenantName || o.tenantId || '')}</div>
           </td>
           <td style="font-size: 12px; color: var(--text-muted); max-width: 220px;">
             ${this.escapeHtml(itemsSummary)}
@@ -4421,9 +3719,10 @@ class AdminPortal {
             <div style="font-weight: 800; font-size: 14.5px; color: var(--text-main); font-family: 'JetBrains Mono', monospace;">₹${Number(o.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
           </td>
           <td>
-            <select class="form-control" style="font-size: 11.5px; padding: 4px 8px; height: auto; border-radius: var(--radius-xs); font-weight: 700; width: auto;" onchange="adminApp.updateRetailOrderStatus('${this.escapeHtml(o.id || o.orderId)}', this.value)">
+            <select class="form-control" style="font-size: 11.5px; padding: 4px 8px; height: auto; border-radius: var(--radius-xs); font-weight: 700; width: auto;" onchange="adminApp.updateRetailOrderStatus('${this.escapeJs(o.id)}', this.value)">
               <option value="Pending" ${st === 'pending' ? 'selected' : ''}>⏳ Pending</option>
               <option value="Confirmed" ${st === 'confirmed' ? 'selected' : ''}>📝 Confirmed</option>
+              <option value="Processing" ${st === 'processing' ? 'selected' : ''}>📦 Processing</option>
               <option value="Dispatched" ${st === 'dispatched' ? 'selected' : ''}>🚚 Dispatched</option>
               <option value="Delivered" ${st === 'delivered' ? 'selected' : ''}>✅ Delivered</option>
               <option value="Cancelled" ${st === 'cancelled' ? 'selected' : ''}>❌ Cancelled</option>
@@ -4432,9 +3731,9 @@ class AdminPortal {
           <td>
             <span class="badge ${o.paymentStatus === 'Paid' ? 'badge-delivered' : 'badge-pending'}">
               <span style="width: 5px; height: 5px; border-radius: 50%; background: currentColor;"></span>
-              ${o.paymentStatus === 'Paid' ? 'Paid' : (o.paymentStatus || 'Pending')}
+              ${this.escapeHtml(o.paymentStatus || 'Not billed')}
             </span>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">${this.escapeHtml(o.paymentMethod || 'UPI / Cash')}</div>
+            ${o.invoiceNumber ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">Inv ${this.escapeHtml(o.invoiceNumber)}</div>` : ''}
           </td>
           <td>
             <div style="display: flex; gap: 6px;">
@@ -4476,28 +3775,11 @@ class AdminPortal {
   }
 
   async updateRetailOrderStatus(orderId, newStatus) {
-    try {
-      const res = await fetch('/api/platform/retail-orders/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, status: newStatus })
-      });
-      const data = await res.json();
-      if (data && data.success) {
-        const order = (this.retailOrders || []).find(o => o.id === orderId || o.orderId === orderId);
-        if (order) {
-          order.status = newStatus;
-          if (newStatus.toLowerCase() === 'delivered') order.paymentStatus = 'Paid';
-        }
-        this.saveData(STORAGE_KEYS.RETAIL_ORDERS, this.retailOrders);
-        this.renderOrdersView();
-        this.showToast(`Order #${order?.orderNumber || orderId} status set to ${newStatus}!`, '🚚');
-      } else {
-        this.showToast(`Failed to update order status: ${data?.error || 'Unknown error'}`, '⚠️', 'error');
-      }
-    } catch (err) {
-      this.showToast(`Notice updating order: ${err.message}`, '⚠️', 'error');
-    }
+    const order = (this.retailOrders || []).find(o => o.id === orderId);
+    const ok = await this.apiMutate('/api/platform/retail-orders/status', { id: orderId, status: String(newStatus).toLowerCase() });
+    if (!ok) { this.renderOrdersView(); return; }
+    await this.fetchPlatformState(true);
+    this.showToast(`Order ${order?.orderNumber || ''} set to ${newStatus}.`, '🚚');
   }
 
   openOrderDetailModal(orderId) {
@@ -4514,11 +3796,9 @@ class AdminPortal {
     const title = document.getElementById('orderInvoiceModalTitle');
     if (!modal || !body) return;
 
-    if (title) title.textContent = `GST Tax Invoice — ${order.orderNumber || order.id}`;
+    if (title) title.textContent = `Order Summary — ${order.orderNumber || order.id}`;
 
-    const items = Array.isArray(order.items) && order.items.length > 0 ? order.items : [
-      { productName: 'Assorted FMCG Goods', quantity: 1, unitPrice: order.subtotal || 1000, gstRate: 18, total: order.grandTotal || 1180 }
-    ];
+    const items = Array.isArray(order.items) ? order.items : [];
 
     // Per-tenant invoice details — look up the tenant that actually owns
     // this order instead of hardcoding the demo GSTIN.
@@ -4543,7 +3823,8 @@ class AdminPortal {
             </div>
           </div>
           <div style="text-align: right;">
-            <span style="background: #EFF6FF; color: #1D4ED8; font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 6px;">TAX INVOICE</span>
+            <span style="background: #EFF6FF; color: #1D4ED8; font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 6px;">${order.invoiceNumber ? 'INVOICED' : 'ORDER SUMMARY'}</span>
+            ${order.invoiceNumber ? `<div style="font-size: 11px; color: #64748B; margin-top: 4px;">Invoice ${this.escapeHtml(order.invoiceNumber)}</div>` : ''}
             <div style="font-size: 13px; font-weight: 700; margin-top: 6px;">${this.escapeHtml(order.orderNumber || order.id)}</div>
             <div style="font-size: 11px; color: #64748B;">Date: ${new Date(order.orderDate || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
           </div>
@@ -4560,9 +3841,9 @@ class AdminPortal {
           </div>
           <div style="text-align: right;">
             <strong style="color: #475569; text-transform: uppercase; font-size: 11px;">Beat & Fulfillment:</strong>
-            <div>Salesman: <strong>${this.escapeHtml(order.salesmanName || 'Field Beat Salesman')}</strong></div>
-            <div>Payment: <strong>${this.escapeHtml(order.paymentMethod || 'UPI')}</strong> (${this.escapeHtml(order.paymentStatus || 'Pending')})</div>
-            <div>Status: <span style="font-weight: 700; color: #059669;">${this.escapeHtml(order.status || 'Delivered')}</span></div>
+            <div>Salesman: <strong>${this.escapeHtml(order.salesmanName || '—')}</strong></div>
+            <div>Billing: <strong>${this.escapeHtml(order.paymentStatus || 'Not billed')}</strong></div>
+            <div>Status: <span style="font-weight: 700; color: #059669;">${this.escapeHtml(order.status || '')}</span></div>
           </div>
         </div>
 
@@ -4579,13 +3860,14 @@ class AdminPortal {
             </tr>
           </thead>
           <tbody>
+            ${items.length === 0 ? '<tr><td colspan="6" style="padding: 12px; text-align: center; color: #64748B;">No line items were recorded for this order.</td></tr>' : ''}
             ${items.map((it, idx) => `
               <tr style="border-bottom: 1px solid #F1F5F9;">
                 <td style="padding: 8px 6px;">${idx + 1}</td>
                 <td style="padding: 8px 6px; font-weight: 600;">${this.escapeHtml(it.productName || 'Product')}</td>
-                <td style="padding: 8px 6px; text-align: center;">${it.quantity || 1}</td>
+                <td style="padding: 8px 6px; text-align: center;">${Number(it.quantity || 0)}</td>
                 <td style="padding: 8px 6px; text-align: right;">₹${Number(it.unitPrice || 0).toFixed(2)}</td>
-                <td style="padding: 8px 6px; text-align: center;">${it.gstRate || 18}%</td>
+                <td style="padding: 8px 6px; text-align: center;">${Number(it.gstRate || 0)}%</td>
                 <td style="padding: 8px 6px; text-align: right; font-weight: 700;">₹${Number(it.total || 0).toFixed(2)}</td>
               </tr>
             `).join('')}
@@ -4615,7 +3897,7 @@ class AdminPortal {
 
         <!-- Footer / Declaration -->
         <div style="margin-top: 24px; padding-top: 12px; border-top: 1px dashed #CBD5E1; font-size: 11px; color: #64748B;">
-          <strong>Statutory Declaration:</strong> We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct. Computer-generated tax invoice compliant with Indian GST Act 2017.
+          This is an order summary from the SalesArmy admin console. GST tax invoices are issued by the agency from the SalesArmy app.
         </div>
       </div>
     `;
@@ -4634,7 +3916,7 @@ class AdminPortal {
     if (!order) return;
     const phone = String(order.phone || '').replace(/[^0-9]/g, '');
     const itemsText = (order.items || []).map(i => `• ${i.productName} (x${i.quantity}) - ₹${Number(i.total || (i.quantity * i.unitPrice) || 0).toFixed(2)}`).join('\n');
-    const msg = `🧾 *TAX INVOICE — ${order.orderNumber || order.id}*\n*Agency:* ${order.tenantName || 'SalesArmy Agency'}\n*Customer:* ${order.shopName || 'Retail Customer'}\n*Date:* ${new Date(order.orderDate || Date.now()).toLocaleDateString('en-IN')}\n\n*Ordered Items:*\n${itemsText || 'General FMCG Order'}\n\n*Taxable Subtotal:* ₹${Number(order.subtotal || 0).toFixed(2)}\n*GST (CGST+SGST):* ₹${Number(order.totalGst || 0).toFixed(2)}\n*Grand Total:* ₹${Number(order.grandTotal || 0).toFixed(2)}\n*Payment Status:* ${order.paymentStatus || 'Pending'}\n\nThank you for your business! 🙏`;
+    const msg = `🧾 *ORDER — ${order.orderNumber || order.id}*\n*Agency:* ${order.tenantName || 'SalesArmy Agency'}\n*Customer:* ${order.shopName || 'Retail Customer'}\n*Date:* ${new Date(order.orderDate || Date.now()).toLocaleDateString('en-IN')}\n\n*Ordered Items:*\n${itemsText || 'General FMCG Order'}\n\n*Taxable Subtotal:* ₹${Number(order.subtotal || 0).toFixed(2)}\n*GST (CGST+SGST):* ₹${Number(order.totalGst || 0).toFixed(2)}\n*Grand Total:* ₹${Number(order.grandTotal || 0).toFixed(2)}\n*Billing:* ${order.paymentStatus || 'Not billed'}\n\nThank you for your business! 🙏`;
     const targetUrl = phone.length >= 10 
       ? `https://wa.me/91${phone.slice(-10)}?text=${encodeURIComponent(msg)}`
       : `https://wa.me/?text=${encodeURIComponent(msg)}`;
@@ -4743,156 +4025,75 @@ class AdminPortal {
 
   async handleSaveOrder(e) {
     if (e) e.preventDefault();
+    const val = id => document.getElementById(id)?.value.trim() || '';
+    const tenantId = document.getElementById('ordTenantSelect')?.value;
+    if (!tenantId) { this.showToast('Select the agency this order belongs to.', '⚠️', 'warning'); return; }
 
-    const tenantSelect = document.getElementById('ordTenantSelect');
-    const tenantId = tenantSelect?.value || 'tenant_default';
-    const tenantName = tenantSelect?.options[tenantSelect.selectedIndex]?.dataset.name || 'SalesArmy FMCG Distributor';
-
-    const orderNumber = document.getElementById('ordNumber')?.value.trim() || `ORD-${Date.now()}`;
-    const shopName = document.getElementById('ordShopName')?.value.trim() || 'Retail Kirana';
-    const ownerName = document.getElementById('ordOwnerName')?.value.trim() || 'Shopkeeper';
-    const phone = document.getElementById('ordPhone')?.value.trim() || '';
-    const address = document.getElementById('ordAddress')?.value.trim() || '';
-    const salesmanName = document.getElementById('ordSalesmanName')?.value.trim() || 'Field Representative';
-    const paymentStatus = document.getElementById('ordPaymentStatus')?.value || 'Pending';
-    const paymentMethod = document.getElementById('ordPaymentMethod')?.value || 'UPI';
-    const status = document.getElementById('ordFulfillmentStatus')?.value || 'Confirmed';
-    const notes = document.getElementById('ordNotes')?.value.trim() || '';
-
-    // Collect line items
-    const rows = document.querySelectorAll('#orderLineItemsContainer .order-line-row');
     const items = [];
-    let subtotal = 0;
-    let totalGst = 0;
-
-    rows.forEach(r => {
-      const name = r.querySelector('.item-name')?.value.trim();
-      const qty = parseFloat(r.querySelector('.item-qty')?.value) || 0;
-      const price = parseFloat(r.querySelector('.item-price')?.value) || 0;
+    document.querySelectorAll('#orderLineItemsContainer .order-line-row').forEach(r => {
+      const productName = r.querySelector('.item-name')?.value.trim();
+      const quantity = parseInt(r.querySelector('.item-qty')?.value, 10) || 0;
+      const unitPrice = parseFloat(r.querySelector('.item-price')?.value) || 0;
       const gstRate = parseFloat(r.querySelector('.item-gst')?.value) || 0;
-      if (name && qty > 0) {
-        const lineSubtotal = qty * price;
-        const lineGst = lineSubtotal * (gstRate / 100);
-        const lineGrand = lineSubtotal + lineGst;
-        subtotal += lineSubtotal;
-        totalGst += lineGst;
-        items.push({
-          productName: name,
-          quantity: qty,
-          unitPrice: price,
-          gstRate: gstRate,
-          total: lineGrand
-        });
-      }
+      if (productName && quantity > 0) items.push({ productName, quantity, unitPrice, gstRate });
     });
+    if (!items.length) { this.showToast('Add at least one line item.', '⚠️', 'warning'); return; }
 
-    if (items.length === 0) {
-      alert('Please add at least one line item before creating the order.');
-      return;
-    }
-
-    const grandTotal = subtotal + totalGst;
-
-    const newOrder = {
-      id: `ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      orderNumber,
-      tenantId,
-      tenantName,
-      shopName,
-      ownerName,
-      phone,
-      address,
-      salesmanName,
-      paymentStatus,
-      paymentMethod,
-      status,
-      notes,
-      orderDate: new Date().toISOString(),
-      items,
-      subtotal,
-      totalGst,
-      grandTotal
-    };
-
-    try {
-      await fetch('/api/platform/sync-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOrder)
-      });
-    } catch (err) {
-      console.warn('Backend sync order notice:', err);
-    }
-
-    if (!Array.isArray(this.retailOrders)) this.retailOrders = [];
-    this.retailOrders.unshift(newOrder);
-    this.saveData(STORAGE_KEYS.RETAIL_ORDERS, this.retailOrders);
-    this.saveToBridge({ retailOrders: this.retailOrders });
-
+    const orderNumber = val('ordNumber').replace(/[^A-Za-z0-9_-]/g, '-');
+    const ok = await this.apiMutate('/api/platform/sync-order', {
+      tenantId, orderNumber, items,
+      shopName: val('ordShopName'), ownerName: val('ordOwnerName'), phone: val('ordPhone'), address: val('ordAddress'),
+      paymentMethod: [document.getElementById('ordPaymentMethod')?.value, document.getElementById('ordPaymentStatus')?.value].filter(Boolean).join(' – '),
+      status: (document.getElementById('ordStatus')?.value || 'confirmed').toLowerCase(),
+      notes: [val('ordSalesmanName') && `Salesman: ${val('ordSalesmanName')}`, val('ordNotes')].filter(Boolean).join(' | '),
+    });
+    if (!ok) return;
     this.closeCreateOrderModal();
-    this.renderOrdersView();
-    this.showToast(`Order ${orderNumber} created successfully!`, '📦');
+    await this.fetchPlatformState(true);
+    this.showToast(`Order${orderNumber ? ` ${orderNumber}` : ''} created. Totals were calculated by the server.`, '📦');
   }
 
   async deleteRetailOrder(orderId) {
-    const o = (this.retailOrders || []).find(x => x.id === orderId || x.orderId === orderId);
+    const o = (this.retailOrders || []).find(x => x.id === orderId);
     if (!o) return;
-    if (!confirm(`Are you sure you want to permanently delete order "${o.orderNumber || orderId}"?`)) return;
-
-    this.retailOrders = (this.retailOrders || []).filter(x => x.id !== orderId && x.orderId !== orderId);
-    this.saveData(STORAGE_KEYS.RETAIL_ORDERS, this.retailOrders);
-    this.saveToBridge({ retailOrders: this.retailOrders });
-
-    try {
-      await fetch(`/api/platform/retail-orders/${encodeURIComponent(orderId)}`, { method: 'DELETE' });
-    } catch (err) {
-      console.warn('Backend delete order notice:', err);
-    }
-
-    this.renderOrdersView();
-    this.showToast(`Order ${o.orderNumber || orderId} deleted.`, '🗑️');
+    if (!confirm(`Permanently delete order "${o.orderNumber}" of ${o.tenantName}? Orders that are already invoiced cannot be deleted.`)) return;
+    const ok = await this.apiMutate(`/api/platform/retail-orders/${encodeURIComponent(orderId)}`, null, { method: 'DELETE' });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.showToast(`Order ${o.orderNumber} deleted.`, '🗑️');
   }
 
   async reconcileDatabases() {
-    this.showToast('Connecting to Cloud PostgREST for zero-drift audit...', '🔄');
+    this.showToast('Running ledger & data integrity check…', '🔄');
     try {
-      const res = await fetch('/api/platform/reconcile', { method: 'POST' });
+      const res = await fetch('/api/platform/reconcile', { method: 'POST', headers: this.getAuthHeaders() });
       const data = await res.json();
-      if (data && data.success) {
-        const statsBox = document.getElementById('reconciliationStatsBox');
-        const badge = document.getElementById('reconcileStatusBadge');
-        const count = document.getElementById('reconcileTablesCount');
-        const lat = document.getElementById('reconcileLatencyMs');
-
-        if (badge) {
-          badge.textContent = data.status === 'HEALTHY_ZERO_DRIFT' ? '● Zero Drift Verified (100% Synced)' : `● Reconciled (${data.totalDrift} items synced)`;
-          badge.style.color = '#10B981';
-        }
-        if (count) count.textContent = `${Object.keys(data.tables || {}).length} core tables active`;
-        if (lat) lat.textContent = `${data.latencyMs}ms latency`;
-
-        if (statsBox) {
-          statsBox.innerHTML = `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span>Parity Status:</span> <strong style="color: #10B981;">● Zero Drift (${data.latencyMs}ms)</strong>
-            </div>
-            <div style="font-family: monospace; font-size: 11px; color: #334155; line-height: 1.4;">
-              ${Object.entries(data.tables || {}).map(([tbl, info]) => `
-                <div>${tbl}: Supabase ${info.supabase} | Local ${info.local} (Drift: ${info.drift})</div>
-              `).join('')}
-            </div>
-          `;
-        }
-
-        this.updateSupabaseStatus(true);
-        this.showToast(`Zero-drift database reconciliation verified in ${data.latencyMs}ms!`, '⚡');
-        this.fetchPlatformState();
-      } else {
-        this.showToast(`Reconciliation note: ${data?.error || 'Check cloud connection'}`, '⚠️');
+      const drift = data.ledgerDrift || [];
+      const badge = document.getElementById('reconcileStatusBadge');
+      const count = document.getElementById('reconcileTablesCount');
+      const lat = document.getElementById('reconcileLatencyMs');
+      const statsBox = document.getElementById('reconciliationStatsBox');
+      if (badge) {
+        badge.textContent = drift.length ? `● ${drift.length} shop balance(s) differ from ledger` : '● Ledger balances verified';
+        badge.style.color = drift.length ? '#D97706' : '#10B981';
       }
-    } catch (err) {
-      this.showToast(`Reconciliation exception: ${err.message}`, '⚠️', 'error');
-    }
+      if (count) count.textContent = `${Object.keys(data.counts || {}).length} tables checked`;
+      if (lat) lat.textContent = `${data.latencyMs}ms`;
+      if (statsBox) {
+        const esc = v => this.escapeHtml(v);
+        statsBox.innerHTML = `
+          <div style="font-family: monospace; font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
+            ${Object.entries(data.counts || {}).map(([t, n]) => `<div>${esc(t)}: <strong>${esc(n)}</strong></div>`).join('')}
+          </div>
+          ${drift.length ? `
+            <div style="margin-top: 10px; font-size: 11.5px;">
+              <strong style="color:#D97706;">Balance drift (cached vs ledger):</strong>
+              ${drift.slice(0, 20).map(d => `<div>${esc(d.tenant_id)} / ${esc(d.shop_name || d.shop_id)}: ₹${esc(d.cached)} vs ₹${esc(d.ledger)} (Δ ₹${esc(d.difference)})</div>`).join('')}
+            </div>` : ''}
+        `;
+      }
+      this.showToast(drift.length ? `Integrity check: ${drift.length} balance mismatch(es) found.` : 'Integrity check passed.', drift.length ? '⚠️' : '✓', drift.length ? 'warning' : 'success');
+    } catch (_) { /* wrapper toasts the error */ }
   }
 
   async exportDataCSV(entity = 'orders') {
@@ -5040,138 +4241,59 @@ class AdminPortal {
     if (c) this.openCouponModal(c);
   }
 
-  handleSaveCoupon() {
+  async handleSaveCoupon() {
     const editId = document.getElementById('couponEditId').value;
     const code = document.getElementById('couponCode').value.trim().toUpperCase();
-    const title = document.getElementById('couponTitle').value.trim();
     const type = document.getElementById('couponType').value;
     const value = parseFloat(document.getElementById('couponValue').value);
-    const minOrder = parseFloat(document.getElementById('couponMinOrder').value) || 0;
-    const maxUses = parseInt(document.getElementById('couponMaxUses').value) || 100;
-    const expiry = document.getElementById('couponExpiry').value || '2027-12-31';
-    const description = document.getElementById('couponDescription').value.trim();
-
-    if (!code || isNaN(value) || value <= 0) {
-      alert('Please specify a valid coupon code and benefit value.');
+    const existing = editId ? this.coupons.find(x => x.id === editId) : null;
+    const payload = {
+      id: existing ? existing.id : code,
+      code,
+      title: document.getElementById('couponTitle').value.trim(),
+      type,
+      value,
+      minAmount: parseFloat(document.getElementById('couponMinOrder').value) || 0,
+      maxUses: parseInt(document.getElementById('couponMaxUses').value, 10) || 100,
+      expiryDate: document.getElementById('couponExpiry').value || null,
+      description: document.getElementById('couponDescription').value.trim(),
+      isActive: existing ? existing.isActive !== false : true,
+    };
+    if (!code || !Number.isFinite(value) || value <= 0) {
+      this.showToast('Enter a coupon code and a benefit value greater than 0.', '⚠️', 'warning');
       return;
     }
-
-    if (editId) {
-      // Update existing
-      const c = this.coupons.find(x => x.id === editId);
-      if (c) {
-        c.code = code;
-        c.title = title || `${code} Special`;
-        c.type = type;
-        c.value = value;
-        c.minOrderValue = minOrder;
-        c.minAmount = minOrder;
-        c.maxUses = maxUses;
-        c.validUntil = expiry;
-        c.expiryDate = expiry;
-        c.description = description;
-      }
-      this.showToast(`Coupon "${code}" updated successfully!`, '✏️');
+    if (existing && existing.code !== code) {
+      // Renaming a code: create the new one, then remove the old one.
+      const ok = await this.apiMutate('/api/platform/coupon', { ...payload, id: code });
+      if (!ok) return;
+      await this.apiMutate(`/api/platform/coupon/${encodeURIComponent(existing.code)}`, null, { method: 'DELETE' });
     } else {
-      // Create new
-      const newCoupon = {
-        id: 'c_' + Date.now(),
-        code,
-        title: title || `${code} Special`,
-        type,
-        value,
-        minOrderValue: minOrder,
-        minAmount: minOrder,
-        usedCount: 0,
-        maxUses,
-        validUntil: expiry,
-        expiryDate: expiry,
-        isActive: true,
-        description,
-      };
-      this.coupons.unshift(newCoupon);
-      this.showToast(`Coupon "${code}" published successfully!`, '🎉');
+      const ok = await this.apiMutate('/api/platform/coupon', payload);
+      if (!ok) return;
     }
-
-    this.saveData(STORAGE_KEYS.COUPONS, this.coupons); this.saveToBridge({ coupons: this.coupons });
-
-    try {
-      fetch('/api/platform/coupon', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editId || ('c_' + Date.now()),
-          code,
-          title: title || `${code} Special`,
-          type,
-          value,
-          minOrderValue: minOrder,
-          maxUses,
-          validUntil: expiry,
-          isActive: true,
-          description
-        })
-      }).catch(() => {});
-    } catch (_) {}
-
-    // Direct Real-Time Sync to Cloud Firestore
-    if (this.db) {
-      try {
-        this.db.collection('promoCodes').doc(code).set({
-          code,
-          title: title || `${code} Special`,
-          type,
-          discountType: type === 'trial' ? 'days' : (type === 'flat' ? 'flat' : 'percent'),
-          discountValue: value,
-          value,
-          minOrderValue: minOrder,
-          maxUses,
-          validUntil: expiry,
-          isActive: true,
-          description,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-      } catch (err) {
-        console.warn('Firestore coupon sync error:', err);
-      }
-    }
-
     this.closeCouponModal();
-    this.renderAll();
+    await this.fetchPlatformState(true);
+    this.showToast(`Coupon "${code}" ${existing ? 'updated' : 'published'}.`, existing ? '✏️' : '🎉');
   }
 
-  toggleCouponStatus(couponId) {
-    const c = this.coupons.find(x => x.id === couponId);
-    if (c) {
-      c.isActive = !c.isActive;
-      this.saveData(STORAGE_KEYS.COUPONS, this.coupons); this.saveToBridge({ coupons: this.coupons });
-
-      this.renderAll();
-      this.showToast(`Coupon "${c.code}" ${c.isActive ? 'activated' : 'paused'}!`);
-    }
-  }
-
-  deleteCoupon(couponId) {
+  async toggleCouponStatus(couponId) {
     const c = this.coupons.find(x => x.id === couponId);
     if (!c) return;
-    if (confirm(`Are you sure you want to permanently delete coupon "${c.code}"?`)) {
-      this.coupons = this.coupons.filter(x => x.id !== couponId && x.code !== couponId);
-      this.saveData(STORAGE_KEYS.COUPONS, this.coupons); this.saveToBridge({ coupons: this.coupons });
+    const ok = await this.apiMutate('/api/platform/coupon', { ...c, isActive: c.isActive === false, isPaused: c.isActive !== false });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.showToast(`Coupon "${c.code}" ${c.isActive === false ? 'activated' : 'paused'}.`);
+  }
 
-      try {
-        fetch('/api/platform/coupon/' + encodeURIComponent(c.code || couponId), { method: 'DELETE' }).catch(() => {});
-      } catch (_) {}
-
-      // Direct Real-Time Sync to Cloud Firestore
-      if (this.db) {
-        try {
-          this.db.collection('promoCodes').doc(c.code).delete();
-        } catch (_) {}
-      }
-
-      this.renderAll();
-      this.showToast(`Coupon "${c.code}" removed.`, '🗑️');
-    }
+  async deleteCoupon(couponId) {
+    const c = this.coupons.find(x => x.id === couponId);
+    if (!c) return;
+    if (!confirm(`Permanently delete coupon "${c.code}"? Customers will no longer be able to redeem it.`)) return;
+    const ok = await this.apiMutate(`/api/platform/coupon/${encodeURIComponent(c.code)}`, null, { method: 'DELETE' });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.showToast(`Coupon "${c.code}" removed.`, '🗑️');
   }
 
   duplicateCoupon(couponId) {
@@ -5188,7 +4310,15 @@ class AdminPortal {
   }
 
   downloadCSV(headers, rows, filename) {
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\r\n');
+    // Normalise every cell: unwrap pre-quoted values, neutralise spreadsheet
+    // formula prefixes (=, +, -, @) and re-quote.
+    const cell = v => {
+      let str = v === null || v === undefined ? '' : String(v);
+      if (/^".*"$/s.test(str)) str = str.slice(1, -1).replace(/""/g, '"');
+      if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+    const csvContent = '\uFEFF' + [headers.map(cell).join(','), ...rows.map(e => e.map(cell).join(','))].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -6098,8 +5228,8 @@ class AdminPortal {
         o.id.toLowerCase().includes(this.printerSearch) ||
         o.customerName.toLowerCase().includes(this.printerSearch) ||
         o.agencyName.toLowerCase().includes(this.printerSearch) ||
-        o.phone.toLowerCase().includes(this.printerSearch) ||
-        o.trackingNumber.toLowerCase().includes(this.printerSearch)
+        String(o.phone || '').toLowerCase().includes(this.printerSearch) ||
+        String(o.trackingNumber || '').toLowerCase().includes(this.printerSearch)
       );
     }
 
@@ -6110,7 +5240,7 @@ class AdminPortal {
 
     tbody.innerHTML = list.map(order => {
       const isDelivered = (order.status || '').toLowerCase() === 'delivered';
-      const isDispatched = (order.status || '').toLowerCase() === 'dispatched';
+      const isDispatched = ['shipped', 'in transit', 'dispatched'].includes((order.status || '').toLowerCase());
       const isProcessing = (order.status || '').toLowerCase() === 'processing';
       const statusBadge = isDelivered ? 'badge-delivered' : (isDispatched ? 'badge-active' : (isProcessing ? 'badge-trial' : 'badge-pending'));
       const initials = (order.customerName || 'SM').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
@@ -6123,7 +5253,7 @@ class AdminPortal {
           </td>
           <td>
             <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: linear-gradient(135deg, #4F46E5, #3B82F6); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;">${initials}</div>
+              <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: linear-gradient(135deg, #4F46E5, #3B82F6); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;">${this.escapeHtml(initials)}</div>
               <div>
                 <strong style="color: var(--text-main); font-size: 13.5px; display: block;">${this.escapeHtml(order.customerName || 'Store Manager')}</strong>
                 <div style="font-size: 11.5px; color: var(--text-muted);">${this.escapeHtml(order.agencyName || 'Distributor Agency')}</div>
@@ -6144,10 +5274,8 @@ class AdminPortal {
           </td>
           <td>
             <select class="form-control" style="font-size: 11.5px; padding: 4px 8px; height: auto; border-radius: var(--radius-xs); width: auto; font-weight: 700; margin-bottom: 4px;" onchange="adminApp.updatePrinterStatus('${this.escapeHtml(order.id)}', this.value)">
-              <option value="Pending" ${order.status === 'Pending' ? 'selected' : ''}>⏳ Pending</option>
-              <option value="Processing" ${order.status === 'Processing' ? 'selected' : ''}>⚙️ Processing</option>
-              <option value="Dispatched" ${order.status === 'Dispatched' ? 'selected' : ''}>🚚 Dispatched</option>
-              <option value="Delivered" ${order.status === 'Delivered' ? 'selected' : ''}>✅ Delivered</option>
+              ${[['Processing', '⚙️'], ['Packed', '📦'], ['Shipped', '🚚'], ['In Transit', '🛣️'], ['Delivered', '✅'], ['Cancelled', '❌']]
+                .map(([st, icon]) => `<option value="${st}" ${order.status === st ? 'selected' : ''}>${icon} ${st}</option>`).join('')}
             </select>
             <div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(order.orderedAt || '')}</div>
           </td>
@@ -6171,35 +5299,35 @@ class AdminPortal {
   }
 
   populatePrinterOrderSelects() {
+    const esc = v => this.escapeHtml(v);
     const itemSelect = document.getElementById('printerItemSelect');
     if (itemSelect) {
-      const opts = (this.printerOptions && this.printerOptions.length) ? this.printerOptions : DEFAULT_PRINTER_OPTIONS;
-      itemSelect.innerHTML = opts.map(p => `
-        <option value="${this.escapeHtml(p.name)} (+₹${p.price})">
-          ${this.escapeHtml(p.name)} (${p.paperWidth} - ₹${p.price}${!p.isAvailable ? ' - Out of Stock' : ''})
-        </option>
-      `).join('') + `
-        <option value="Thermal Paper Rolls Pack of 10 (+₹499)">Thermal Paper Rolls Pack of 10 (₹499)</option>
-        <option value="Thermal Paper Rolls Pack of 50 (+₹1,999)">Thermal Paper Rolls Pack of 50 (₹1,999)</option>
-      `;
+      itemSelect.innerHTML = (this.printerOptions || []).map(p => `
+        <option value="${esc(p.id)}" ${p.isAvailable === false ? 'disabled' : ''}>
+          ${esc(p.name)} (${esc(p.paperWidth)} – ₹${Number(p.price || 0).toLocaleString('en-IN')} + ${Number(p.gstRate ?? 18)}% GST)${p.isAvailable === false ? ' – out of stock' : ''}
+        </option>`).join('');
     }
-
-    const planSelect = document.getElementById('printerPlanSelect');
-    if (planSelect) {
-      const tiers = (this.plans?.tiers && this.plans.tiers.length) ? this.plans.tiers : DEFAULT_PLANS.tiers;
-      planSelect.innerHTML = tiers.map(t => `
-        <option value="${this.escapeHtml(t.name)} (₹${t.monthlyPrice})">
-          ${this.escapeHtml(t.name)} (₹${t.monthlyPrice}/mo or ₹${(t.yearlyMonthlyEquivalent || t.monthlyPrice || 0) * 12}/yr)
-        </option>
-      `).join('') + `
-        <option value="Free Starter Tier">Free Starter Tier (Freemium)</option>
-      `;
+    const tenantSelect = document.getElementById('printerTenantSelect');
+    if (tenantSelect) {
+      tenantSelect.innerHTML = '<option value="">— Select agency —</option>' + (this.tenants || []).map(t =>
+        `<option value="${esc(t.id)}">${esc(t.firmName)} (${esc(t.city || t.id)})</option>`).join('');
     }
   }
 
+  onPrinterTenantChange(tenantId) {
+    const t = this.findTenantById(tenantId);
+    if (!t) return;
+    const name = document.getElementById('printerCustomerName');
+    const phone = document.getElementById('printerPhone');
+    const addr = document.getElementById('printerAddress');
+    if (name && !name.value) name.value = t.ownerName || '';
+    if (phone && !phone.value) phone.value = t.phone || '';
+    if (addr && !addr.value) addr.value = [t.address, t.city, t.state].filter(Boolean).join(', ');
+  }
+
   openPrinterOrderModal() {
-    this.populatePrinterOrderSelects();
     document.getElementById('printerOrderForm')?.reset();
+    this.populatePrinterOrderSelects();
     document.getElementById('printerOrderModal')?.classList.add('active');
   }
 
@@ -6207,171 +5335,98 @@ class AdminPortal {
     document.getElementById('printerOrderModal')?.classList.remove('active');
   }
 
-  handleSavePrinterOrder(e) {
+  async handleSavePrinterOrder(e) {
     e.preventDefault();
-    const customer = document.getElementById('printerCustomerName').value.trim();
-    const agency = document.getElementById('printerAgencyName').value.trim();
-    const phone = document.getElementById('printerPhone').value.trim();
-    const userId = document.getElementById('printerUserId').value.trim() || 'SA-USR-' + Math.floor(1000 + Math.random() * 9000);
-    const item = document.getElementById('printerItemSelect').value;
-    const plan = document.getElementById('printerPlanSelect').value;
-    const address = document.getElementById('printerAddress').value.trim();
-
-    const newOrder = {
-      id: 'PRT-' + Math.floor(1000 + Math.random() * 9000),
-      userId,
-      customerName: customer,
-      agencyName: agency,
-      phone,
-      plan,
-      printerItem: item,
-      shippingAddress: address,
-      orderedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      status: 'Pending',
-      courierName: 'DTDC Courier',
-      trackingNumber: 'Unassigned',
-    };
-
-    this.printerOrders.unshift(newOrder);
-    this.saveData(STORAGE_KEYS.PRINTER_ORDERS, this.printerOrders);
-    this.saveToBridge({ printerOrders: this.printerOrders });
-    this.syncPrinterOrderToSupabase(newOrder);
-
-    try {
-      fetch('/api/platform/order-hardware', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOrder)
-      }).catch(() => {});
-    } catch (_) {}
-
-    if (this.db) {
-      this.db.collection('platform_hardware_orders').doc(newOrder.id).set({
-        ...newOrder,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      }).catch(err => console.warn('Cloud printer order write note:', err));
-    }
+    const val = id => document.getElementById(id)?.value.trim() || '';
+    const tenantId = val('printerTenantSelect');
+    if (!tenantId) { this.showToast('Select the agency this hardware is for.', '⚠️', 'warning'); return; }
+    const ok = await this.apiMutate('/api/platform/order-hardware', {
+      tenantId,
+      printerId: val('printerItemSelect'),
+      quantity: parseInt(val('printerQuantity'), 10) || 1,
+      paymentStatus: val('printerPaymentStatus') || 'pending',
+      customerName: val('printerCustomerName'),
+      phone: val('printerPhone'),
+      shippingAddress: val('printerAddress'),
+    });
+    if (!ok) return;
     this.closePrinterOrderModal();
-    this.renderAll();
-    this.showToast(`Hardware order #${newOrder.id} logged for ${customer}!`, '📦');
+    await this.fetchPlatformState(true);
+    this.showToast('Hardware order queued for dispatch.', '📦');
   }
 
   async updatePrinterStatus(orderId, newStatus) {
     const order = this.printerOrders.find(o => o.id === orderId);
-    if (order) {
-      order.status = newStatus;
-      if (newStatus === 'Dispatched' && order.trackingNumber === 'Unassigned') {
-        order.trackingNumber = 'AWB-' + Math.floor(10000000 + Math.random() * 90000000);
-      }
-      this.saveData(STORAGE_KEYS.PRINTER_ORDERS, this.printerOrders);
-      this.saveToBridge({ printerOrders: this.printerOrders });
-      this.syncPrinterOrderToSupabase(order);
-
-      try {
-        await fetch('/api/platform/printer-order/status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId,
-            status: newStatus,
-            courierName: order.courierName,
-            trackingNumber: order.trackingNumber
-          })
-        });
-      } catch (_) {}
-
-      if (this.db) {
-        this.db.collection('platform_hardware_orders').doc(orderId).set({
-          status: newStatus,
-          trackingNumber: order.trackingNumber,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true }).catch(err => console.warn('Cloud status update note:', err));
-      }
-      this.renderAll();
-      this.showToast(`Order #${orderId} marked as ${newStatus}!`, '🚚');
+    if (!order) return;
+    const patch = { orderId, status: newStatus };
+    const s = String(newStatus).toLowerCase();
+    if ((s === 'shipped' || s === 'dispatched' || s === 'in transit') && (!order.trackingNumber || order.trackingNumber === 'Unassigned')) {
+      const awb = prompt(`Courier tracking number (AWB) for ${order.id}:`, '');
+      if (awb === null) { this.renderPrintersTable(); return; }
+      const courier = prompt('Courier partner (e.g. BlueDart, Delhivery, DTDC):', order.courierName || '');
+      patch.trackingNumber = awb.trim();
+      if (courier !== null) patch.courierName = courier.trim();
     }
+    const ok = await this.apiMutate('/api/platform/printer-order/status', patch);
+    if (!ok) { this.renderPrintersTable(); return; }
+    await this.fetchPlatformState(true);
+    this.showToast(`Order ${orderId} marked as ${newStatus}.`, '🚚');
   }
 
   async editTracking(orderId) {
     const order = this.printerOrders.find(o => o.id === orderId);
     if (!order) return;
     const current = order.trackingNumber === 'Unassigned' ? '' : order.trackingNumber;
-    const tracking = prompt(`Enter Courier Tracking Number (AWB) for #${order.id}:`, current);
-    if (tracking !== null) {
-      order.trackingNumber = tracking.trim() || 'Unassigned';
-      const courier = prompt(`Enter Courier Partner Name (e.g. BlueDart, Delhivery, DTDC):`, order.courierName || 'DTDC');
-      if (courier !== null) order.courierName = courier.trim() || 'DTDC';
-
-      this.saveData(STORAGE_KEYS.PRINTER_ORDERS, this.printerOrders);
-      this.saveToBridge({ printerOrders: this.printerOrders });
-      this.syncPrinterOrderToSupabase(order);
-
-      try {
-        await fetch('/api/platform/printer-order/status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId,
-            status: order.status,
-            courierName: order.courierName,
-            trackingNumber: order.trackingNumber
-          })
-        });
-      } catch (_) {}
-
-      if (this.db) {
-        this.db.collection('platform_hardware_orders').doc(orderId).set({
-          trackingNumber: order.trackingNumber,
-          courierName: order.courierName,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true }).catch(err => console.warn('Cloud tracking note:', err));
-      }
-      this.renderAll();
-      this.showToast(`Tracking updated for #${order.id}.`);
-    }
+    const tracking = prompt(`Courier tracking number (AWB) for ${order.id}:`, current);
+    if (tracking === null) return;
+    const courier = prompt('Courier partner (e.g. BlueDart, Delhivery, DTDC):', order.courierName || '');
+    const ok = await this.apiMutate('/api/platform/printer-order/status', {
+      orderId, trackingNumber: tracking.trim(), ...(courier !== null ? { courierName: courier.trim() } : {}),
+    });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.showToast(`Tracking updated for ${order.id}.`);
   }
 
   openShippingLabel(orderId) {
     const order = this.printerOrders.find(o => o.id === orderId);
     if (!order) return;
-
+    const esc = v => this.escapeHtml(v);
+    const from = this.settings || {};
     const content = document.getElementById('shippingLabelContent');
     if (content) {
       content.innerHTML = `
         <div class="shipping-label-preview">
           <div class="shipping-label-header">
             <div>
-              <strong style="font-size: 16px;">⚡ SalesArmy Fulfillment</strong><br>
-              <span style="font-size: 11px;">Warehouse Hub: Bhiwandi Logistics Park, MH</span>
+              <strong style="font-size: 16px;">${esc(from.companyName || 'SalesArmy Fulfillment')}</strong><br>
+              <span style="font-size: 11px;">${esc(from.supportPhone || '')}</span>
             </div>
             <div style="text-align: right;">
-              <strong style="font-size: 16px;">${order.courierName || 'DTDC Express'}</strong><br>
-              <span style="font-size: 11px;">Standard Ground</span>
+              <strong style="font-size: 16px;">${esc(order.courierName || 'Courier not assigned')}</strong>
             </div>
           </div>
 
           <div style="font-size: 12px; margin-bottom: 12px;">
             <strong>SHIP TO:</strong><br>
-            <span style="font-size: 14px; font-weight: 800;">${order.customerName}</span><br>
-            <span>${order.agencyName} (ID: ${order.userId})</span><br>
-            <span>Ph: ${order.phone}</span><br>
-            <span>${order.shippingAddress}</span>
+            <span style="font-size: 14px; font-weight: 800;">${esc(order.customerName)}</span><br>
+            <span>${esc(order.agencyName)} (ID: ${esc(order.tenantId)})</span><br>
+            <span>Ph: ${esc(order.phone)}</span><br>
+            <span>${esc(order.shippingAddress)}</span>
           </div>
 
           <div class="shipping-barcode"></div>
           <div style="text-align: center; font-size: 11px; margin-bottom: 14px;">
-            AWB: ${order.trackingNumber !== 'Unassigned' ? order.trackingNumber : 'AWB-PENDING-DISPATCH'}
+            AWB: ${esc(order.trackingNumber && order.trackingNumber !== 'Unassigned' ? order.trackingNumber : 'PENDING')}
           </div>
 
           <div style="border-top: 1px dashed #0F172A; padding-top: 8px; font-size: 11px;">
-            <strong>ITEM:</strong> ${order.printerItem}<br>
-            <strong>ORDER REF:</strong> ${order.id} • <strong>DATE:</strong> ${order.orderedAt}
+            <strong>ITEM:</strong> ${esc(order.printerItem)} × ${esc(order.quantity || 1)}<br>
+            <strong>ORDER REF:</strong> ${esc(order.id)} • <strong>DATE:</strong> ${esc(order.orderedAt ? new Date(order.orderedAt).toLocaleDateString('en-IN') : '')}
           </div>
         </div>
       `;
     }
-
     document.getElementById('shippingLabelModal')?.classList.add('active');
   }
 
@@ -6747,7 +5802,7 @@ class AdminPortal {
         <tr style="${isSuspended ? 'background: rgba(244, 63, 94, 0.04); border-left: 3px solid var(--rose);' : ''}">
           <td>
             <div style="display: flex; align-items: center; gap: 12px;">
-              <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: ${gradient}; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.12);">${initials}</div>
+              <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: ${gradient}; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.12);">${this.escapeHtml(initials)}</div>
               <div style="min-width: 0;">
                 <div style="font-weight: 700; color: var(--text-main); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.escapeHtml(t.firmName || t.name || 'Agency')}</div>
                 <div style="font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-top: 2px;">
@@ -6839,7 +5894,7 @@ class AdminPortal {
       return `
         <div class="tenant-card ${isSuspended ? 'suspended' : ''}">
           <div class="tenant-card-header">
-            <div class="tenant-card-avatar" style="background: ${gradient};">${initials}</div>
+            <div class="tenant-card-avatar" style="background: ${gradient};">${this.escapeHtml(initials)}</div>
             <div class="tenant-card-main">
               <div class="tenant-card-firm">${this.escapeHtml(t.firmName || t.name || 'Agency')}</div>
               <div class="tenant-card-prop">Proprietor: ${this.escapeHtml(t.ownerName || 'Store Manager')} • ${this.escapeHtml(t.city || 'India')}</div>
@@ -6907,159 +5962,99 @@ class AdminPortal {
     }).join('');
   }
 
+  findTenantById(tenantId) {
+    return (this.tenants || []).find(t => t.id === tenantId || t.tenantId === tenantId || t.userId === tenantId);
+  }
+
+  // Send a validated partial update for one agency, then reload from the DB.
+  async updateTenant(tenantId, patch, successMessage, icon = '🏢') {
+    const ok = await this.apiMutate('/api/platform/sync-tenant', { id: tenantId, ...patch });
+    if (!ok) return false;
+    await this.fetchPlatformState(true);
+    if (successMessage) this.showToast(successMessage, icon);
+    return true;
+  }
+
   async toggleTenantSuspension(tenantId) {
-    const tenant = this.tenants.find(t => t.id === tenantId || t.userId === tenantId);
+    const tenant = this.findTenantById(tenantId);
     if (!tenant) return;
-
-    const isCurrentlySuspended = tenant.subscriptionStatus === 'suspended' || tenant.isSuspended === true;
-    const newStatus = isCurrentlySuspended ? 'active' : 'suspended';
-    const prevStatus = tenant.subscriptionStatus;
-    const prevSuspended = tenant.isSuspended;
-
-    // Optimistic update in local cache; roll back on failure.
-    tenant.subscriptionStatus = newStatus;
-    tenant.isSuspended = !isCurrentlySuspended;
-    this.renderTenantsTable();
-
-    const ok = await this.apiMutate('/api/platform/sync-tenant', {
-      ...tenant,
-      subscriptionStatus: newStatus,
-      isSuspended: tenant.isSuspended,
-      // Explicit Supabase column mirrors so the server-side mapper picks up
-      // the suspend flip even if the mobile RBAC gate reads `account_status`.
-      account_status: newStatus === 'suspended' ? 'suspended' : 'active',
-      is_active: newStatus !== 'suspended',
-    });
-    if (!ok) {
-      tenant.subscriptionStatus = prevStatus;
-      tenant.isSuspended = prevSuspended;
-      this.renderTenantsTable();
-      return;
-    }
-
-    this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-    const actionText = !isCurrentlySuspended ? 'FROZEN / SUSPENDED' : 'UNFROZEN / RESTORED';
-    this.showToast(`Tenant "${tenant.firmName}" is now ${actionText}.`, !isCurrentlySuspended ? '🛡️' : '⚡');
+    const suspending = !tenant.isSuspended;
+    if (suspending && !confirm(`Freeze "${tenant.firmName}"? Its staff will be blocked from billing until you unfreeze it.`)) return;
+    await this.updateTenant(tenant.id, { isSuspended: suspending },
+      `"${tenant.firmName}" is now ${suspending ? 'FROZEN' : 'ACTIVE'}.`, suspending ? '🛡️' : '⚡');
   }
 
   async grantTenantTrialDays(tenantId, days) {
-    const tenant = this.tenants.find(t => t.id === tenantId || t.userId === tenantId);
+    const tenant = this.findTenantById(tenantId);
     if (!tenant) return;
-
-    const prev = {
-      subscriptionStatus: tenant.subscriptionStatus,
-      expiryDate: tenant.expiryDate,
-      planName: tenant.planName,
-    };
-
-    tenant.subscriptionStatus = 'trial';
-    tenant.isSuspended = false;
-
-    const currExpiry = new Date(tenant.expiryDate && tenant.expiryDate.includes('-') ? tenant.expiryDate : new Date());
-    const baseDate = currExpiry > new Date() ? currExpiry : new Date();
-    baseDate.setDate(baseDate.getDate() + days);
-    tenant.expiryDate = baseDate.toISOString().split('T')[0];
-    tenant.planName = `${days} Days Extended Trial Pass`;
-    this.renderTenantsTable();
-
-    const ok = await this.apiMutate('/api/platform/sync-tenant', {
-      ...tenant,
-      subscriptionStatus: 'trial',
-      account_status: 'active',
-      is_active: true,
-      subscription_end_date: new Date(tenant.expiryDate).toISOString(),
-    });
-    if (!ok) {
-      Object.assign(tenant, prev);
-      this.renderTenantsTable();
-      return;
-    }
-
-    this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-    this.showToast(`Granted +${days} Days Free Trial to "${tenant.firmName}"!`, '🎁');
+    await this.updateTenant(tenant.id, { extendDays: days }, `Extended "${tenant.firmName}" by ${days} days.`, '🎁');
   }
 
-  upgradeTenantPlan(tenantId, newPlan) {
-    const tenant = this.tenants.find(t => t.id === tenantId || t.userId === tenantId);
+  grantTrialDays(tenantId, days = 14) { return this.grantTenantTrialDays(tenantId, days); }
+
+  async assignTenantPlan(tenantId, planId) {
+    const tenant = this.findTenantById(tenantId);
     if (!tenant) return;
-
-    tenant.subscriptionStatus = 'active';
-    tenant.planName = newPlan;
-    tenant.isSuspended = false;
-
-    const exp = new Date();
-    if (newPlan.includes('Annual') || newPlan.includes('Platinum')) {
-      exp.setFullYear(exp.getFullYear() + 1);
-    } else if (newPlan.includes('Quarterly') || newPlan.includes('Gold')) {
-      exp.setMonth(exp.getMonth() + 3);
-    } else {
-      exp.setMonth(exp.getMonth() + 1);
-    }
-    tenant.expiryDate = exp.toISOString().split('T')[0];
-
-    this.saveData(STORAGE_KEYS.TENANTS, this.tenants); this.saveToBridge({ tenants: this.tenants });
-    this.syncTenantToSupabase(tenant);
-
-    // Direct Real-Time Sync to Cloud Firestore
-    if (this.db) {
-      try {
-        const docId = tenant.tenantId || tenant.id;
-        this.db.collection('tenants').doc(docId).set({
-          subscriptionStatus: 'active',
-          accountStatus: 'active',
-          subscriptionPlanId: newPlan.toLowerCase().includes('annual') ? 'annual' : 'monthly',
-          planName: newPlan,
-          subscriptionEndDate: new Date(tenant.expiryDate),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-      } catch (err) {}
-    }
-
-    this.renderTenantsTable();
-    this.showToast(`Upgraded "${tenant.firmName}" to ${newPlan}!`, '👑');
-    this.broadcastChange('tenant_plan_upgraded', { tenantId: tenant.userId, plan: newPlan, expiryDate: tenant.expiryDate });
+    const tier = (this.plans?.tiers || []).find(t => t.id === planId);
+    await this.updateTenant(tenant.id, { subscriptionPlanId: planId, subscriptionStatus: planId === 'free' ? 'freemium' : 'active' },
+      `Assigned "${tenant.firmName}" to ${tier ? tier.name : planId} (${tier ? `${tier.maxUsers} users, ${tier.maxShops} shops` : 'free tier'}).`, '🏷️');
   }
 
-  remoteWipeTenantData(tenantId) {
-    const tenant = this.tenants.find(t => t.id === tenantId || t.userId === tenantId);
+  upgradeTenantPlan(tenantId, planId) { return this.assignTenantPlan(tenantId, planId); }
+
+  async activatePro(tenantId) {
+    const tenant = this.findTenantById(tenantId);
     if (!tenant) return;
+    const exp = new Date(); exp.setFullYear(exp.getFullYear() + 1);
+    await this.updateTenant(tenant.id, { subscriptionPlanId: 'enterprise', subscriptionStatus: 'active', expiryDate: exp.toISOString().slice(0, 10) },
+      `"${tenant.firmName}" activated on Enterprise for 1 year.`, '⭐');
+  }
 
-    const confirmName = prompt(`⚠️ REMOTE DATA WIPE: To confirm remote cache and data wipe for "${tenant.firmName}" (${tenant.userId}), type WIPE:`);
-    if (confirmName !== 'WIPE') {
-      alert('Data wipe cancelled.');
-      return;
-    }
+  async setFreemium(tenantId) {
+    const tenant = this.findTenantById(tenantId);
+    if (!tenant) return;
+    await this.updateTenant(tenant.id, { subscriptionPlanId: 'free', subscriptionStatus: 'freemium', expiryDate: null },
+      `"${tenant.firmName}" switched to the free tier.`, '⚡');
+  }
 
-    tenant.ordersCount = 0;
-    tenant.revenue = 0;
-    this.saveData(STORAGE_KEYS.TENANTS, this.tenants); this.saveToBridge({ tenants: this.tenants });
-    this.renderTenantsTable();
-    this.showToast(`Remote data wipe executed for ${tenant.userId}!`, '🗑️');
-    this.broadcastChange('tenant_remote_wipe', { tenantId: tenant.userId });
+  async createPaymentLink(tenantId) {
+    const tenant = this.findTenantById(tenantId);
+    if (!tenant) return;
+    const tiers = (this.plans?.tiers || []).filter(t => t.isActive !== false);
+    const planId = prompt(`Plan for "${tenant.firmName}" (${tiers.map(t => t.id).join(' / ')}):`, tenant.subscriptionPlanId && tenant.subscriptionPlanId !== 'free' ? tenant.subscriptionPlanId : (tiers[0]?.id || 'startup'));
+    if (!planId) return;
+    const yearly = confirm('Bill yearly? (OK = yearly, Cancel = monthly)');
+    try {
+      const res = await fetch('/api/platform/gateway/create-link', {
+        method: 'POST',
+        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ tenantId: tenant.id, planId: planId.trim(), yearly }),
+      });
+      const data = await res.json();
+      if (data.checkoutUrl) {
+        navigator.clipboard?.writeText(data.checkoutUrl).catch(() => {});
+        prompt(`Payment link for ₹${Number(data.amount).toLocaleString('en-IN')} (copied to clipboard). Share it with the agency:`, data.checkoutUrl);
+      } else {
+        this.showToast(`Checkout ${data.status || 'created'} (₹${Number(data.amount || 0).toLocaleString('en-IN')}).`, '💳');
+      }
+      this.renderBilling();
+    } catch (_) { /* fetch wrapper shows the error */ }
   }
 
   async deleteTenant(tenantId) {
-    const t = (this.tenants || []).find(x => x.id === tenantId || x.tenantId === tenantId || x.userId === tenantId);
+    const t = this.findTenantById(tenantId);
     if (!t) return;
-    if (!confirm(`Are you sure you want to delete agency "${t.firmName}" (${t.id || t.tenantId})?`)) return;
-
     const tid = t.id || t.tenantId;
-    this.tenants = this.tenants.filter(x => x.id !== tid && x.tenantId !== tid && x.userId !== tid);
-    this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-    this.saveToBridge({ tenants: this.tenants });
-
-    try {
-      await fetch('/api/platform/tenant/' + encodeURIComponent(tid), { method: 'DELETE' });
-    } catch (_) {}
-
-    if (this.supabaseClient) {
-      try {
-        await this.supabaseClient.from('tenants').delete().eq('tenant_id', tid);
-      } catch (_) {}
+    const typed = prompt(`⚠️ This permanently deletes "${t.firmName}", ALL of its shops, orders, invoices, payments and every staff login.\n\nType the agency ID to confirm:\n${tid}`);
+    if (typed === null) return;
+    if (typed.trim() !== tid) {
+      this.showToast('Agency ID did not match. Nothing was deleted.', '⚠️', 'warning');
+      return;
     }
-
-    this.renderTenantsTable();
-    this.showToast(`Agency "${t.firmName}" deleted from platform.`, '🗑️');
+    const ok = await this.apiMutate(`/api/platform/tenant/${encodeURIComponent(tid)}?confirm=${encodeURIComponent(tid)}`, null, { method: 'DELETE' });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.showToast(`Agency "${t.firmName}" deleted.`, '🗑️');
   }
 
   openTenantModal(tenantId = null) {
@@ -7068,28 +6063,29 @@ class AdminPortal {
     const editIdInput = document.getElementById('tenantEditId');
     const modalTitle = document.getElementById('tenantModalTitle');
     const pwdRow = document.getElementById('tenantPasswordRow');
+    const pwdInput = document.getElementById('tenantPassword');
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
 
     if (tenantId) {
-      const t = this.tenants.find(x => x.id === tenantId || x.tenantId === tenantId || x.userId === tenantId);
+      const t = this.findTenantById(tenantId);
       if (t) {
         if (editIdInput) editIdInput.value = t.id || t.tenantId;
         if (modalTitle) modalTitle.innerText = `Edit Agency: ${t.firmName}`;
         if (pwdRow) pwdRow.style.display = 'none';
-        const fn = document.getElementById('tenantFirmName'); if (fn) fn.value = t.firmName || '';
-        const on = document.getElementById('tenantOwnerName'); if (on) on.value = t.ownerName || '';
-        const em = document.getElementById('tenantEmail'); if (em) em.value = t.email || '';
-        const ph = document.getElementById('tenantPhone'); if (ph) ph.value = t.phone || '';
-        const ct = document.getElementById('tenantCity'); if (ct) ct.value = t.city || '';
-        const gst = document.getElementById('tenantGstin'); if (gst) gst.value = t.gstin || '';
-        const pan = document.getElementById('tenantPan'); if (pan) pan.value = t.pan || '';
-        const addr = document.getElementById('tenantAddress'); if (addr) addr.value = t.address || '';
-        const st = document.getElementById('tenantStatusSelect'); if (st) st.value = t.subscriptionStatus || 'active';
-        const pl = document.getElementById('tenantPlanSelect'); if (pl) pl.value = t.planName || 'Agency Starter';
+        if (pwdInput) pwdInput.required = false;
+        set('tenantFirmName', t.firmName); set('tenantOwnerName', t.ownerName); set('tenantEmail', t.email);
+        set('tenantPhone', t.phone); set('tenantCity', t.city); set('tenantGstin', t.gstin); set('tenantPan', t.pan);
+        set('tenantAddress', t.address);
+        set('tenantStatusSelect', t.subscriptionStatus || 'active');
+        set('tenantPlanSelect', t.subscriptionPlanId || 'startup');
       }
     } else {
       if (editIdInput) editIdInput.value = '';
       if (modalTitle) modalTitle.innerText = 'Register New FMCG Distribution Agency';
       if (pwdRow) pwdRow.style.display = 'grid';
+      if (pwdInput) { pwdInput.required = true; pwdInput.value = this.generateStrongPassword(); }
+      set('tenantStatusSelect', 'trial');
+      set('tenantPlanSelect', this.settings?.defaultPlanId || 'startup');
     }
     document.getElementById('tenantModal')?.classList.add('active');
   }
@@ -7100,285 +6096,119 @@ class AdminPortal {
 
   async handleSaveTenant(e) {
     e.preventDefault();
-    const editId = document.getElementById('tenantEditId')?.value?.trim();
-    const firm = document.getElementById('tenantFirmName').value.trim();
-    const owner = document.getElementById('tenantOwnerName').value.trim();
-    const email = document.getElementById('tenantEmail')?.value.trim() || `${owner.toLowerCase().replace(/[^a-z0-9]/g, '')}@salesarmy.com`;
-    const password = document.getElementById('tenantPassword')?.value || 'Password@123';
-    const phone = document.getElementById('tenantPhone').value.trim();
-    const city = document.getElementById('tenantCity').value.trim();
-    const gstin = document.getElementById('tenantGstin')?.value.trim() || '';
-    const pan = document.getElementById('tenantPan')?.value.trim() || '';
-    const address = document.getElementById('tenantAddress')?.value.trim() || '';
-    const status = document.getElementById('tenantStatusSelect').value;
-    const plan = document.getElementById('tenantPlanSelect').value;
+    const val = id => document.getElementById(id)?.value.trim() || '';
+    const editId = val('tenantEditId');
+    const fields = {
+      firmName: val('tenantFirmName'), ownerName: val('tenantOwnerName'), email: val('tenantEmail'),
+      phone: val('tenantPhone'), city: val('tenantCity'), gstin: val('tenantGstin'), pan: val('tenantPan'),
+      address: val('tenantAddress'),
+    };
+    const status = document.getElementById('tenantStatusSelect')?.value || 'trial';
+    const planId = document.getElementById('tenantPlanSelect')?.value || 'startup';
+    if (!fields.firmName || !fields.ownerName || !fields.phone) {
+      this.showToast('Agency name, owner name and mobile are required.', '⚠️', 'warning');
+      return;
+    }
 
     if (editId) {
-      const t = this.tenants.find(x => x.id === editId || x.tenantId === editId || x.userId === editId);
-      if (t) {
-        t.firmName = firm;
-        t.ownerName = owner;
-        t.phone = phone;
-        t.city = city;
-        t.subscriptionStatus = status;
-        t.planName = plan;
-        t.gstin = gstin;
-        t.pan = pan;
-        t.address = address;
-        if (email) t.email = email;
+      const ok = await this.updateTenant(editId, { ...fields, subscriptionStatus: status, subscriptionPlanId: planId }, `Updated agency "${fields.firmName}".`);
+      if (ok) this.closeTenantModal();
+      return;
+    }
 
-        this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-        this.saveToBridge({ tenants: this.tenants });
-        this.syncTenantToSupabase(t);
-
-        try {
-          await fetch('/api/platform/sync-tenant', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(t)
-          });
-        } catch (_) {}
-
-        if (this.db) {
-          try {
-            this.db.collection('tenants').doc(t.id).set({
-              firmName: firm,
-              representativeName: owner,
-              phone,
-              city,
-              accountStatus: status === 'suspended' ? 'suspended' : 'active',
-              subscriptionStatus: status,
-              planName: plan,
-              gstin,
-              pan,
-              address,
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
-          } catch (_) {}
-        }
-
-        this.closeTenantModal();
-        this.renderAll();
-        this.showToast(`Updated agency "${firm}" successfully!`, '🏢');
+    const password = document.getElementById('tenantPassword')?.value || '';
+    if (!fields.email) { this.showToast('Owner email is required to create their login.', '⚠️', 'warning'); return; }
+    if (password.length < 8) { this.showToast('Owner password must be at least 8 characters.', '⚠️', 'warning'); return; }
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          accountType: 'agency', businessName: fields.firmName, name: fields.ownerName, email: fields.email, password,
+          phone: fields.phone, city: fields.city, gstin: fields.gstin, pan: fields.pan, address: fields.address,
+          planId, subscriptionStatus: status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        this.showToast(data.error || 'Could not register agency.', '❌', 'danger');
         return;
       }
-    }
-
-    const nextIdNum = Math.floor(1000 + Math.random() * 9000);
-    const userId = `SA-USR-${nextIdNum}`;
-
-    let expiryDate = 'Never (Freemium)';
-    if (status === 'trial') {
-      const d = new Date();
-      d.setDate(d.getDate() + 14);
-      expiryDate = d.toISOString().split('T')[0];
-    } else if (status === 'active') {
-      const d = new Date();
-      d.setFullYear(d.getFullYear() + 1);
-      expiryDate = d.toISOString().split('T')[0];
-    }
-
-    let tenantId = 'tenant_' + firm.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20) + '_' + Math.floor(100000 + Math.random() * 900000);
-    let ownerUid = null;
-
-    try {
-      const resp = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountType: 'agency',
-          businessName: firm,
-          representativeName: owner,
-          email,
-          password,
-          phone,
-          city,
-        })
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.tenant_id) tenantId = data.tenant_id;
-        if (data.uid) ownerUid = data.uid;
-      }
+      this.closeTenantModal();
+      await this.fetchPlatformState(true);
+      navigator.clipboard?.writeText(password).catch(() => {});
+      this.showToast(`Agency "${fields.firmName}" created (ID ${data.tenantId}). Owner password copied to clipboard.`, '🏢');
     } catch (err) {
-      console.warn('Backend tenant signup note:', err);
+      this.showToast(err.message || 'Could not register agency.', '❌', 'danger');
     }
-
-    const newTenant = {
-      id: tenantId,
-      tenantId: tenantId,
-      userId,
-      firmName: firm,
-      ownerName: owner,
-      phone,
-      city,
-      gstin,
-      pan,
-      address,
-      subscriptionStatus: status,
-      planName: plan,
-      expiryDate,
-      freemiumSelling: true,
-      ordersCount: 0,
-      revenue: 0,
-    };
-
-    this.tenants.unshift(newTenant);
-    this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-    this.saveToBridge({ tenants: this.tenants });
-    this.syncTenantToSupabase(newTenant);
-
-    // Also add newly created owner user to platform users
-    const ownerUser = {
-      id: ownerUid || `usr_${Date.now()}`,
-      uid: ownerUid || `usr_${Date.now()}`,
-      name: owner,
-      email,
-      phone,
-      role: 'distributor',
-      tenantId: tenantId,
-      tenantName: firm,
-      status: 'active',
-      createdAt: new Date().toISOString()
-    };
-    if (!Array.isArray(this.users)) this.users = [];
-    this.users.unshift(ownerUser);
-    this.saveData(STORAGE_KEYS.USERS, this.users);
-    this.saveToBridge({ users: this.users });
-
-    // Direct Real-Time Sync to Cloud Firestore
-    if (this.db) {
-      try {
-        this.db.collection('tenants').doc(newTenant.id).set({
-          firmName: firm,
-          representativeName: owner,
-          phone,
-          city,
-          gstin,
-          pan,
-          address,
-          accountStatus: status === 'suspended' ? 'suspended' : 'active',
-          subscriptionStatus: status,
-          planName: plan,
-          subscriptionEndDate: expiryDate.includes('-') ? new Date(expiryDate) : null,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-      } catch (err) {}
-    }
-
-    this.closeTenantModal();
-    this.renderAll();
-    this.showToast(`New tenant "${firm}" registered with ID ${tenantId}!`, '🏢');
   }
 
   openTenantDetailModal(tenantId) {
-    const t = (this.tenants || []).find(x => x.id === tenantId || x.userId === tenantId || x.tenantId === tenantId);
+    const t = this.findTenantById(tenantId);
     if (!t) return;
-
     const container = document.getElementById('tenantDetailModalContent');
     if (container) {
-      const isSuspended = t.subscriptionStatus === 'suspended' || t.isSuspended === true;
+      const esc = v => this.escapeHtml(v);
+      const jid = this.escapeJs(t.id);
+      const isSuspended = t.isSuspended === true || t.subscriptionStatus === 'suspended';
       const badge = this._getTenantStatusBadge(t.subscriptionStatus, isSuspended);
       const gradient = this._getTenantAvatarGradient(t.planName, t.subscriptionStatus);
-      const initials = (t.firmName || t.name || 'TN').substring(0, 2).toUpperCase();
-      const phoneClean = String(t.phone || '').replace(/[^0-9]/g, '');
+      const initials = (t.firmName || 'TN').substring(0, 2).toUpperCase();
+      const phoneClean = String(t.phone || '').replace(/[^0-9]/g, '').slice(-10);
+      const money = n => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+      const tiers = (this.plans?.tiers || []).filter(x => x.isActive !== false);
 
       container.innerHTML = `
         <div class="tenant-inspector-header">
-          <div class="tenant-avatar-large" style="background: ${gradient};">${initials}</div>
+          <div class="tenant-avatar-large" style="background: ${gradient};">${esc(initials)}</div>
           <div style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <h3 style="font-size: 17px; font-weight: 800; color: var(--text-main); margin: 0;">${this.escapeHtml(t.firmName || t.name || 'Agency')}</h3>
-              <span class="badge ${badge.class}">${badge.label}</span>
+              <h3 style="font-size: 17px; font-weight: 800; color: var(--text-main); margin: 0;">${esc(t.firmName || 'Agency')}</h3>
+              <span class="badge ${badge.class}">${esc(badge.label)}</span>
             </div>
-            <p style="font-size: 12.5px; color: var(--text-muted); margin: 3px 0 6px 0;">Proprietor: ${this.escapeHtml(t.ownerName || 'Store Manager')} • ${this.escapeHtml(t.city || 'India')}</p>
+            <p style="font-size: 12.5px; color: var(--text-muted); margin: 3px 0 6px 0;">Owner: ${esc(t.ownerName || '—')} • ${esc(t.city || '—')} • ${esc(t.email || 'no email')}</p>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span class="code-pill">${this.escapeHtml(t.userId || t.id)}</span>
-              <button onclick="adminApp.copyText('${this.escapeJs(t.userId || t.id)}')" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size: 12px;" title="Copy ID">📋</button>
+              <span class="code-pill">${esc(t.id)}</span>
+              <button onclick="adminApp.copyText('${jid}')" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size: 12px;" title="Copy ID">📋</button>
             </div>
           </div>
         </div>
 
         <div class="tenant-detail-grid">
-          <div class="tenant-detail-item">
-            <div class="tenant-detail-label">Subscription Tier</div>
-            <div class="tenant-detail-value" style="color: var(--primary-accent);">${this.escapeHtml(t.planName || 'Startup Plan')}</div>
-          </div>
-          <div class="tenant-detail-item">
-            <div class="tenant-detail-label">Current Status</div>
-            <div class="tenant-detail-value" style="color: ${badge.dotColor};">${badge.label}</div>
-          </div>
-          <div class="tenant-detail-item">
-            <div class="tenant-detail-label">Renewal / Expiry</div>
-            <div class="tenant-detail-value">${this.escapeHtml(t.expiryDate || 'Active')}</div>
-          </div>
-          <div class="tenant-detail-item">
-            <div class="tenant-detail-label">Lifetime Orders</div>
-            <div class="tenant-detail-value">${t.ordersCount || 0} Orders</div>
-          </div>
-          <div class="tenant-detail-item">
-            <div class="tenant-detail-label">Registered Phone</div>
-            <div class="tenant-detail-value" style="font-family: var(--font-mono); font-size: 12px;">+91 ${this.escapeHtml(t.phone || 'N/A')}</div>
-          </div>
-          <div class="tenant-detail-item">
-            <div class="tenant-detail-label">GSTIN / Tax ID</div>
-            <div class="tenant-detail-value" style="font-family: var(--font-mono); font-size: 12px;">${this.escapeHtml(t.gstin || 'Unregistered')}</div>
-          </div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Plan</div><div class="tenant-detail-value" style="color: var(--primary-accent);">${esc(t.planName)}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Status</div><div class="tenant-detail-value" style="color: ${badge.dotColor};">${esc(badge.label)}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Renewal / Expiry</div><div class="tenant-detail-value">${esc(t.expiryDate || '—')}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Seats / Shops quota</div><div class="tenant-detail-value">${esc(t.usersCount)} / ${esc(t.maxUsers ?? '—')} users • ${esc(t.shopsCount)} / ${esc(t.maxShops ?? '—')} shops</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Orders • Invoiced</div><div class="tenant-detail-value">${esc(t.ordersCount)} • ${money(t.revenue)}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Collected • Market dues</div><div class="tenant-detail-value">${money(t.collected)} • ${money(t.outstanding)}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Phone</div><div class="tenant-detail-value" style="font-family: var(--font-mono); font-size: 12px;">${esc(t.phone || 'N/A')}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">GSTIN</div><div class="tenant-detail-value" style="font-family: var(--font-mono); font-size: 12px;">${esc(t.gstin || 'Unregistered')}</div></div>
         </div>
 
-        <div style="background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 20px;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <svg class="icon icon-sm" viewBox="0 0 24 24" style="color: var(--emerald);"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <strong style="font-size: 13px; color: var(--text-main);">Freemium Core Guarantee Confirmed</strong>
-          </div>
-          <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0; line-height: 1.4;">
-            This agency has permanent unrestricted access to book retailer beat orders, generate estimated receipts, and issue GST tax invoices regardless of subscription status.
-          </p>
-        </div>
-
-        <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.04em;">
-          Assign Plan Tier
-        </h4>
+        <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 16px 0 10px; text-transform: uppercase; letter-spacing: 0.04em;">Assign Plan</h4>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;">
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.assignTenantPlan('${this.escapeJs(t.id)}', 'startup'); adminApp.closeTenantDetailModal();">
-            Startup (50 Prod, 1 User)
-          </button>
-          <button type="button" class="btn btn-primary btn-sm" onclick="adminApp.assignTenantPlan('${this.escapeJs(t.id)}', 'grow'); adminApp.closeTenantDetailModal();">
-            Grow (200 Prod, 5 Users)
-          </button>
-          <button type="button" class="btn btn-outline btn-sm" style="border-color: #7C3AED; color: #7C3AED;" onclick="adminApp.assignTenantPlan('${this.escapeJs(t.id)}', 'enterprise'); adminApp.closeTenantDetailModal();">
-            Enterprise (Unlimited, 50 Users)
-          </button>
+          ${tiers.map(tier => `
+            <button type="button" class="btn ${tier.id === t.subscriptionPlanId ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="adminApp.assignTenantPlan('${jid}', '${this.escapeJs(tier.id)}'); adminApp.closeTenantDetailModal();">
+              ${esc(tier.name)} (${esc(tier.maxUsers)} users, ${esc(tier.maxShops)} shops)
+            </button>`).join('')}
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.setFreemium('${jid}'); adminApp.closeTenantDetailModal();">Free tier</button>
         </div>
 
-        <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.04em;">
-          Administrative Overrides & Direct Comms
-        </h4>
+        <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.04em;">Actions</h4>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button type="button" class="btn btn-primary btn-sm" onclick="adminApp.closeTenantDetailModal(); adminApp.openTenantModal('${this.escapeJs(t.id)}');">
-            ✏️ Edit Agency
+          <button type="button" class="btn btn-primary btn-sm" onclick="adminApp.closeTenantDetailModal(); adminApp.openTenantModal('${jid}');">✏️ Edit</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.closeTenantDetailModal(); adminApp.openTenantDrilldown('${jid}');">🔍 Drill-down</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.createPaymentLink('${jid}');">💳 Payment link</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${jid}', 7); adminApp.closeTenantDetailModal();">+7 days</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${jid}', 30); adminApp.closeTenantDetailModal();">+30 days</button>
+          <button type="button" class="btn btn-outline btn-sm" style="${isSuspended ? 'color:#10B981;' : 'color:#DC2626;'}" onclick="adminApp.toggleTenantSuspension('${jid}'); adminApp.closeTenantDetailModal();">
+            ${isSuspended ? '⚡ Unfreeze' : '🛡️ Freeze'}
           </button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${this.escapeJs(t.id)}', 7); adminApp.closeTenantDetailModal();">
-            +7d Trial
-          </button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${this.escapeJs(t.id)}', 14); adminApp.closeTenantDetailModal();">
-            +14d Trial
-          </button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${this.escapeJs(t.id)}', 30); adminApp.closeTenantDetailModal();">
-            +30d Trial
-          </button>
-          <button type="button" class="btn btn-outline btn-sm" style="${isSuspended ? 'color:#10B981;border-color:rgba(16,185,129,0.3);' : 'color:#DC2626;border-color:rgba(239,68,68,0.3);'}" onclick="adminApp.toggleTenantSuspension('${this.escapeJs(t.id)}'); adminApp.closeTenantDetailModal();">
-            ${isSuspended ? '⚡ Unfreeze Agency' : '🛡️ Freeze Agency'}
-          </button>
-          ${phoneClean ? `
-            <a class="btn btn-outline btn-sm" href="https://wa.me/91${phoneClean}?text=Hello%20${encodeURIComponent(t.ownerName || '')},%20your%20SalesArmy%20Agency%20ID%20is%20${encodeURIComponent(t.userId || t.id)}" target="_blank" style="color: #059669; border-color: rgba(16, 185, 129, 0.3);">
-              💬 WhatsApp Message
-            </a>
-          ` : ''}
+          ${phoneClean.length === 10 ? `<a class="btn btn-outline btn-sm" href="https://wa.me/91${phoneClean}" target="_blank" rel="noopener noreferrer" style="color: #059669;">💬 WhatsApp</a>` : ''}
+          <button type="button" class="btn btn-outline btn-sm" style="color:#DC2626;" onclick="adminApp.closeTenantDetailModal(); adminApp.deleteTenant('${jid}');">🗑️ Delete</button>
         </div>
       `;
     }
-
     document.getElementById('tenantDetailModal')?.classList.add('active');
   }
 
@@ -7386,118 +6216,6 @@ class AdminPortal {
     document.getElementById('tenantDetailModal')?.classList.remove('active');
   }
 
-  assignTenantPlan(tenantId, planId) {
-    const t = this.tenants.find(x => x.id === tenantId);
-    if (!t) return;
-    t.subscriptionPlanId = planId;
-    t.planId = planId;
-    if (planId === 'enterprise') {
-      t.planName = 'Enterprise Tier (9,999 Prod, 50 Users)';
-      t.maxProducts = 9999;
-      t.maxUsers = 50;
-      t.maxShops = 10000;
-      t.subscriptionStatus = 'active';
-    } else if (planId === 'grow') {
-      t.planName = 'Grow Plan (200 Prod, 5 Users)';
-      t.maxProducts = 200;
-      t.maxUsers = 5;
-      t.maxShops = 1000;
-      t.subscriptionStatus = 'active';
-    } else {
-      t.planName = 'Startup Plan (50 Prod, 1 User)';
-      t.maxProducts = 50;
-      t.maxUsers = 1;
-      t.maxShops = 200;
-      t.subscriptionStatus = 'trial';
-    }
-    const d = new Date();
-    d.setFullYear(d.getFullYear() + 1);
-    t.expiryDate = d.toISOString().split('T')[0];
-
-    this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-    this.saveToBridge({ tenants: this.tenants });
-    this.syncTenantToSupabase(t);
-    fetch('/api/platform/sync-tenant', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(t)
-    }).catch(() => {});
-    this.renderAll();
-    this.showToast(`Assigned ${t.firmName} to ${planId.toUpperCase()} tier!`, '🏷️');
-  }
-
-  grantTrialDays(tenantId, days = 14) {
-    const t = this.tenants.find(x => x.id === tenantId);
-    if (t) {
-      t.subscriptionStatus = 'trial';
-      t.planName = `${days}-Day Admin Extended Trial`;
-      const d = new Date();
-      d.setDate(d.getDate() + days);
-      t.expiryDate = d.toISOString().split('T')[0];
-      this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-      this.saveToBridge({ tenants: this.tenants });
-      this.syncTenantToSupabase(t);
-      fetch('/api/platform/sync-tenant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(t)
-      }).catch(() => {});
-      this.renderAll();
-      this.showToast(`Granted ${days}-day trial to ${t.firmName}!`, '🎁');
-    }
-  }
-
-  activatePro(tenantId) {
-    const t = this.tenants.find(x => x.id === tenantId);
-    if (t) {
-      t.subscriptionStatus = 'active';
-      t.subscriptionPlanId = 'enterprise';
-      t.planId = 'enterprise';
-      t.planName = 'Annual Platinum Pro Plan';
-      t.maxProducts = 9999;
-      t.maxUsers = 50;
-      t.maxShops = 10000;
-      const d = new Date();
-      d.setFullYear(d.getFullYear() + 1);
-      t.expiryDate = d.toISOString().split('T')[0];
-      this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-      this.saveToBridge({ tenants: this.tenants });
-      this.syncTenantToSupabase(t);
-      fetch('/api/platform/sync-tenant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(t)
-      }).catch(() => {});
-      this.renderAll();
-      this.showToast(`Upgraded ${t.firmName} to Active Annual Subscription!`, '⭐');
-    }
-  }
-
-  setFreemium(tenantId) {
-    const t = this.tenants.find(x => x.id === tenantId);
-    if (t) {
-      t.subscriptionStatus = 'freemium';
-      t.subscriptionPlanId = 'startup';
-      t.planId = 'startup';
-      t.planName = 'Startup Free Starter Tier';
-      t.maxProducts = 50;
-      t.maxUsers = 1;
-      t.maxShops = 200;
-      t.expiryDate = 'Never (Freemium)';
-      this.saveData(STORAGE_KEYS.TENANTS, this.tenants);
-      this.saveToBridge({ tenants: this.tenants });
-      this.syncTenantToSupabase(t);
-      fetch('/api/platform/sync-tenant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(t)
-      }).catch(() => {});
-      this.renderAll();
-      this.showToast(`Switched ${t.firmName} to Free Tier.`, '⚡');
-    }
-  }
-
-  // --- VIEW: Remote Mobile App Control ---
   renderRemoteAppControl() {
     const container = document.getElementById('remoteFeaturesContainer');
     if (!container) return;
@@ -7576,6 +6294,49 @@ class AdminPortal {
 
     const elMaintEta = document.getElementById('ctrlMaintenanceEta');
     if (elMaintEta) elMaintEta.value = this.remoteConfig.maintenance?.eta || '30 minutes';
+
+    // Free-user billing policy (default: allowed)
+    this.renderFreeBillingPolicy();
+  }
+
+  renderFreeBillingPolicy() {
+    const allowed = this.remoteConfig?.allowFreeUserBilling !== false;
+    const elToggle = document.getElementById('ctrlFreeBilling');
+    if (elToggle) elToggle.checked = allowed;
+    const elLabel = document.getElementById('freeBillingStatusLabel');
+    if (elLabel) {
+      elLabel.textContent = allowed ? 'FREE USERS CAN BILL' : 'BILLING BLOCKED FOR FREE USERS';
+      elLabel.style.color = allowed ? 'var(--emerald-text)' : 'var(--rose-text)';
+    }
+    const elMsg = document.getElementById('ctrlFreeBillingMessage');
+    if (elMsg && document.activeElement !== elMsg) elMsg.value = this.remoteConfig?.freeBillingBlockedMessage || '';
+  }
+
+  _persistRemoteConfig(eventName) {
+    this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig);
+    this.saveToBridge({ remoteConfig: this.remoteConfig });
+    this.syncRemoteConfigToSupabase();
+    this.broadcastChange(eventName, this.remoteConfig);
+  }
+
+  onFreeBillingToggleChanged(enabled) {
+    if (!this.remoteConfig) this.remoteConfig = JSON.parse(JSON.stringify(DEFAULT_REMOTE_CONFIG));
+    if (!enabled && !confirm('Block bill creation for all Free-tier and expired-plan agencies?\n\nThey will be asked to upgrade before creating bills or booking orders.')) {
+      this.renderFreeBillingPolicy();
+      return;
+    }
+    this.remoteConfig.allowFreeUserBilling = enabled;
+    this._persistRemoteConfig('free_billing_policy_update');
+    this.renderFreeBillingPolicy();
+    this.showToast(enabled ? 'Free users can create bills again.' : 'Bill creation blocked for Free / expired agencies.', enabled ? '✓' : '⚠️', enabled ? 'success' : 'warning');
+  }
+
+  saveFreeBillingMessage() {
+    if (!this.remoteConfig) this.remoteConfig = JSON.parse(JSON.stringify(DEFAULT_REMOTE_CONFIG));
+    const msg = (document.getElementById('ctrlFreeBillingMessage')?.value || '').trim().slice(0, 300);
+    this.remoteConfig.freeBillingBlockedMessage = msg;
+    this._persistRemoteConfig('free_billing_policy_update');
+    this.showToast(msg ? 'Blocked-billing message saved.' : 'Reverted to the default blocked-billing message.', '✓');
   }
 
   onFeatureToggleChanged(key, enabled) {
@@ -7825,7 +6586,10 @@ class AdminPortal {
     const targetTenant = document.getElementById('bcastTargetTenant')?.value || 'all';
     const targetPlan = document.getElementById('bcastTargetPlan')?.value || 'all';
     const dismissible = document.getElementById('bcastDismissible')?.checked ?? true;
-    const active = document.getElementById('bcastActive')?.checked ?? true;
+    // Publishing always makes the banner live; use "Clear banner" to stop it.
+    const active = true;
+    const activeBox = document.getElementById('bcastActive');
+    if (activeBox) activeBox.checked = true;
 
     // Update character counters
     const titleCountEl = document.getElementById('bcastTitleCount');
@@ -8139,7 +6903,10 @@ class AdminPortal {
     const actionText = document.getElementById('bcastActionText')?.value.trim() || '';
     const actionUrl = document.getElementById('bcastActionUrl')?.value.trim() || '';
     const dismissible = document.getElementById('bcastDismissible')?.checked ?? true;
-    const active = document.getElementById('bcastActive')?.checked ?? true;
+    // Publishing always makes the banner live; use "Clear banner" to stop it.
+    const active = true;
+    const activeBox = document.getElementById('bcastActive');
+    if (activeBox) activeBox.checked = true;
     const playSound = document.getElementById('bcastSound')?.checked ?? true;
 
     if (!title || !message) {
@@ -8163,45 +6930,16 @@ class AdminPortal {
       updatedAt: new Date().toISOString(),
     };
 
+    const saved = await this.apiMutate('/api/platform/broadcast', this.broadcast);
+    if (!saved) return;
     this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast);
-    this.saveToBridge({ broadcast: this.broadcast });
-    this.syncBroadcastToSupabase();
-    this.broadcastChange('broadcast_published', this.broadcast);
 
-    // Call server broadcast API
-    try {
-      await fetch('/api/platform/broadcast', {
-        method: 'POST',
-        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(this.broadcast)
-      });
-    } catch (_) {}
-
-    // Call notifications endpoint for stream history logging
-    try {
-      const res = await fetch('/api/platform/notifications', {
-        method: 'POST',
-        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          title,
-          message,
-          category: 'broadcast',
-          type: 'broadcast',
-          severity: type,
-          targetTenant,
-          targetPlan,
-          targetRole: targetPlan,
-          actionUrl: actionUrl || actionText
-        })
-      });
-      const data = await res.json();
-      if (data && data.notification) {
-        if (!Array.isArray(this.notifications)) this.notifications = [];
-        this.notifications.unshift(data.notification);
-        this.saveData(STORAGE_KEYS.NOTIFICATIONS, this.notifications);
-        this.renderNotificationsTable();
-      }
-    } catch (_) {}
+    // Also drop it into each targeted user's in-app notification inbox.
+    await this.apiMutate('/api/platform/notifications', {
+      title, message, type: 'broadcast', severity: type, targetTenant, targetPlan, targetRole: 'all',
+      actionUrl: actionUrl.startsWith('/') || actionUrl.startsWith('https://') ? actionUrl : '',
+    }, { silent: true });
+    this.scheduleRefresh(200);
 
     this.phoneMockupDismissed = false;
     this.updateBroadcastMockup();
@@ -8258,7 +6996,7 @@ class AdminPortal {
 
       const targetTenantName = n.targetTenant === 'all' || !n.targetTenant 
         ? '🌐 All Agencies' 
-        : `🏢 ${this.tenants?.find(t => (t.id || t.tenantId) === n.targetTenant)?.firmName || n.targetTenant}`;
+        : `🏢 ${this.escapeHtml(this.tenants?.find(t => (t.id || t.tenantId) === n.targetTenant)?.firmName || n.targetTenant)}`;
       
       const planVal = (n.targetPlan || n.targetRole || 'all').toLowerCase();
       let planBadge = '🌐 All Plans';
@@ -8266,7 +7004,7 @@ class AdminPortal {
       else if (planVal === 'grow') planBadge = '🚀 Grow';
       else if (planVal === 'startup') planBadge = '⚡ Startup';
       else if (planVal === 'freemium') planBadge = '🆓 Freemium';
-      else if (planVal !== 'all') planBadge = `🏷️ ${planVal.toUpperCase()}`;
+      else if (planVal !== 'all') planBadge = `🏷️ ${this.escapeHtml(planVal.toUpperCase())}`;
 
       const notifId = n.id || n.notification_id;
 
@@ -8279,7 +7017,7 @@ class AdminPortal {
           <td>
             <span class="badge ${badgeClass}" style="display: inline-flex; align-items: center; gap: 4px;">
               <span>${icon}</span>
-              <span>${(n.category || n.type || 'Broadcast').toUpperCase()}</span>
+              <span>${this.escapeHtml((n.category || n.type || 'Broadcast').toUpperCase())}</span>
             </span>
           </td>
           <td>
@@ -8293,7 +7031,7 @@ class AdminPortal {
           <td>
             <span style="font-size: 11px; font-weight: 700; color: #059669; display: flex; align-items: center; gap: 4px;">
               <span style="width: 6px; height: 6px; border-radius: 50%; background: #10B981;"></span>
-              Realtime + SSE
+              ${n.isBroadcast ? 'All users (inbox)' : 'Agency inbox'}
             </span>
           </td>
           <td style="text-align: center;">
@@ -8308,74 +7046,25 @@ class AdminPortal {
 
   async sendQuickTestPush() {
     const targetTenant = document.getElementById('bcastTargetTenant')?.value || 'all';
-    const targetPlan = document.getElementById('bcastTargetPlan')?.value || 'all';
-
-    const sampleAlerts = [
-      {
-        title: '💰 Instant UPI Collection Settled: ₹14,250',
-        message: 'Payment from Kirana counter verified & settled into primary bank account.',
-        category: 'payment',
-        type: 'payment',
-        severity: 'success',
-        targetTenant: targetTenant,
-        targetPlan: targetPlan,
-        actionUrl: '/orders'
-      },
-      {
-        title: '⚡ Pro Feature Unlocked: Bulk PDF Dispatch',
-        message: 'Your agency can now send 1-click GST invoices over WhatsApp.',
-        category: 'broadcast',
-        type: 'broadcast',
-        severity: 'festive',
-        targetTenant: targetTenant,
-        targetPlan: targetPlan,
-        actionUrl: '/pricing'
-      },
-      {
-        title: '⚠️ Scheduled Evening Server Sync',
-        message: 'Routine cloud synchronization scheduled at 11:30 PM. Offline booking continues.',
-        category: 'broadcast',
-        type: 'broadcast',
-        severity: 'warning',
-        targetTenant: targetTenant,
-        targetPlan: targetPlan,
-        actionUrl: '/help'
-      }
-    ];
-
-    const pick = sampleAlerts[Math.floor(Math.random() * sampleAlerts.length)];
-    try {
-      const res = await fetch('/api/platform/notifications', {
-        method: 'POST',
-        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(pick)
-      });
-      const data = await res.json();
-      if (data && data.notification) {
-        if (!Array.isArray(this.notifications)) this.notifications = [];
-        this.notifications.unshift(data.notification);
-        this.saveData(STORAGE_KEYS.NOTIFICATIONS, this.notifications);
-        this.renderNotificationsTable();
-        this.triggerPhonePushSimulation();
-        this.showToast(`Test push sent: "${pick.title}"!`, '⚡');
-      }
-    } catch (_) {
-      this.showToast('Failed to dispatch test push.', '⚠️', 'danger');
-    }
+    const audience = targetTenant === 'all' ? 'EVERY agency on the platform' : (this.findTenantById(targetTenant)?.firmName || targetTenant);
+    if (!confirm(`Send a test notification to ${audience}? Real users will see it in their app inbox.`)) return;
+    const ok = await this.apiMutate('/api/platform/notifications', {
+      title: 'Test notification from SalesArmy',
+      message: 'This is a test message from the SalesArmy team. No action is needed.',
+      type: 'system', severity: 'info', targetTenant, targetRole: 'all',
+    });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.triggerPhonePushSimulation();
+    this.showToast(`Test notification sent to ${audience}.`, '⚡');
   }
 
   async deleteNotification(id) {
     if (!id) return;
-    this.notifications = (this.notifications || []).filter(n => (n.id !== id && n.notification_id !== id));
-    this.saveData(STORAGE_KEYS.NOTIFICATIONS, this.notifications);
-    this.renderNotificationsTable();
-    try {
-      await fetch(`/api/platform/notifications/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        headers: this.getAuthHeaders()
-      });
-    } catch (_) {}
-    this.showToast('Notification removed from stream.', '🗑️');
+    const ok = await this.apiMutate(`/api/platform/notifications/${encodeURIComponent(id)}`, null, { method: 'DELETE' });
+    if (!ok) return;
+    await this.fetchPlatformState(true);
+    this.showToast('Notification removed.', '🗑️');
   }
 
   async clearBroadcastBanner() {
@@ -8388,19 +7077,9 @@ class AdminPortal {
     const elActive = document.getElementById('bcastActive');
     if (elActive) elActive.checked = false;
 
+    const ok = await this.apiMutate('/api/platform/broadcast', { active: false });
+    if (!ok) return;
     this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast);
-    this.saveToBridge({ broadcast: this.broadcast });
-    this.syncBroadcastToSupabase();
-    this.broadcastChange('broadcast_cleared', this.broadcast);
-
-    // Sync with server API
-    try {
-      await fetch('/api/platform/broadcast', {
-        method: 'POST',
-        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(this.broadcast)
-      });
-    } catch (_) {}
 
     this.phoneMockupDismissed = false;
     this.updateBroadcastMockup();
@@ -8414,11 +7093,11 @@ class AdminPortal {
 
     container.innerHTML = this.coupons.filter(c => c.isActive).map(c => `
       <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
-        <span class="code-pill">${c.code}</span>
+        <span class="code-pill">${this.escapeHtml(c.code)}</span>
         <div style="font-size: 12px;">
-          <strong>${c.title}</strong> (${c.type === 'trial' ? `+${c.value} Days` : (c.type === 'flat' ? `₹${c.value} OFF` : `${c.value}% OFF`)})
+          <strong>${this.escapeHtml(c.title)}</strong> (${c.type === 'trial' ? `+${Number(c.value)} Days` : (c.type === 'flat' ? `₹${Number(c.value)} OFF` : `${Number(c.value)}% OFF`)})
         </div>
-        <button class="btn btn-sm btn-outline" style="margin-left: auto;" onclick="adminApp.copyText('${c.code}')">
+        <button class="btn btn-sm btn-outline" style="margin-left: auto;" onclick="adminApp.copyText('${this.escapeJs(c.code)}')">
           Copy
         </button>
       </div>
@@ -8457,58 +7136,30 @@ class AdminPortal {
   handleFileImport(event) {
     const file = event.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const parsed = JSON.parse(e.target.result);
-        if (parsed.coupons && Array.isArray(parsed.coupons)) {
-          this.coupons = parsed.coupons;
-          this.saveData(STORAGE_KEYS.COUPONS, this.coupons); this.saveToBridge({ coupons: this.coupons });
-        }
-        if (parsed.tenants && Array.isArray(parsed.tenants)) {
-          this.tenants = parsed.tenants;
-          this.saveData(STORAGE_KEYS.TENANTS, this.tenants); this.saveToBridge({ tenants: this.tenants });
-        }
-        if (parsed.printerOrders && Array.isArray(parsed.printerOrders)) {
-          this.printerOrders = parsed.printerOrders;
-          this.saveData(STORAGE_KEYS.PRINTER_ORDERS, this.printerOrders);
-        }
-        if (parsed.printerOptions && Array.isArray(parsed.printerOptions)) {
-          this.printerOptions = parsed.printerOptions;
-          this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions); this.saveToBridge({ printerOptions: this.printerOptions });
-        }
-        if (parsed.plans) {
-          this.plans = parsed.plans;
-          this.saveData(STORAGE_KEYS.PLANS, this.plans); this.saveToBridge({ plans: this.plans });
-        }
-        if (parsed.remoteConfig) {
-          this.remoteConfig = parsed.remoteConfig;
-          this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig); this.saveToBridge({ remoteConfig: this.remoteConfig });
-        } else if (parsed.featureFlags) {
-          if (!this.remoteConfig) this.remoteConfig = JSON.parse(JSON.stringify(DEFAULT_REMOTE_CONFIG));
-          this.remoteConfig.featureFlags = { ...this.remoteConfig.featureFlags, ...parsed.featureFlags };
-          if (parsed.maintenance) this.remoteConfig.maintenance = parsed.maintenance;
-          this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig); this.saveToBridge({ remoteConfig: this.remoteConfig });
-        }
-        if (parsed.broadcast || parsed.emergencyBroadcast) {
-          this.broadcast = parsed.broadcast || parsed.emergencyBroadcast;
-          this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast); this.saveToBridge({ broadcast: this.broadcast });
-        }
-        if (parsed.users && Array.isArray(parsed.users)) {
-          this.users = parsed.users;
-          this.saveData(STORAGE_KEYS.USERS, this.users); this.saveToBridge({ users: this.users });
-          this.users.forEach(u => this.syncUserToSupabase(u));
-        }
-        if (parsed.retailOrders && Array.isArray(parsed.retailOrders)) {
-          this.retailOrders = parsed.retailOrders;
-          this.saveData(STORAGE_KEYS.RETAIL_ORDERS, this.retailOrders); this.saveToBridge({ retailOrders: this.retailOrders });
-        }
-        this.renderAll();
-        this.showToast('Database restored successfully from JSON!', '🎉');
-      } catch (err) {
-        alert('Invalid JSON file format. Please upload a valid salesarmy_sync_bundle.json file.');
+    reader.onload = async (e) => {
+      let parsed;
+      try { parsed = JSON.parse(e.target.result); } catch (_) {
+        this.showToast('Invalid JSON file.', '❌', 'danger');
+        return;
       }
+      // Restores catalog & configuration only. Agencies, users and orders
+      // live in the database and are never overwritten from a browser file.
+      const payload = {};
+      for (const key of ['plans', 'printerOptions', 'subscriptionAddons', 'coupons', 'remoteConfig', 'broadcast', 'settings']) {
+        if (parsed[key] !== undefined) payload[key] = parsed[key];
+      }
+      if (!Object.keys(payload).length) {
+        this.showToast('The file contains no catalog or configuration to restore.', '⚠️', 'warning');
+        return;
+      }
+      if (!confirm(`Restore ${Object.keys(payload).join(', ')} from this file? Current values will be replaced.`)) return;
+      const ok = await this.saveToBridge(payload);
+      if (ok) {
+        await this.fetchPlatformState(true);
+        this.showToast(`Restored: ${Object.keys(payload).join(', ')}.`, '🎉');
+      }
+      event.target.value = '';
     };
     reader.readAsText(file);
   }
@@ -8550,16 +7201,6 @@ class AdminPortal {
       }
     } catch (_) {}
 
-    // Fallback: If renewals from API is empty, generate from local tenants list
-    if (renewals.length === 0 && tenants.length > 0) {
-      renewals = tenants.map(t => ({
-        tenant_id: t.id || t.tenantId,
-        business_name: t.firmName || t.name || 'FMCG Agency',
-        plan_id: t.planName || t.subscriptionPlanId || 'Startup Plan',
-        subscription_status: t.subscriptionStatus || 'active',
-        subscription_end_date: t.expiryDate || new Date(Date.now() + 30 * 86400000).toISOString()
-      }));
-    }
 
     setText('billPendingLinks', pending.length);
     const since24h = Date.now() - 24 * 3600 * 1000;
@@ -8595,7 +7236,8 @@ class AdminPortal {
       } else {
         pendingBody.innerHTML = pending.map(p => {
           const q = p.quote || {};
-          const amt = q.total ? `₹${Number(q.total).toLocaleString('en-IN')}` : (q.amount ? `₹${Number(q.amount).toLocaleString('en-IN')}` : '—');
+          const paise = Number(p.amount ?? q.amount);
+          const amt = Number.isFinite(paise) ? `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
           const created = p.created_at ? new Date(p.created_at).toLocaleString('en-IN') : '—';
           const planId = q.planId || q.plan_id || '—';
           return `
@@ -8674,15 +7316,14 @@ class AdminPortal {
   refreshBilling() { this.renderBilling(); }
 
   async manuallySettleCheckout(checkoutId) {
-    const paymentId = prompt('Payment reference / UPI transaction ID:');
-    if (!paymentId) return;
-    const paymentMode = prompt('Payment mode (upi / bank / cash):', 'upi') || 'manual';
-    const paymentReference = prompt('Optional note / UTR:', '') || '';
-    const ok = await this.apiMutate('/api/platform/subscriptions/settle', {
-      checkoutId, paymentId, paymentMode, paymentReference,
-    });
+    const paymentReference = prompt('Bank UTR / UPI transaction ID of the payment you received (required):');
+    if (!paymentReference || !paymentReference.trim()) return;
+    const paymentMode = (prompt('Payment mode: upi / bank / cash / cheque', 'upi') || 'manual').trim().toLowerCase();
+    if (!confirm(`Activate this subscription against payment reference "${paymentReference.trim()}"? Only confirm after you have verified the money was received.`)) return;
+    const ok = await this.apiMutate('/api/platform/subscriptions/settle', { checkoutId, paymentReference: paymentReference.trim(), paymentMode });
     if (ok) {
-      this.showToast('Subscription settled.', '✓');
+      this.showToast('Payment recorded and subscription activated.', '✓');
+      await this.fetchPlatformState(true);
       this.renderBilling();
     }
   }
@@ -8800,7 +7441,9 @@ class AdminPortal {
     const orders = Array.isArray(data.orders) && data.orders.length > 0
       ? data.orders
       : (this.retailOrders || []).filter(o => o.tenantId === tenantId || o.tenant_id === tenantId);
-    const users = (this.users || []).filter(u => u.tenantId === tenantId || u.tenant_id === tenantId);
+    const users = Array.isArray(data.staff)
+      ? data.staff.map(u => ({ ...u, tenantId, status: u.is_active === false ? 'suspended' : (u.account_status || 'active') }))
+      : (this.users || []).filter(u => u.tenantId === tenantId || u.tenant_id === tenantId);
 
     const firmName = t.business_name || t.firmName || t.name || tenantId;
     const isSuspended = t.subscription_status === 'suspended' || t.subscriptionStatus === 'suspended' || t.isSuspended === true;
@@ -8815,7 +7458,7 @@ class AdminPortal {
       <!-- Agency Hero Banner -->
       <div class="drilldown-hero-card">
         <div class="drilldown-hero-left">
-          <div class="drilldown-avatar" style="background: ${gradient};">${initials}</div>
+          <div class="drilldown-avatar" style="background: ${gradient};">${this.escapeHtml(initials)}</div>
           <div>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <h2 class="drilldown-firm-title">${this.escapeHtml(firmName)}</h2>
@@ -8946,15 +7589,15 @@ class AdminPortal {
               ${orders.length === 0 ? `
                 <tr><td colspan="5" style="text-align:center; padding: 24px; color:var(--text-muted);">No orders recorded for this agency.</td></tr>
               ` : orders.slice(0, 20).map(o => {
-                const oid = o.order_id || o.id || o.orderId || '';
+                const oid = o.orderNumber || o.order_id || o.orderId || o.id || '';
                 const st = (o.status || 'delivered').toLowerCase();
                 const stClass = st === 'delivered' ? 'badge-delivered' : (st === 'cancelled' ? 'badge-cancelled' : 'badge-pending');
                 const amt = Number(o.grand_total || o.grandTotal || o.totalAmount) || 0;
-                const date = o.placed_at || o.placedAt || o.createdAt || o.orderDate;
+                const date = o.orderDate || o.order_date || o.createdAt;
                 return `
                   <tr>
                     <td><span class="code-pill">${this.escapeHtml(oid)}</span></td>
-                    <td style="font-weight: 600;">${this.escapeHtml(o.shop_id || o.shopName || 'Retail Outlet')}</td>
+                    <td style="font-weight: 600;">${this.escapeHtml(o.shopName || o.shop_id || 'Retail Outlet')}</td>
                     <td style="font-weight: 800; font-variant-numeric: tabular-nums;">₹${amt.toLocaleString('en-IN')}</td>
                     <td><span class="badge ${stClass}">${this.escapeHtml(st.toUpperCase())}</span></td>
                     <td style="text-align: right; font-size: 12px; color: var(--text-muted);">
@@ -8998,7 +7641,7 @@ class AdminPortal {
                     <td style="font-family: var(--font-mono); font-size: 12px;">${this.escapeHtml(u.email || '—')}</td>
                     <td>${this.escapeHtml(u.phone || '—')}</td>
                     <td><span class="badge badge-indigo">${this.escapeHtml(r)}</span></td>
-                    <td style="text-align: right;"><span class="badge badge-delivered">Active</span></td>
+                    <td style="text-align: right;"><span class="badge ${u.status === 'active' ? 'badge-delivered' : 'badge-cancelled'}">${this.escapeHtml((u.status || 'active').toUpperCase())}</span></td>
                   </tr>
                 `;
               }).join('')}
@@ -9098,8 +7741,8 @@ class AdminPortal {
 
   async updatePasscode() {
     const val = document.getElementById('settingPasscode').value.trim();
-    if (val.length < 6) {
-      alert('Passcode must be at least 6 characters.');
+    if (val.length < 8) {
+      this.showToast('Password must be at least 8 characters.', '⚠️', 'warning');
       return;
     }
     try {
@@ -9114,30 +7757,22 @@ class AdminPortal {
     } catch (error) { this.showToast(error.message, '❌', 'danger'); }
   }
 
-  resetAllDataToFactoryDefaults() {
-    if (confirm('WARNING: Are you sure you want to reset all data back to factory seed defaults?')) {
-      this.coupons = [...DEFAULT_COUPONS];
-      this.printerOrders = [...DEFAULT_PRINTER_ORDERS];
-      this.printerOptions = JSON.parse(JSON.stringify(DEFAULT_PRINTER_OPTIONS));
-      this.subscriptionAddons = JSON.parse(JSON.stringify(DEFAULT_ADDONS));
-      this.tenants = [...DEFAULT_TENANTS];
-      this.plans = JSON.parse(JSON.stringify(DEFAULT_PLANS));
-      this.settings = { ...DEFAULT_SETTINGS };
-      this.remoteConfig = JSON.parse(JSON.stringify(DEFAULT_REMOTE_CONFIG));
-      this.broadcast = JSON.parse(JSON.stringify(DEFAULT_BROADCAST));
-
-      this.saveData(STORAGE_KEYS.COUPONS, this.coupons); this.saveToBridge({ coupons: this.coupons });
-      this.saveData(STORAGE_KEYS.PRINTER_ORDERS, this.printerOrders);
-      this.saveData(STORAGE_KEYS.PRINTER_OPTIONS, this.printerOptions); this.saveToBridge({ printerOptions: this.printerOptions });
-      this.saveData(STORAGE_KEYS.SUBSCRIPTION_ADDONS, this.subscriptionAddons); this.saveToBridge({ subscriptionAddons: this.subscriptionAddons });
-      this.saveData(STORAGE_KEYS.TENANTS, this.tenants); this.saveToBridge({ tenants: this.tenants });
-      this.saveData(STORAGE_KEYS.PLANS, this.plans); this.saveToBridge({ plans: this.plans });
-      this.saveData(STORAGE_KEYS.SETTINGS, this.settings);
-      this.saveData(STORAGE_KEYS.REMOTE_CONFIG, this.remoteConfig); this.saveToBridge({ remoteConfig: this.remoteConfig });
-      this.saveData(STORAGE_KEYS.BROADCAST, this.broadcast); this.saveToBridge({ broadcast: this.broadcast });
-
-      this.renderAll();
-      this.showToast('All data reset to factory demo seed!', '🔄');
+  async resetAllDataToFactoryDefaults() {
+    // Only the sellable catalog and app configuration are reset. Agencies,
+    // users and orders are never touched from here.
+    const typed = prompt('Reset plans, printers, add-ons, coupons, remote config and broadcast to factory defaults? Type RESET to confirm.');
+    if (typed !== 'RESET') return;
+    const ok = await this.saveToBridge({
+      plans: JSON.parse(JSON.stringify(DEFAULT_PLANS)),
+      printerOptions: JSON.parse(JSON.stringify(DEFAULT_PRINTER_OPTIONS)),
+      subscriptionAddons: JSON.parse(JSON.stringify(DEFAULT_ADDONS)),
+      coupons: [],
+      remoteConfig: JSON.parse(JSON.stringify(DEFAULT_REMOTE_CONFIG)),
+      broadcast: { ...DEFAULT_BROADCAST, active: false },
+    });
+    if (ok) {
+      await this.fetchPlatformState(true);
+      this.showToast('Catalog and configuration reset to defaults.', '🔄');
     }
   }
 
@@ -9160,7 +7795,7 @@ class AdminPortal {
         </td>
         <td>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 28px; height: 28px; border-radius: var(--radius-xs); background: linear-gradient(135deg, #4F46E5, #3B82F6); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;">${initials}</div>
+            <div style="width: 28px; height: 28px; border-radius: var(--radius-xs); background: linear-gradient(135deg, #4F46E5, #3B82F6); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;">${this.escapeHtml(initials)}</div>
             <div>
               <strong style="font-size: 13px; color: var(--text-main);">${this.escapeHtml(o.customerName || 'Store Manager')}</strong>
               <div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(o.agencyName || 'Distributor Agency')}</div>
@@ -9203,134 +7838,69 @@ class AdminPortal {
   // VIEW: RAZORPAY PAYMENT GATEWAY SETTINGS
   // ==============================================
   async renderGatewaySettings() {
-    // Set Webhook Display URL to active origin
     const hookEl = document.getElementById('gatewayWebhookDisplayUrl');
-    if (hookEl) {
-      hookEl.value = `${window.location.origin}/api/checkout/webhook`;
-    }
-
+    if (hookEl) hookEl.value = `${window.location.origin}/api/checkout/webhook`;
     try {
-      const res = await fetch('/api/platform/gateway/config', {
-        headers: this.getAuthHeaders()
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.config) {
-          const cfg = data.config;
-          this.gatewayConfig = cfg;
+      const res = await fetch('/api/platform/gateway/config', { headers: this.getAuthHeaders() });
+      const data = await res.json();
+      if (!data.success || !data.config) return;
+      const cfg = data.config;
+      this.gatewayConfig = cfg;
+      const isLive = cfg.mode === 'live';
+      const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? 'inline-block' : 'none'; };
+      const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
 
-          // Environment mode
-          const modeToggle = document.getElementById('gatewayModeToggle');
-          const modeLabel = document.getElementById('gatewayModeLabel');
-          const isLive = cfg.mode === 'live';
-          if (modeToggle) modeToggle.checked = isLive;
-          if (modeLabel) {
-            modeLabel.textContent = isLive ? 'Production (Live)' : 'Sandbox (Test)';
-            modeLabel.style.color = isLive ? '#10B981' : '#D97706';
-          }
-
-          // Status Badge
-          const badge = document.getElementById('gatewayStatusBadge');
-          if (badge) {
-            badge.className = isLive ? 'badge badge-delivered' : 'badge badge-active';
-            badge.textContent = `● Razorpay ${isLive ? 'Live Production' : 'Sandbox (Test)'}`;
-          }
-
-          // Key ID & Indicators
-          const keyIdEl = document.getElementById('gatewayKeyId');
-          if (keyIdEl && cfg.keyId) keyIdEl.value = cfg.keyId;
-
-          const secBadge = document.getElementById('gatewaySecretConfiguredBadge');
-          if (secBadge) secBadge.style.display = cfg.hasSecret ? 'inline-block' : 'none';
-
-          const whBadge = document.getElementById('gatewayWebhookConfiguredBadge');
-          if (whBadge) whBadge.style.display = cfg.hasWebhookSecret ? 'inline-block' : 'none';
-
-          // Auto-capture
-          const autoCap = document.getElementById('gatewayAutoCapture');
-          if (autoCap) autoCap.checked = cfg.autoCapture !== false;
-
-          // Diagnostic Card
-          const diagStatus = document.getElementById('gatewayDiagnosticStatus');
-          const diagMsg = document.getElementById('gatewayDiagnosticMessage');
-          if (diagStatus) {
-            if (cfg.testStatus === 'connected') {
-              diagStatus.className = 'badge badge-success';
-              diagStatus.textContent = 'API Connected';
-            } else {
-              diagStatus.className = 'badge badge-trial';
-              diagStatus.textContent = 'Not Verified';
-            }
-          }
-          if (diagMsg && cfg.lastTested) {
-            diagMsg.textContent = `Last connection verified on ${new Date(cfg.lastTested).toLocaleString('en-IN')}`;
-          }
-        }
+      const modeToggle = document.getElementById('gatewayModeToggle');
+      if (modeToggle) modeToggle.checked = isLive;
+      const modeLabel = document.getElementById('gatewayModeLabel');
+      if (modeLabel) {
+        modeLabel.textContent = cfg.keyId ? (isLive ? 'Production (Live)' : 'Sandbox (Test)') : 'Not configured';
+        modeLabel.style.color = isLive ? '#10B981' : '#D97706';
       }
+      const badge = document.getElementById('gatewayStatusBadge');
+      if (badge) {
+        badge.className = cfg.keyId ? (isLive ? 'badge badge-delivered' : 'badge badge-active') : 'badge badge-expired';
+        badge.textContent = cfg.keyId ? `● Razorpay ${isLive ? 'Live' : 'Sandbox'}` : '● Razorpay not configured';
+      }
+      setVal('gatewayKeyId', cfg.keyId);
+      setVal('gatewayMerchantName', cfg.merchantName);
+      setVal('gatewayUpiVpa', cfg.upiVpa);
+      show('gatewaySecretConfiguredBadge', cfg.hasSecret); show('gatewaySecretMissingBadge', !cfg.hasSecret);
+      show('gatewayWebhookConfiguredBadge', cfg.hasWebhookSecret); show('gatewayWebhookMissingBadge', !cfg.hasWebhookSecret);
+      const autoCap = document.getElementById('gatewayAutoCapture');
+      if (autoCap) autoCap.checked = cfg.autoCapture !== false;
+
+      const diagStatus = document.getElementById('gatewayDiagnosticStatus');
+      const diagMsg = document.getElementById('gatewayDiagnosticMessage');
+      if (diagStatus) {
+        diagStatus.className = cfg.testStatus === 'connected' ? 'badge badge-success' : (cfg.testStatus === 'failed' ? 'badge badge-expired' : 'badge badge-trial');
+        diagStatus.textContent = cfg.testStatus === 'connected' ? 'API Connected' : (cfg.testStatus === 'failed' ? 'Last test failed' : 'Not verified');
+      }
+      if (diagMsg) diagMsg.textContent = cfg.lastTested ? `Last tested ${new Date(cfg.lastTested).toLocaleString('en-IN')}` : 'Run a connection test to verify the server keys.';
     } catch (_) {}
   }
 
-  toggleGatewayMode(isLive) {
-    const label = document.getElementById('gatewayModeLabel');
-    if (label) {
-      label.textContent = isLive ? 'Production (Live)' : 'Sandbox (Test)';
-      label.style.color = isLive ? '#10B981' : '#D97706';
-    }
-    const badge = document.getElementById('gatewayStatusBadge');
-    if (badge) {
-      badge.className = isLive ? 'badge badge-delivered' : 'badge badge-active';
-      badge.textContent = `● Razorpay ${isLive ? 'Live Production' : 'Sandbox (Test)'}`;
-    }
-    this.showToast(isLive ? 'Switched to Production (Live) mode.' : 'Switched to Sandbox (Test) mode.', '⚡');
+  toggleGatewayMode() {
+    this.showToast('Mode follows the configured Razorpay key (rzp_test_ / rzp_live_). Change the server secret to switch.', 'ℹ️');
+    this.renderGatewaySettings();
   }
 
   togglePasswordVisibility(fieldId, btn) {
     const input = document.getElementById(fieldId);
     if (!input) return;
-    if (input.type === 'password') {
-      input.type = 'text';
-      if (btn) btn.textContent = '🙈';
-    } else {
-      input.type = 'password';
-      if (btn) btn.textContent = '👁️';
-    }
+    input.type = input.type === 'password' ? 'text' : 'password';
+    if (btn) btn.textContent = input.type === 'password' ? '👁️' : '🙈';
   }
 
   async saveGatewaySettings() {
-    const isLive = document.getElementById('gatewayModeToggle')?.checked === true;
-    const keyId = document.getElementById('gatewayKeyId')?.value.trim() || '';
-    const keySecret = document.getElementById('gatewayKeySecret')?.value.trim() || '';
-    const webhookSecret = document.getElementById('gatewayWebhookSecret')?.value.trim() || '';
-    const autoCapture = document.getElementById('gatewayAutoCapture')?.checked !== false;
-
-    const payload = {
-      provider: 'razorpay',
-      mode: isLive ? 'live' : 'test',
-      keyId,
-      autoCapture,
-      currency: 'INR'
-    };
-    if (keySecret) payload.keySecret = keySecret;
-    if (webhookSecret) payload.webhookSecret = webhookSecret;
-
-    try {
-      const res = await fetch('/api/platform/gateway/config', {
-        method: 'POST',
-        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.success) {
-        this.showToast('Razorpay settings saved successfully!', '💾');
-        if (keySecret) document.getElementById('gatewayKeySecret').value = '';
-        if (webhookSecret) document.getElementById('gatewayWebhookSecret').value = '';
-        await this.renderGatewaySettings();
-      } else {
-        this.showToast(data.error || 'Failed saving gateway settings', '⚠️', 'danger');
-      }
-    } catch (err) {
-      this.showToast('Network error saving gateway configuration', '⚠️', 'danger');
-    }
+    const ok = await this.apiMutate('/api/platform/gateway/config', {
+      autoCapture: document.getElementById('gatewayAutoCapture')?.checked !== false,
+      merchantName: document.getElementById('gatewayMerchantName')?.value.trim() || '',
+      upiVpa: document.getElementById('gatewayUpiVpa')?.value.trim() || '',
+    });
+    if (!ok) return;
+    this.showToast('Gateway settings saved.', '💾');
+    await this.renderGatewaySettings();
   }
 
   async testGatewayConnection() {
@@ -9338,46 +7908,20 @@ class AdminPortal {
     if (spinner) spinner.style.display = 'inline-block';
     const diagStatus = document.getElementById('gatewayDiagnosticStatus');
     const diagMsg = document.getElementById('gatewayDiagnosticMessage');
-
-    if (diagStatus) {
-      diagStatus.className = 'badge badge-trial';
-      diagStatus.textContent = 'Pinging Gateway…';
-    }
-
+    if (diagStatus) { diagStatus.className = 'badge badge-trial'; diagStatus.textContent = 'Testing…'; }
     try {
-      const res = await fetch('/api/platform/gateway/test', {
-        method: 'POST',
-        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' })
-      });
+      const res = await fetch('/api/platform/gateway/test', { method: 'POST', headers: this.getAuthHeaders({ 'Content-Type': 'application/json' }) });
       const data = await res.json();
-      if (spinner) spinner.style.display = 'none';
-
-      if (data.success) {
-        if (diagStatus) {
-          diagStatus.className = 'badge badge-success';
-          diagStatus.textContent = `Connected (${data.latencyMs}ms)`;
-        }
-        if (diagMsg) {
-          diagMsg.textContent = data.message || `API handshake successful (${data.latencyMs}ms).`;
-        }
-        this.showToast(`Gateway Connected: ${data.latencyMs}ms latency!`, '⚡');
-      } else {
-        if (diagStatus) {
-          diagStatus.className = 'badge badge-expired';
-          diagStatus.textContent = 'Connection Rejected';
-        }
-        if (diagMsg) {
-          diagMsg.textContent = data.error || 'Gateway rejected authentication.';
-        }
-        this.showToast(data.error || 'Gateway test failed', '⚠️', 'danger');
-      }
-    } catch (err) {
-      if (spinner) spinner.style.display = 'none';
       if (diagStatus) {
-        diagStatus.className = 'badge badge-expired';
-        diagStatus.textContent = 'Network Failure';
+        diagStatus.className = data.success ? 'badge badge-success' : 'badge badge-expired';
+        diagStatus.textContent = data.success ? `Connected (${data.latencyMs}ms)` : 'Connection rejected';
       }
-      this.showToast('Connection test request failed', '⚠️', 'danger');
+      if (diagMsg) diagMsg.textContent = data.message || data.error || '';
+      this.showToast(data.success ? 'Razorpay credentials verified.' : (data.error || 'Gateway test failed'), data.success ? '⚡' : '⚠️', data.success ? 'success' : 'danger');
+    } catch (_) {
+      if (diagStatus) { diagStatus.className = 'badge badge-expired'; diagStatus.textContent = 'Request failed'; }
+    } finally {
+      if (spinner) spinner.style.display = 'none';
     }
   }
 
@@ -9386,24 +7930,6 @@ class AdminPortal {
     if (hookEl) {
       navigator.clipboard?.writeText(hookEl.value).catch(() => {});
       this.showToast('Webhook endpoint copied to clipboard!', '📋');
-    }
-  }
-
-  async simulateWebhookTest() {
-    try {
-      const res = await fetch('/api/platform/gateway/simulate-webhook', {
-        method: 'POST',
-        headers: this.getAuthHeaders({ 'Content-Type': 'application/json' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        this.showToast('Simulation: payment_link.paid event processed!', '🔔');
-        this.refreshAuditLogs();
-      } else {
-        this.showToast(data.error || 'Webhook test failed', '⚠️', 'danger');
-      }
-    } catch (_) {
-      this.showToast('Webhook simulation request failed', '⚠️', 'danger');
     }
   }
 
@@ -9512,23 +8038,8 @@ class AdminPortal {
       return;
     }
     const headers = ['Timestamp', 'Category', 'Action', 'Details', 'Actor', 'IP', 'Status'];
-    const rows = this.auditLogs.map(l => [
-      `"${l.timestamp || ''}"`,
-      `"${l.category || ''}"`,
-      `"${l.action || ''}"`,
-      `"${(l.details || '').replace(/"/g, '""')}"`,
-      `"${l.actor || ''}"`,
-      `"${l.ip || ''}"`,
-      `"${l.status || ''}"`
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `salesarmy_audit_trail_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const rows = this.auditLogs.map(l => [l.timestamp, l.category, l.action, l.details, l.actor, l.ip, l.status]);
+    this.downloadCSV(headers, rows, `salesarmy_audit_trail_${new Date().toISOString().slice(0, 10)}.csv`);
     this.showToast('Audit log CSV exported.', '📥');
   }
 }

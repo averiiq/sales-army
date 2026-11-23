@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -1272,9 +1273,7 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
       fromCamera: fromCamera,
       onError: (err) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(err), backgroundColor: const Color(0xFFDC2626)),
-        );
+        showAppError(context, err);
       },
     );
     if (!mounted) return;

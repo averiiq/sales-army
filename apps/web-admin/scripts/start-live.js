@@ -76,10 +76,8 @@ function startTunnel() {
       console.log(`🔗 Public Live URL : ${publicUrl}`);
       console.log(`💻 Local URL       : http://localhost:${PORT}`);
       console.log('------------------------------------------------------------');
-      console.log('🔑 SUPER ADMIN CREDENTIALS:');
-      console.log('   Email    : superadmin@salesarmy.saas');
-      console.log('   Password : Password@123');
-      console.log('   (Or click "Quick Demo Login" on the login screen)');
+      console.log('🔑 Sign in with your Super Admin account (profiles.role = super_admin).');
+      console.log('   Anyone with this URL can reach the login page — stop the tunnel when done.');
       console.log('============================================================\n');
       console.log('Press Ctrl+C to stop the live server and close the tunnel.\n');
     }

@@ -99,10 +99,25 @@ void main() {
       await tester.tap(collectPaymentBtn);
       await tester.pumpAndSettle();
 
-      // Verify Gateway Payment Dialog opens
-      expect(find.text('UPI & Razorpay Payment'), findsOneWidget);
+      // Verify Collect Payment dialog opens in UPI QR mode by default
+      expect(find.text('UPI QR'), findsOneWidget);
+      expect(find.text('Cash'), findsOneWidget);
       expect(find.text('Launch Razorpay Checkout'), findsOneWidget);
       expect(find.text('Share Payment Link'), findsOneWidget);
+
+      // Switch to Cash mode and collect
+      await tester.tap(find.text('Cash'));
+      await tester.pumpAndSettle();
+      expect(find.text('Launch Razorpay Checkout'), findsNothing);
+      final confirmCash = find.text('Confirm Cash Received');
+      expect(confirmCash, findsOneWidget);
+      await tester.ensureVisible(confirmCash);
+      await tester.tap(confirmCash);
+      await tester.pumpAndSettle();
+
+      final updatedShop = appState.shops.firstWhere((s) => s.shopId == shop.shopId);
+      expect(updatedShop.currentOutstanding, 0.0);
+      expect(appState.payments.any((p) => p.shopId == shop.shopId && p.paymentMode == 'Cash'), isTrue);
     });
 
     testWidgets('3. Tapping Record Payment opens payment recording modal (CollectPaymentDialog)', (tester) async {
@@ -143,7 +158,10 @@ void main() {
       // Verify Collect Payment Dialog opens with counter entry inputs
       expect(find.text('Total Outstanding Due'), findsOneWidget);
       expect(find.text('Amount Received (₹) *'), findsOneWidget);
-      expect(find.text('Record Collection'), findsOneWidget);
+      // Only one action button in the dialog: Record Payment (no Collect Payment)
+      final dialog = find.byType(CollectPaymentDialog);
+      expect(find.descendant(of: dialog, matching: find.text('Record Payment')), findsNWidgets(2)); // title + button
+      expect(find.descendant(of: dialog, matching: find.text('Collect Payment')), findsNothing);
 
       // Verify Quick amounts exist
       expect(find.text('Quick Amounts'), findsOneWidget);

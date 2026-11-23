@@ -146,7 +146,7 @@ class DistributorDashboard extends StatelessWidget {
                   context.horizontalPadding,
                   12,
                   context.horizontalPadding,
-                  28,
+                  96,
                 ),
                 child: ResponsiveContainer(
                   maxWidth: 960,

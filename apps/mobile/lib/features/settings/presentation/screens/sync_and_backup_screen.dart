@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -30,12 +31,7 @@ class _SyncAndBackupScreenState extends State<SyncAndBackupScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sync error: $e'),
-          backgroundColor: const Color(0xFFDC2626),
-        ),
-      );
+      showAppError(context, e, action: 'sync your data');
     } finally {
       if (mounted) setState(() => _isSyncing = false);
     }

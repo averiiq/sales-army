@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -897,11 +898,12 @@ class _AdminDeleteCashHistoryModalState extends State<AdminDeleteCashHistoryModa
 
               // Permanently Delete Button
               ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   final subId = sub['id']?.toString() ?? '';
-                  try {
-                    context.read<AppState>().purgeCashHistoryForTenant(subId);
-                  } catch (_) {}
+                  final appState = context.read<AppState>();
+                  final ok = await AppError.guard(context, () => appState.purgeCashHistoryForTenant(subId),
+                      action: 'purge the cash history');
+                  if (!ok || !context.mounted) return;
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -1141,11 +1143,12 @@ class _AdminResetAccountModalState extends State<AdminResetAccountModal> {
 
               // Confirm & Reset Button
               ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   final subId = sub['id']?.toString() ?? '';
-                  try {
-                    context.read<AppState>().resetUserAccountForTenant(subId);
-                  } catch (_) {}
+                  final appState = context.read<AppState>();
+                  final ok = await AppError.guard(context, () => appState.resetUserAccountForTenant(subId),
+                      action: 'reset the account');
+                  if (!ok || !context.mounted) return;
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

@@ -603,6 +603,55 @@ class PrinterService extends ChangeNotifier {
     return ok;
   }
 
+  /// Prints a payment (collection) receipt on the connected thermal printer.
+  Future<bool> printPaymentReceipt({
+    required String firmName,
+    required String paymentId,
+    required String shopName,
+    required DateTime date,
+    required String paymentMode,
+    String? reference,
+    required double amount,
+    required double remainingBalance,
+    BuildContext? context,
+  }) async {
+    if (!_settings.isEnabled) {
+      if (context != null) _showNotConnectedSnackBar(context);
+      return false;
+    }
+    if (!await _ensureConnected(context)) return false;
+
+    final w = _settings.columnsCount;
+    final sb = StringBuffer();
+    if (_settings.receiptHeaderNote.isNotEmpty) sb.writeln(_center(_settings.receiptHeaderNote, w));
+    sb.writeln(_center(firmName.toUpperCase(), w));
+    sb.writeln(_center('*** PAYMENT RECEIPT ***', w));
+    sb.writeln(_separator(w, '='));
+    sb.writeln(_twoColumns('Receipt:', paymentId, w));
+    sb.writeln(_twoColumns('Date   :', AppFormatters.dateTime(date), w));
+    sb.writeln(_twoColumns('Party  :', shopName, w));
+    sb.writeln(_twoColumns('Mode   :', paymentMode, w));
+    if (reference != null && reference.isNotEmpty) sb.writeln(_twoColumns('Ref    :', reference, w));
+    sb.writeln(_separator(w, '-'));
+    sb.writeln(_twoColumns('RECEIVED', 'Rs.${amount.toStringAsFixed(2)}', w));
+    sb.writeln(_twoColumns('Balance due', 'Rs.${remainingBalance.toStringAsFixed(2)}', w));
+    sb.writeln(_separator(w, '='));
+    sb.writeln(_center('Thank you!', w));
+
+    _isPrinting = true;
+    notifyListeners();
+    HapticFeedback.mediumImpact();
+    final ok = await _sendToPrinter(sb.toString(), copiesOverride: 1);
+    _isPrinting = false;
+    notifyListeners();
+
+    if (ok && _settings.beepBuzzer) SystemSound.play(SystemSoundType.click);
+    if (context != null && context.mounted) {
+      _showResultSnack(context, ok, 'Receipt $paymentId sent to printer.');
+    }
+    return ok;
+  }
+
   Future<bool> printTestReceipt({BuildContext? context}) async {
     if (!_settings.isEnabled) {
       if (context != null) _showNotConnectedSnackBar(context);

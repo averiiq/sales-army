@@ -48,6 +48,9 @@ dependencies:
   blue_thermal_printer: ^1.2.3
   permission_handler: ^11.3.1
   flutter_secure_storage: ^11.2.0
+  flutter_svg: ^2.5.0
+  geolocator: ^14.1.2
+  geocoding: ^5.0.1
 
 dev_dependencies:
   flutter_test:
@@ -75,6 +78,7 @@ flutter:
   assets:
     - assets/SalesArmy Logo 2.png
     - assets/iconSalesArmy.png
+    - assets/google_g_logo.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

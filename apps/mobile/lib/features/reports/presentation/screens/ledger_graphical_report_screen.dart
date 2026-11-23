@@ -30,11 +30,17 @@ class _LedgerGraphicalReportScreenState extends State<LedgerGraphicalReportScree
     final netOutstanding = shops.fold<double>(0.0, (sum, s) => sum + s.currentOutstanding);
     final activeKhataShops = shops.where((s) => s.currentOutstanding > 0).length;
 
-    // Aging analysis (mock based on shop outstanding)
-    final agingCurrent = netOutstanding * 0.45; // 0-15 days
-    final aging15to30 = netOutstanding * 0.30;  // 16-30 days
-    final aging30to60 = netOutstanding * 0.18;  // 31-60 days
-    final aging60plus = netOutstanding * 0.07;  // 60+ days
+    // Aging analysis — computed from actual ledger entry dates
+    final now = DateTime.now();
+    double agingCurrent = 0, aging15to30 = 0, aging30to60 = 0, aging60plus = 0;
+    for (final e in entries) {
+      if (e.amount <= 0) continue; // Only debit (outstanding) entries
+      final daysDiff = now.difference(e.createdAt ?? e.date).inDays;
+      if (daysDiff <= 15) { agingCurrent += e.amount; }
+      else if (daysDiff <= 30) { aging15to30 += e.amount; }
+      else if (daysDiff <= 60) { aging30to60 += e.amount; }
+      else { aging60plus += e.amount; }
+    }
 
     // Top debtors
     final sortedShops = List<ShopModel>.from(shops)

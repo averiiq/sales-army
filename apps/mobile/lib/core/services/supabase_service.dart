@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:salesarmy/core/services/platform_api.dart';
 
@@ -67,21 +68,53 @@ class SupabaseService {
       return;
     }
 
-    try {
-      await Supabase.initialize(
-        url: targetUrl,
-        // ignore: deprecated_member_use
-        anonKey: targetKey,
-        debug: kDebugMode,
-      ).timeout(const Duration(seconds: 4));
+    // Start initialisation once and keep the Future. Previously a hard 4-second
+    // timeout abandoned it on slower phones (cold start of a release build,
+    // secure-storage unlock, weak mobile network) and the app then stayed in
+    // "cloud unavailable" mode forever — every login said "server unreachable".
+    _initFuture ??= Supabase.initialize(
+      url: targetUrl,
+      // ignore: deprecated_member_use
+      anonKey: targetKey,
+      debug: kDebugMode,
+    ).then((_) {
       _isInitialized = true;
-      if (kDebugMode) {
-        debugPrint('Supabase initialized successfully');
+      debugPrint('Supabase initialized successfully');
+    }).catchError((Object e) {
+      _initFuture = null; // allow a later retry
+      debugPrint('Supabase initialize failed: $e');
+    });
+
+    try {
+      // Don't hold the splash screen too long; if it is still running it will
+      // finish in the background and flip _isInitialized when done.
+      await _initFuture!.timeout(const Duration(seconds: 12));
+    } on TimeoutException {
+      debugPrint('Supabase initialize is slow — continuing in the background.');
+    } catch (_) {}
+  }
+
+  Future<void>? _initFuture;
+
+  /// Makes sure Supabase is ready before a cloud action (login, sign-up, OTP,
+  /// Google). Waits for a still-running initialisation or retries a failed
+  /// one. Returns false only if the cloud really cannot be reached.
+  Future<bool> ensureInitialized() async {
+    if (_isInitialized) return true;
+    // Supabase may have finished initialising even if our flag missed it.
+    try {
+      Supabase.instance.client;
+      _isInitialized = true;
+      return true;
+    } catch (_) {}
+    if (defaultSupabaseUrl.isEmpty || defaultSupabaseAnonKey.isEmpty) return false;
+    try {
+      await initialize();
+      if (_initFuture != null && !_isInitialized) {
+        await _initFuture!.timeout(const Duration(seconds: 20));
       }
-    } catch (e) {
-      _isInitialized = false;
-      debugPrint('Supabase initialize note: $e (Falling back to offline/local storage)');
-    }
+    } catch (_) {}
+    return _isInitialized;
   }
 
   // ==========================================================================
@@ -329,6 +362,74 @@ class SupabaseService {
 
   /// Complete Agency Onboarding: Creates Tenant record, provisions auth user (even if email exists),
   /// creates profile, and seeds starter products & parties directly in Supabase Cloud PostgreSQL.
+  static String _pendingAgencyKey(String email) =>
+      'salesarmy_pending_agency_${email.trim().toLowerCase()}';
+
+  /// Agency details typed at sign-up, kept until the first login after email
+  /// confirmation so the agency can be created then (no session exists yet
+  /// at sign-up time when the project requires email confirmation).
+  Future<void> savePendingAgency(String email, Map<String, String?> details) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingAgencyKey(email), jsonEncode(details));
+  }
+
+  Future<Map<String, dynamic>?> takePendingAgency(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_pendingAgencyKey(email));
+    if (raw == null) return null;
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> clearPendingAgency(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingAgencyKey(email));
+  }
+
+  /// Creates an agency for the currently signed-in user and makes them its
+  /// owner via the `onboard_agency_owner` RPC. Only works while the user has no
+  /// agency yet. Used after email sign-up and for brand-new Google users.
+  Future<Map<String, dynamic>> onboardCurrentUserAsOwner({
+    required String businessName,
+    required String contactPerson,
+    required String mobile,
+    required String city,
+    String? gstin,
+  }) async {
+    final supa = client;
+    final user = supa?.auth.currentUser;
+    if (supa == null || user == null) {
+      return {'success': false, 'error': 'Please sign in again to finish setting up your agency.'};
+    }
+    try {
+      final result = await supa.rpc('onboard_agency_owner', params: {
+        'p_business_name': businessName.trim(),
+        'p_contact_person': contactPerson.trim(),
+        'p_mobile': mobile.trim(),
+        'p_city': city.trim(),
+        'p_gstin': (gstin ?? '').trim().isEmpty ? null : gstin!.trim(),
+      });
+      final tenantId = (result is Map ? result['tenant_id'] : null)?.toString() ?? '';
+      if (tenantId.isEmpty) {
+        return {'success': false, 'error': 'Your agency workspace could not be created. Please try again.'};
+      }
+      return {'success': true, 'tenantId': tenantId, 'uid': user.id};
+    } on PostgrestException catch (e) {
+      final notDeployed = e.code == 'PGRST202' || e.message.contains('onboard_agency_owner');
+      return {
+        'success': false,
+        'error': notDeployed
+            ? 'Agency setup is not available on the server yet (database update pending). Please contact support.'
+            : e.message,
+      };
+    } catch (e) {
+      return {'success': false, 'error': 'Your agency workspace could not be created: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> registerAgencyOwnerAndSeed({
     required String businessName,
     required String representativeName,
@@ -351,85 +452,125 @@ class SupabaseService {
     // "ganesh" (reusing the demo tenant) is removed — every signup gets a
     // dedicated workspace. The slug + timestamp suffix guarantees uniqueness.
     final slug = cleanBusinessName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
-    final tenantId = 'tenant_${slug}_${DateTime.now().millisecondsSinceEpoch % 100000}';
+    var tenantId = 'tenant_${slug}_${DateTime.now().millisecondsSinceEpoch % 100000}';
 
-    String uid = 'usr_${cleanEmail.hashCode}';
+    // Never fake a successful signup. Without a live Supabase connection the
+    // account would exist only on this device and could never sign in again.
+    await ensureInitialized();
+    final supa = client;
+    if (!_isInitialized || supa == null) {
+      return {
+        'success': false,
+        'error': 'Cannot reach the SalesArmy server. Please check your internet connection and try again.',
+      };
+    }
 
-    // 2. Check if user already exists in Supabase Auth via Admin API
-    try {
+    final tenantRow = {
+      'tenant_id': tenantId,
+      'business_name': cleanBusinessName,
+      'contact_person': cleanName,
+      'email': cleanEmail,
+      'mobile': phone,
+      'city': cleanCity,
+      // State is left blank for the user to fill in Profile → Business Details.
+      if (gstin != null && gstin.isNotEmpty) 'gstin': gstin,
+      // Free tier by default. Upgrades happen through the Plan screen checkout.
+      'plan_id': 'free',
+      'subscription_status': 'freemium',
+      'is_active': true,
+    };
+
+    String uid;
+    final hasServiceKey = defaultSupabaseServiceRoleKey.isNotEmpty;
+
+    if (hasServiceKey) {
+      // Trusted-build path (admin API). An existing email is REJECTED — it is
+      // never "re-registered", because resetting its password would hand the
+      // account to whoever typed the email (audit C-4).
       final existing = await adminFindUserByEmail(cleanEmail);
       if (existing != null && existing['id'] != null) {
-        uid = existing['id'].toString();
-        // Update password, email confirmation, role and workspace for existing account
-        await adminConfirmAndSetPassword(
-          uid,
-          password: cleanPassword,
-          role: 'owner',
-          tenantId: tenantId,
-          name: cleanName,
-        );
-      } else {
-        // Create pre-confirmed user in Supabase Auth
-        final created = await adminCreateUser(
+        return {'success': false, 'error': 'This email is already registered. Please sign in instead.'};
+      }
+      final created = await adminCreateUser(
+        email: cleanEmail,
+        password: cleanPassword,
+        name: cleanName,
+        role: 'owner',
+        tenantId: tenantId,
+      );
+      if (created == null || created['id'] == null) {
+        return {'success': false, 'error': 'Could not create your account. Please try again.'};
+      }
+      uid = created['id'].toString();
+      try {
+        final httpClient = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+        final req = await httpClient.postUrl(Uri.parse('$defaultSupabaseUrl/rest/v1/tenants?on_conflict=tenant_id'));
+        req.headers.set('apikey', defaultSupabaseServiceRoleKey);
+        req.headers.set('Authorization', 'Bearer $defaultSupabaseServiceRoleKey');
+        req.headers.set('Prefer', 'resolution=merge-duplicates');
+        req.headers.contentType = ContentType.json;
+        req.write(jsonEncode(tenantRow));
+        final res = await req.close();
+        httpClient.close(force: true);
+        if (res.statusCode >= 300) {
+          return {'success': false, 'error': 'Could not create your agency workspace (HTTP ${res.statusCode}).'};
+        }
+      } catch (e) {
+        return {'success': false, 'error': 'Could not create your agency workspace: $e'};
+      }
+      await upsertUserProfile(uid: uid, email: cleanEmail, name: cleanName, role: 'Owner', tenantId: tenantId, phone: phone);
+    } else {
+      // Standard path: normal Supabase sign-up with the public anon key.
+      // Role / tenant are NOT sent in user metadata (user-editable); the agency
+      // is created afterwards by the onboard_agency_owner RPC.
+      final AuthResponse res;
+      try {
+        res = await supa.auth.signUp(
           email: cleanEmail,
           password: cleanPassword,
-          name: cleanName,
-          role: 'owner',
-          tenantId: tenantId,
+          data: {'name': cleanName, 'phone': phone},
         );
-        if (created != null && created['id'] != null) {
-          uid = created['id'].toString();
-        }
+      } on AuthException catch (e) {
+        final msg = e.message.toLowerCase();
+        return {
+          'success': false,
+          'error': msg.contains('already') ? 'This email is already registered. Please sign in instead.' : e.message,
+        };
       }
-    } catch (e) {
-      debugPrint('registerAgencyOwnerAndSeed auth notice: $e');
-      return {'success': false, 'error': 'Auth setup failed: $e'};
-    }
-
-    // 3. Upsert Tenant record in public.tenants
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
-      final uri = Uri.parse('$defaultSupabaseUrl/rest/v1/tenants?on_conflict=tenant_id');
-      final req = await client.postUrl(uri);
-      req.headers.set('apikey', defaultSupabaseServiceRoleKey);
-      req.headers.set('Authorization', 'Bearer $defaultSupabaseServiceRoleKey');
-      req.headers.set('Prefer', 'resolution=merge-duplicates');
-      req.headers.contentType = ContentType.json;
-      req.write(jsonEncode({
-        'tenant_id': tenantId,
-        'business_name': cleanBusinessName,
-        'contact_person': cleanName,
-        'email': cleanEmail,
+      final user = res.user;
+      if (user == null) {
+        return {'success': false, 'error': 'Could not create your account. Please try again.'};
+      }
+      // Supabase returns a user with no identities when the email already exists.
+      if (user.identities != null && user.identities!.isEmpty) {
+        return {'success': false, 'error': 'This email is already registered. Please sign in instead.'};
+      }
+      uid = user.id;
+      await savePendingAgency(cleanEmail, {
+        'businessName': cleanBusinessName,
+        'contactPerson': cleanName,
         'mobile': phone,
         'city': cleanCity,
-        // State is left blank for the user to fill in Profile → Business
-        // Details. Previously hard-coded to Maharashtra which was wrong for
-        // any out-of-state agency.
-        if (gstin != null && gstin.isNotEmpty) 'gstin': gstin,
-        // Free tier by default. Upgrading to Startup / Grow / Enterprise
-        // happens through the Plan screen checkout flow — never on signup.
-        'plan_id': 'free',
-        'subscription_status': 'freemium',
-        'is_active': true,
-      }));
-      await req.close();
-      client.close(force: true);
-    } catch (e) {
-      debugPrint('Tenant upsert error: $e');
-    }
-
-    // 4. Upsert User Profile in public.profiles
-    try {
-      await upsertUserProfile(
-        uid: uid,
-        email: cleanEmail,
-        name: cleanName,
-        role: 'Owner',
-        tenantId: tenantId,
-        phone: phone,
+        'gstin': gstin,
+      });
+      if (res.session == null) {
+        // Email confirmation is enabled in the Supabase project.
+        return {
+          'success': false,
+          'needsEmailConfirmation': true,
+          'error': 'Account created. Please confirm your email from the link we sent, then sign in.',
+        };
+      }
+      final onboard = await onboardCurrentUserAsOwner(
+        businessName: cleanBusinessName,
+        contactPerson: cleanName,
+        mobile: phone,
+        city: cleanCity,
+        gstin: gstin,
       );
-    } catch (e) {
-      debugPrint('Profile upsert error: $e');
+      if (onboard['success'] != true) return onboard;
+      tenantId = onboard['tenantId'] as String;
+      await clearPendingAgency(cleanEmail);
     }
 
     // Starter catalog + sample shop seeding REMOVED. New agencies now start
@@ -1556,6 +1697,7 @@ class SupabaseService {
         'address': (shopData['address'] ?? 'Main Bazaar').toString(),
         if (shopData['city'] != null) 'city': shopData['city'].toString(),
         if (shopData['state'] != null) 'state': shopData['state'].toString(),
+        if (shopData['pincode'] != null) 'pincode': shopData['pincode'].toString(),
         if (shopData['gstin'] != null) 'gstin': shopData['gstin'].toString(),
         'territory': (shopData['territory'] ?? 'Main Market').toString(),
         'visit_frequency': (shopData['visitFrequency'] ?? shopData['visit_frequency'] ?? 'weekly').toString(),

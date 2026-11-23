@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:salesarmy/features/orders/domain/entities/order_entity.dart';
 import 'package:salesarmy/features/orders/domain/repositories/i_order_repository.dart';
@@ -131,7 +132,9 @@ class OrderRepositoryImpl implements IOrderRepository {
           );
           if (paginated.isNotEmpty) return paginated;
         }
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('order_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
     return cached;
@@ -158,7 +161,9 @@ class OrderRepositoryImpl implements IOrderRepository {
             return entity;
           }
         }
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('order_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
     return null;
@@ -180,7 +185,9 @@ class OrderRepositoryImpl implements IOrderRepository {
           orderData: orderMap,
           items: itemsData,
         );
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('order_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
   }
@@ -207,7 +214,9 @@ class OrderRepositoryImpl implements IOrderRepository {
               .eq('tenant_id', tenantId)
               .or('order_id.eq.$orderId,id.eq.$orderId');
         }
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('order_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
   }
@@ -223,7 +232,9 @@ class OrderRepositoryImpl implements IOrderRepository {
           tenantId: tenantId,
           orderId: orderId,
         );
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('order_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
   }

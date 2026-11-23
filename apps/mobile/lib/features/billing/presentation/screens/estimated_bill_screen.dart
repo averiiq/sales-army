@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
+import 'package:salesarmy/core/widgets/billing_error_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -441,13 +443,7 @@ class _EstimatedBillScreenState extends State<EstimatedBillScreen> {
   Future<void> _generateEstimatedBill() async {
     final activeItems = _lineItems.values.where((item) => item.quantity > 0).toList();
     if (activeItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please add at least one product with quantity greater than 0.'),
-          backgroundColor: Color(0xFFDC2626),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showAppError(context, 'Please add at least one product with quantity greater than 0.');
       return;
     }
 
@@ -562,27 +558,8 @@ class _EstimatedBillScreenState extends State<EstimatedBillScreen> {
       );
 
       _showGeneratedBillSuccessDialog(invoice);
-    } on InsufficientStockException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Not enough stock:\n${e.toString()}'),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to generate estimate: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      if (mounted) await showBillingErrorDialog(context, e, action: 'generate the estimate');
     } finally {
       if (mounted) {
         setState(() => _isGenerating = false);

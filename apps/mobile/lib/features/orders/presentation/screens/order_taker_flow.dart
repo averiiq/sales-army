@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
+import 'package:salesarmy/core/widgets/billing_error_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
@@ -22,6 +24,10 @@ class OrderTakerFlow extends StatefulWidget {
 
   final bool isEmbedded;
 
+  /// Lets the embedded Bill tab be pointed at a party from elsewhere (e.g. the
+  /// Parties page "New Order" button). Set a shop to preselect it.
+  final ValueNotifier<ShopModel?>? shopRequest;
+
   const OrderTakerFlow({
     super.key,
     this.initialShop,
@@ -29,6 +35,7 @@ class OrderTakerFlow extends StatefulWidget {
     required this.onOrderCompleted,
     this.onBack,
     this.isEmbedded = false,
+    this.shopRequest,
   });
 
   @override
@@ -126,14 +133,22 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
   @override
   void initState() {
     super.initState();
-    _selectedShop = widget.initialShop;
+    _selectedShop = widget.initialShop ?? widget.shopRequest?.value;
     if (widget.initialCart != null) {
       _cartQuantities.addAll(widget.initialCart!);
     }
+    widget.shopRequest?.addListener(_onShopRequested);
+  }
+
+  void _onShopRequested() {
+    final requested = widget.shopRequest?.value;
+    if (requested == null || !mounted) return;
+    setState(() => _selectedShop = requested);
   }
 
   @override
   void dispose() {
+    widget.shopRequest?.removeListener(_onShopRequested);
     _notesCtrl.dispose();
     super.dispose();
   }
@@ -145,16 +160,14 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
     double subtotal = 0.0;
     double totalGst = 0.0;
 
-    final sellerGstin = appState.tenant.gstin ?? '27ABCDE1234F1Z5';
+    final sellerGstin = appState.tenant.gstin ?? '';
     final buyerGstin = targetShop.gstin?.trim() ?? '';
 
     _cartQuantities.forEach((prodId, qty) {
       if (qty <= 0) return;
-      if (appState.products.isEmpty) return;
-      final product = appState.products.firstWhere(
-        (p) => p.productId == prodId,
-        orElse: () => appState.products.first,
-      );
+      final matches = appState.products.where((p) => p.productId == prodId);
+      if (matches.isEmpty) return;
+      final product = matches.first;
       final productPrice = _getProductPrice(product, _selectedPricingCategory);
       final taxable = productPrice * qty;
       final effectiveGstRate = _billingGstMode == 'NON_GST'
@@ -193,7 +206,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
 
     if (items.isEmpty) return;
 
-    final orderId = 'ORD-2026-${(appState.orders.length + 1).toString().padLeft(3, '0')}';
+    final orderId = 'ORD-${now.year}-${now.millisecondsSinceEpoch.toRadixString(36).toUpperCase()}';
     final note = _notesCtrl.text.trim().isNotEmpty
         ? _notesCtrl.text.trim()
         : 'Booked via Billing Desk (${_billingGstMode == "GST" ? "GST Tax Invoice" : "Rough Estimate"})';
@@ -216,18 +229,13 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
     // Submit with stock guard. If any item overshoots live inventory,
     // AppState throws InsufficientStockException and we show a short-items
     // list rather than silently clamping stock to zero.
+    // Any failure (stock, billing blocked, network) is now shown — previously
+    // only stock errors were caught and everything else failed silently.
     try {
       await appState.addOrder(order);
-    } on InsufficientStockException catch (e) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Not enough stock:\n${e.toString()}'),
-          backgroundColor: const Color(0xFFDC2626),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+      await showBillingErrorDialog(context, e, action: 'book the order');
       return;
     }
 
@@ -257,39 +265,16 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
     if (product.variants != null && product.variants!.isNotEmpty) {
       variants = List.from(product.variants!);
     } else {
-      final nameLower = product.name.toLowerCase();
-      if (nameLower.contains('atta') || nameLower.contains('chakki') || nameLower.contains('flour')) {
-        variants = [
-          const ProductVariant(size: '1 Kg Pouch', unit: 'kg', wholesalePrice: 52.0, retailPrice: 58.0, stockQuantity: 50),
-          const ProductVariant(size: '5 Kg Bag', unit: 'kg', wholesalePrice: 240.0, retailPrice: 260.0, stockQuantity: 25),
-          const ProductVariant(size: '10 Kg Bag', unit: 'kg', wholesalePrice: 460.0, retailPrice: 500.0, stockQuantity: 15),
-        ];
-      } else if (nameLower.contains('oil') || nameLower.contains('sunlite') || nameLower.contains('saffola')) {
-        variants = [
-          const ProductVariant(size: '500 ml Pouch', unit: 'ml', wholesalePrice: 78.0, retailPrice: 85.0, stockQuantity: 30),
-          const ProductVariant(size: '1 Litre Pouch', unit: 'L', wholesalePrice: 145.0, retailPrice: 158.0, stockQuantity: 50),
-          const ProductVariant(size: '5 Litre Jar', unit: 'L', wholesalePrice: 710.0, retailPrice: 775.0, stockQuantity: 20),
-          const ProductVariant(size: '15 Litre Tin', unit: 'L', wholesalePrice: 2100.0, retailPrice: 2280.0, stockQuantity: 10),
-        ];
-      } else if (nameLower.contains('cleaner') || nameLower.contains('harpic') || nameLower.contains('spray') || nameLower.contains('lizol')) {
-        variants = [
-          const ProductVariant(size: '250 ml Bottle', unit: 'ml', wholesalePrice: 55.0, retailPrice: 62.0, stockQuantity: 25),
-          const ProductVariant(size: '500 ml Bottle', unit: 'ml', wholesalePrice: 110.0, retailPrice: 125.0, stockQuantity: 30),
-          const ProductVariant(size: '1 Litre Economy', unit: 'L', wholesalePrice: 195.0, retailPrice: 220.0, stockQuantity: 15),
-        ];
-      } else if (nameLower.contains('biscuit') || nameLower.contains('parle') || nameLower.contains('cookie')) {
-        variants = [
-          const ProductVariant(size: '100g Pocket Pack', unit: 'g', wholesalePrice: 10.0, retailPrice: 12.0, stockQuantity: 100),
-          const ProductVariant(size: '250g Regular Pack', unit: 'g', wholesalePrice: 25.0, retailPrice: 30.0, stockQuantity: 60),
-          const ProductVariant(size: '1kg Family Pack', unit: 'kg', wholesalePrice: 120.0, retailPrice: 130.0, stockQuantity: 25),
-        ];
-      } else {
-        variants = [
-          ProductVariant(size: product.variant ?? product.size ?? 'Standard (1 Unit)', unit: 'pcs', wholesalePrice: product.wholesalePrice, retailPrice: product.retailPrice, stockQuantity: product.stockQuantity),
-          ProductVariant(size: 'Pack of 2 (${product.variant ?? 'Units'})', unit: 'pcs', wholesalePrice: (product.wholesalePrice * 1.95).roundToDouble(), retailPrice: (product.retailPrice * 1.95).roundToDouble(), stockQuantity: 20),
-          ProductVariant(size: 'Carton / Bulk Case (10 Units)', unit: 'case', wholesalePrice: (product.wholesalePrice * 9.2).roundToDouble(), retailPrice: (product.retailPrice * 9.5).roundToDouble(), stockQuantity: 10),
-        ];
-      }
+      // No variants defined — show the product's own pricing as a single default variant
+      variants = [
+        ProductVariant(
+          size: product.variant ?? product.size ?? 'Standard',
+          unit: 'pcs',
+          wholesalePrice: product.wholesalePrice,
+          retailPrice: product.retailPrice,
+          stockQuantity: product.stockQuantity,
+        ),
+      ];
     }
 
     int selectedVariantIndex = 0;
@@ -634,14 +619,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                                 final newQty = int.tryParse(qtyCtrl.text.trim()) ?? 0;
                                 final available = product.stockQuantity;
                                 if (newQty > available) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                          'Only $available ${product.name} in stock. Cannot add $newQty.'),
-                                      backgroundColor: const Color(0xFFDC2626),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
+                                  showAppError(context, 'Only $available ${product.name} in stock. Cannot add $newQty.');
                                   return;
                                 }
                                 setState(() {
@@ -703,7 +681,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
     double liveIgst = 0.0;
     int totalCartItems = 0;
 
-    final sellerGstin = appState.tenant.gstin ?? '27ABCDE1234F1Z5';
+    final sellerGstin = appState.tenant.gstin ?? '';
     final buyerGstin = targetShop.gstin?.trim() ?? '';
     final sellerStateCode = AppState.getStateCodeFromGstin(sellerGstin);
     final buyerStateCode = AppState.getStateCodeFromGstin(buyerGstin);
@@ -828,56 +806,75 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
             ),
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
-          onRefresh: () async {
-            HapticFeedback.lightImpact();
-            await Future.delayed(const Duration(milliseconds: 500));
-            setState(() {});
-          },
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
-            child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.isEmbedded && widget.onBack != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    children: [
-                      Material(
-                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        child: InkWell(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            widget.onBack?.call();
-                          },
-                          borderRadius: BorderRadius.circular(24),
+        child: Column(
+          children: [
+            if (widget.isEmbedded && widget.onBack != null)
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                      width: 1.0,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Material(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          widget.onBack?.call();
+                        },
+                        child: Tooltip(
+                          message: 'Back to Dashboard',
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            width: 40,
+                            height: 40,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(24),
+                              shape: BoxShape.circle,
                               border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                               boxShadow: AppTheme.softShadow(blur: 6, dy: 1),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.arrow_back_rounded, size: 16, color: isDark ? Colors.white : const Color(0xFF334155)),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Back to Dashboard',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF334155)),
-                                ),
-                              ],
-                            ),
+                            child: Icon(Icons.arrow_back_rounded, size: 20, color: isDark ? Colors.white : const Color(0xFF0F172A)),
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Orders & Billing',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  HapticFeedback.lightImpact();
+                  await Future.delayed(const Duration(milliseconds: 500));
+                  setState(() {});
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
 
 
 
@@ -1334,14 +1331,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                                         onTap: wouldOvershoot
                                             ? () {
                                                 HapticFeedback.vibrate();
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                        'Only $maxQty ${product.name} in stock.'),
-                                                    backgroundColor: const Color(0xFFDC2626),
-                                                    behavior: SnackBarBehavior.floating,
-                                                  ),
-                                                );
+                                                showAppError(context, 'Only $maxQty ${product.name} in stock.');
                                               }
                                             : () {
                                                 HapticFeedback.selectionClick();
@@ -1483,14 +1473,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                                   onTap: atStockCap
                                       ? () {
                                           HapticFeedback.vibrate();
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                  'Only $maxQty ${product.name} in stock.'),
-                                              backgroundColor: const Color(0xFFDC2626),
-                                              behavior: SnackBarBehavior.floating,
-                                            ),
-                                          );
+                                          showAppError(context, 'Only $maxQty ${product.name} in stock.');
                                         }
                                       : () {
                                           HapticFeedback.lightImpact();
@@ -1545,27 +1528,34 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.4) : const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(8),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.4) : const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.receipt_long_rounded, size: 16, color: Color(0xFF2563EB)),
                               ),
-                              child: const Icon(Icons.receipt_long_rounded, size: 16, color: Color(0xFF2563EB)),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Live Bill Calculation',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  'Live Bill Calculation',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
@@ -1703,22 +1693,30 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
       ),
     ),
   ),
+  ],
+  ),
+  ),
       bottomNavigationBar: totalCartItems > 0
           ? SafeArea(
+              top: false,
+              bottom: !widget.isEmbedded,
               child: Builder(
                 builder: (context) {
-                  final bookOrderBtn = Material(
+                  final clearCartBtn = Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () => _bookOrderOnly(appState, targetShop),
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        setState(() => _cartQuantities.clear());
+                      },
                       borderRadius: BorderRadius.circular(14),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 12),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.35) : const Color(0xFFEFF6FF),
+                          color: isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.35) : const Color(0xFFFEF2F2),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF2563EB) : const Color(0xFF93C5FD),
+                            color: isDark ? const Color(0xFFDC2626) : const Color(0xFFFCA5A5),
                             width: 1.2,
                           ),
                         ),
@@ -1727,17 +1725,17 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.bookmark_add_outlined,
+                              Icons.delete_outline_rounded,
                               size: 16,
-                              color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                              color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626),
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'Book Order',
+                              'Clear Cart',
                               style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w800,
-                                color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626),
                               ),
                             ),
                           ],
@@ -1767,6 +1765,11 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                       child: InkWell(
                         onTap: () {
                           HapticFeedback.mediumImpact();
+                          final blockReason = context.read<AppState>().billingBlockReason;
+                          if (blockReason != null) {
+                            showBillingErrorDialog(context, BillingBlockedException(blockReason));
+                            return;
+                          }
                           CompleteAndBillOrderModal.show(
                             context,
                             destinationShop: targetShop,
@@ -1808,11 +1811,14 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                     ),
                   );
 
-                  return ResponsiveContainer(
-                    maxWidth: 720,
-                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    child: Container(
+                  return Align(
+                    alignment: Alignment.bottomCenter,
+                    heightFactor: 1.0,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, widget.isEmbedded ? 8 : 12),
+                        child: Container(
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF1E293B) : Colors.white,
                         borderRadius: BorderRadius.circular(24),
@@ -1826,7 +1832,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                         ],
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: context.screenWidth < 420
+                      child: context.screenWidth < 600
                           ? Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -1896,7 +1902,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                                 const SizedBox(height: 10),
                                 Row(
                                   children: [
-                                    Expanded(child: bookOrderBtn),
+                                    Expanded(child: clearCartBtn),
                                     const SizedBox(width: 8),
                                     Expanded(child: reviewAndBillBtn),
                                   ],
@@ -1910,7 +1916,10 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                                     mainAxisSize: MainAxisSize.min,
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Row(
+                                      Wrap(
+                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        spacing: 8,
+                                        runSpacing: 4,
                                         children: [
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
@@ -1931,8 +1940,8 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                                               ],
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
-                                          Flexible(
+                                          ConstrainedBox(
+                                            constraints: const BoxConstraints(maxWidth: 180),
                                             child: Text(
                                               targetShop.shopName,
                                               maxLines: 1,
@@ -1965,11 +1974,13 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                bookOrderBtn,
+                                clearCartBtn,
                                 const SizedBox(width: 8),
                                 reviewAndBillBtn,
                               ],
                             ),
+                        ),
+                      ),
                     ),
                   );
                 },

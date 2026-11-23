@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:salesarmy/features/inventory/domain/entities/product_entity.dart';
 import 'package:salesarmy/features/inventory/domain/repositories/i_product_repository.dart';
@@ -123,7 +124,9 @@ class ProductRepositoryImpl implements IProductRepository {
           );
           if (paginated.isNotEmpty) return paginated;
         }
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('product_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
     return cached;
@@ -166,7 +169,9 @@ class ProductRepositoryImpl implements IProductRepository {
             return entity;
           }
         }
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('product_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
     return null;
@@ -185,7 +190,9 @@ class ProductRepositoryImpl implements IProductRepository {
           tenantId: tenantId,
           productData: model.toMap(),
         );
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('product_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
   }

@@ -18,7 +18,11 @@ class CsvReportHelper {
   /// Escapes CSV cells to properly handle commas, quotes, and newlines.
   static String _escape(dynamic val) {
     if (val == null) return '""';
-    final s = val.toString().replaceAll('"', '""');
+    final s = val.toString()
+        .replaceAll('"', '""')
+        .replaceAll('\r\n', ' ')
+        .replaceAll('\r', ' ')
+        .replaceAll('\n', ' ');
     return '"$s"';
   }
 
@@ -79,19 +83,23 @@ class CsvReportHelper {
 
     try {
       final file = File('${targetDir.path}/$sanitizedFileName');
-      await file.writeAsString(csvContent, flush: true);
+      // Prepend UTF-8 BOM for Excel compatibility
+      final contentWithBom = '\uFEFF$csvContent';
+      await file.writeAsString(contentWithBom, flush: true);
       return file;
     } catch (e) {
       debugPrint('[CsvReportHelper] Failed writing to ${targetDir.path}: $e');
       try {
         final fallbackDir = await getApplicationDocumentsDirectory();
         final file = File('${fallbackDir.path}/$sanitizedFileName');
-        await file.writeAsString(csvContent, flush: true);
+        final contentWithBom = '\uFEFF$csvContent';
+        await file.writeAsString(contentWithBom, flush: true);
         return file;
       } catch (_) {
         final temp = await getTemporaryDirectory();
         final file = File('${temp.path}/$sanitizedFileName');
-        await file.writeAsString(csvContent, flush: true);
+        final contentWithBom = '\uFEFF$csvContent';
+        await file.writeAsString(contentWithBom, flush: true);
         return file;
       }
     }

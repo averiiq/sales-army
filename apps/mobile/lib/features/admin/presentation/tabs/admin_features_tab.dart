@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
 
@@ -99,7 +100,9 @@ class _AdminFeaturesTabState extends State<AdminFeaturesTab> {
         enforceOtp: _enforceMobileOtp,
         digits: _selectedOtpDigits,
       );
-    } catch (_) {}
+    } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -120,7 +123,9 @@ class _AdminFeaturesTabState extends State<AdminFeaturesTab> {
         companyName: _companyLegalNameCtrl.text.trim(),
         gstin: _companyGstinCtrl.text.trim(),
       );
-    } catch (_) {}
+    } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -137,7 +142,9 @@ class _AdminFeaturesTabState extends State<AdminFeaturesTab> {
     try {
       context.read<AppState>().updateRemoteFeatureFlags(_localFeatureFlags);
       context.read<AppState>().pushRemoteConfigToPlatform(featureFlags: _localFeatureFlags);
-    } catch (_) {}
+    } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -160,7 +167,9 @@ class _AdminFeaturesTabState extends State<AdminFeaturesTab> {
     try {
       context.read<AppState>().updateRemoteFeatureFlags(_localFeatureFlags);
       context.read<AppState>().pushRemoteConfigToPlatform(featureFlags: _localFeatureFlags);
-    } catch (_) {}
+    } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -195,7 +204,9 @@ class _AdminFeaturesTabState extends State<AdminFeaturesTab> {
     try {
       context.read<AppState>().updateRemoteFeatureFlags(_localFeatureFlags);
       context.read<AppState>().pushRemoteConfigToPlatform(featureFlags: _localFeatureFlags);
-    } catch (_) {}
+    } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -490,7 +501,9 @@ class _AdminFeaturesTabState extends State<AdminFeaturesTab> {
                               setState(() => _enforceMobileOtp = val);
                               try {
                                 context.read<AppState>().updateSmsGatewayConfig(enforceOtp: val);
-                              } catch (_) {}
+                              } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
                             },
                           ),
                         ],

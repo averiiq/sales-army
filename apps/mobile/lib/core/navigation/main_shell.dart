@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -43,6 +44,14 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+  /// Party the Bill tab should preselect (set by Parties "New Order").
+  final ValueNotifier<ShopModel?> _billShopRequest = ValueNotifier<ShopModel?>(null);
+
+  @override
+  void dispose() {
+    _billShopRequest.dispose();
+    super.dispose();
+  }
   int _currentIndex = 0;
 
   String _getInitials(String? name) {
@@ -133,6 +142,7 @@ class _MainShellState extends State<MainShell> {
         label: 'Bill',
         widget: OrderTakerFlow(
           isEmbedded: true,
+          shopRequest: _billShopRequest,
           onBack: () => _navigateToTabId('home', appState),
           onOrderCompleted: () {
             _navigateToTabId('orders', appState);
@@ -276,13 +286,7 @@ class _MainShellState extends State<MainShell> {
   void _openOrderTaker({ShopModel? shop}) {
     final appState = Provider.of<AppState>(context, listen: false);
     if (appState.isAccountPausedOrCancelled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Account Suspended: Cannot create new orders while account is ${appState.subscriptionBadgeText}.'),
-          backgroundColor: const Color(0xFFDC2626),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      showAppError(context, 'Account Suspended: Cannot create new orders while account is ${appState.subscriptionBadgeText}.');
       return;
     }
     if (appState.isModuleRemotelyDisabled('billing') || appState.isModuleRemotelyDisabled('orders')) {
@@ -296,17 +300,22 @@ class _MainShellState extends State<MainShell> {
       return;
     }
     if (!appState.canAccessModule('billing') && !appState.isFieldSalesRole) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Access Restricted: Role (${appState.activeRole}) cannot create Bills.'),
-          backgroundColor: const Color(0xFFDC2626),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      showAppError(context, 'Access Restricted: Role (${appState.activeRole}) cannot create Bills.');
       return;
     }
 
-    if (shop == null && _availableTabIds(appState).contains('billing')) {
+    if (_availableTabIds(appState).contains('billing')) {
+      // Open the Bill tab itself (not the standalone Orders & Billing page);
+      // a party chosen elsewhere (e.g. Parties "New Order") is preselected.
+      if (shop != null) {
+        _billShopRequest.value = null; // re-selecting the same party still notifies
+        _billShopRequest.value = shop;
+      }
+      // Pop any pushed page (e.g. Parties opened from Home) back to the shell.
+      final shellRoute = ModalRoute.of(context);
+      if (shellRoute != null && !shellRoute.isCurrent) {
+        Navigator.of(context).popUntil((route) => route == shellRoute);
+      }
       _navigateToTabId('billing', appState);
       return;
     }
@@ -341,6 +350,7 @@ class _MainShellState extends State<MainShell> {
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemStatusBarContrastEnforced: false,
       ),
       flexibleSpace: Container(
         decoration: BoxDecoration(
@@ -647,6 +657,7 @@ class _MainShellState extends State<MainShell> {
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
           statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+          systemStatusBarContrastEnforced: false,
         ),
         child: Scaffold(
           backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
@@ -655,7 +666,9 @@ class _MainShellState extends State<MainShell> {
             color: isDark ? const Color(0xFF0F172A) : Colors.white,
             child: Column(
               children: [
-                if (appState.isSubscriptionExpired || appState.isAccountPausedOrCancelled)
+                // Account / broadcast / maintenance notices appear on the Home
+                // tab only, so they don't cover the working screens.
+                if (isHome && (appState.isSubscriptionExpired || appState.isAccountPausedOrCancelled))
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     color: isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.4) : const Color(0xFFFEF2F2),
@@ -665,18 +678,52 @@ class _MainShellState extends State<MainShell> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Account status: ${appState.subscriptionBadgeText}. New order creation and live operations are restricted.',
+                            appState.billingBlockReason != null
+                                ? 'Account status: ${appState.subscriptionBadgeText}. Creating bills and orders is paused until you upgrade.'
+                                : 'Account status: ${appState.subscriptionBadgeText}. Premium features are locked — upgrade from Plan & Pricing to unlock them.',
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
                           ),
                         ),
                       ],
                     ),
                   ),
-                if (appState.emergencyBroadcast != null &&
+                if (isHome && appState.cloudSyncError != null)
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
+                    color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.35) : const Color(0xFFFFFBEB),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.cloud_off_rounded, color: Color(0xFFD97706), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${appState.cloudSyncError} Your data on this phone is safe.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: appState.isCloudSyncing ? null : () => appState.syncAllFromCloud(),
+                          child: Text(appState.isCloudSyncing ? 'Retrying…' : 'Retry'),
+                        ),
+                        IconButton(
+                          tooltip: 'Dismiss',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.close_rounded, size: 16),
+                          onPressed: appState.dismissCloudSyncError,
+                        ),
+                      ],
+                    ),
+                  ),
+                if (isHome &&
+                    appState.emergencyBroadcast != null &&
                     appState.emergencyBroadcast!['active'] == true &&
                     !appState.isAnnouncementDismissed)
                   _buildEmergencyBroadcastBanner(context, appState, isDark),
-                if (appState.isMaintenanceMode)
+                if (isHome && appState.isMaintenanceMode)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.4) : const Color(0xFFFFFBEB),
@@ -714,60 +761,49 @@ class _MainShellState extends State<MainShell> {
               ],
             ),
           ),
-          bottomNavigationBar: ClipRect(
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeInOutCubic,
-              alignment: Alignment.topCenter,
-              heightFactor: isHome ? 1.0 : 0.0,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 280),
-                curve: Curves.easeInOutCubic,
-                offset: isHome ? Offset.zero : const Offset(0, 1.0),
-                child: IgnorePointer(
-                  ignoring: !isHome,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                      border: Border(
-                        top: BorderSide(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9), width: 1.0),
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+              border: Border(
+                top: BorderSide(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9), width: 1.0),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark ? Colors.black.withValues(alpha: 0.25) : const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 60,
+                child: Align(
+                  alignment: Alignment.center,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 680),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: context.isCompact ? 4 : 8,
+                        vertical: 4,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: isDark ? Colors.black.withValues(alpha: 0.25) : const Color(0xFF0F172A).withValues(alpha: 0.04),
-                          blurRadius: 12,
-                          offset: const Offset(0, -3),
-                        ),
-                      ],
-                    ),
-                    child: SafeArea(
-                      top: false,
-                      child: ResponsiveContainer(
-                        maxWidth: 680,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: context.isCompact ? 4 : 8,
-                          vertical: 4,
-                        ),
-                        child: SizedBox(
-                          height: 60,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: List.generate(availableTabs.length, (idx) {
-                              final tab = availableTabs[idx];
-                              return _buildNavItem(
-                                context,
-                                idx,
-                                tab.icon,
-                                tab.label,
-                                isDark,
-                                onTap: () {
-                                  HapticFeedback.selectionClick();
-                                  setState(() => _currentIndex = idx);
-                                },
-                              );
-                            }),
-                          ),
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: List.generate(availableTabs.length, (idx) {
+                          final tab = availableTabs[idx];
+                          return _buildNavItem(
+                            context,
+                            idx,
+                            tab.icon,
+                            tab.label,
+                            isDark,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _currentIndex = idx);
+                            },
+                          );
+                        }),
                       ),
                     ),
                   ),

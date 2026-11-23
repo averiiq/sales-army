@@ -123,15 +123,12 @@ void main() {
       expect(find.text('Orders'), findsOneWidget);
       expect(find.text('Collection'), findsOneWidget);
 
-      final animatedAlignFinder = find.byType(AnimatedAlign);
-      expect(animatedAlignFinder, findsOneWidget);
-      final AnimatedAlign initialAlign = tester.widget(animatedAlignFinder);
-      expect(initialAlign.heightFactor, equals(1.0));
-
-      final animatedSlideFinder = find.byType(AnimatedSlide);
-      expect(animatedSlideFinder, findsOneWidget);
-      final AnimatedSlide initialSlide = tester.widget(animatedSlideFinder);
-      expect(initialSlide.offset, equals(Offset.zero));
+      // Bottom navbar is persistent across all pages
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Parties'), findsOneWidget);
+      expect(find.text('Bill'), findsOneWidget);
+      expect(find.text('Orders'), findsOneWidget);
+      expect(find.text('Collection'), findsOneWidget);
 
       // 1. Navigate to Orders tab from bottom bar
       await tester.tap(find.text('Orders'));
@@ -140,21 +137,18 @@ void main() {
       // Top AppBar is removed on non-home pages
       expect(find.byType(AppBar), findsNothing);
 
-      // Bottom navbar is slid down and collapsed
-      final AnimatedAlign ordersAlign = tester.widget(animatedAlignFinder);
-      expect(ordersAlign.heightFactor, equals(0.0));
-      final AnimatedSlide ordersSlide = tester.widget(animatedSlideFinder);
-      expect(ordersSlide.offset, equals(const Offset(0, 1.0)));
+      // Bottom navbar remains visible on Orders page
+      expect(find.text('Orders'), findsWidgets);
+      expect(find.text('Home'), findsOneWidget);
 
-      // Tap 'Back to Dashboard' to return to Home
-      expect(find.text('Back to Dashboard'), findsOneWidget);
-      await tester.tap(find.text('Back to Dashboard'));
+      // Tap back arrow button to return to Home
+      final backIcon = find.byIcon(Icons.arrow_back_rounded);
+      expect(backIcon, findsWidgets);
+      await tester.tap(backIcon.first);
       await tester.pumpAndSettle();
 
-      // Returned to Home: Top AppBar and bottom navbar are restored
+      // Returned to Home: Top AppBar is restored
       expect(find.byType(AppBar), findsOneWidget);
-      final AnimatedAlign restoredAlign = tester.widget(animatedAlignFinder);
-      expect(restoredAlign.heightFactor, equals(1.0));
 
       // 2. Navigate to Collection tab
       await tester.tap(find.text('Collection'));
@@ -162,12 +156,11 @@ void main() {
 
       // Top AppBar is null on Collection
       expect(find.byType(AppBar), findsNothing);
-      final AnimatedAlign collAlign = tester.widget(animatedAlignFinder);
-      expect(collAlign.heightFactor, equals(0.0));
+      expect(find.text('Collection'), findsWidgets);
 
-      // Return via 'Back to Dashboard'
-      expect(find.text('Back to Dashboard'), findsOneWidget);
-      await tester.tap(find.text('Back to Dashboard'));
+      // Return via back arrow button
+      expect(backIcon, findsWidgets);
+      await tester.tap(backIcon.first);
       await tester.pumpAndSettle();
 
       expect(find.byType(AppBar), findsOneWidget);
@@ -177,11 +170,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(AppBar), findsNothing);
-      final AnimatedAlign partiesAlign = tester.widget(animatedAlignFinder);
-      expect(partiesAlign.heightFactor, equals(0.0));
+      expect(find.text('Parties'), findsWidgets);
 
       // Return to Home via back icon button
-      final backIcon = find.byIcon(Icons.arrow_back_rounded);
       expect(backIcon, findsWidgets);
       await tester.tap(backIcon.first);
       await tester.pumpAndSettle();

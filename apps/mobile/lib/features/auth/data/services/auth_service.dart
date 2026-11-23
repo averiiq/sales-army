@@ -4,6 +4,7 @@ import 'package:salesarmy/features/auth/data/models/user_model.dart';
 import 'package:salesarmy/features/admin/data/models/tenant_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 import 'package:salesarmy/core/services/supabase_service.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 
 class AppAuthResult {
   final bool isSuccess;
@@ -201,26 +202,28 @@ class AuthService {
     }
 
     // 1. Supabase Cloud Authentication (with auto-heal + auto-provision)
-    if (SupabaseService.instance.isInitialized) {
-      supa.AuthResponse? res;
-      try {
-        res = await SupabaseService.instance.signInWithEmailPassword(
-          email: cleanEmail,
-          password: cleanPassword,
-        );
-      } catch (e) {
-        if (kDebugMode) debugPrint('Supabase signInWithEmailPassword attempt: $e');
-        // Login failed — do NOT auto-create accounts. Users must register explicitly.
-      }
-
-      if (res?.user != null) {
-        return _buildAuthResultFromSupabase(res!.user!, cleanEmail, res.session?.accessToken);
-      }
+    if (!await SupabaseService.instance.ensureInitialized()) {
+      return AppAuthResult.failure(
+        'Cannot reach the SalesArmy server. Please check your internet connection and try again.',
+      );
+    }
+    supa.AuthResponse? res;
+    try {
+      res = await SupabaseService.instance.signInWithEmailPassword(
+        email: cleanEmail,
+        password: cleanPassword,
+      );
+    } catch (e) {
+      debugPrint('Supabase signInWithEmailPassword failed: $e');
+      // Report the real reason: wrong password, unconfirmed email, no network…
+      // (no auto-creating accounts and no offline bypass).
+      return AppAuthResult.failure(AppError.message(e, action: 'sign you in'));
     }
 
-    // If Supabase is unreachable or authentication failed, fail cleanly
-    // without insecure plaintext bypasses or unauthenticated mock sessions (Audit C-2, H-5 fix).
-    return AppAuthResult.failure('Invalid email or password, or authentication server unreachable. Please verify credentials.');
+    if (res?.user != null) {
+      return _buildAuthResultFromSupabase(res!.user!, cleanEmail, res.session?.accessToken);
+    }
+    return AppAuthResult.failure('Incorrect email or password.');
   }
 
   Future<AppAuthResult> _buildAuthResultFromSupabase(
@@ -231,35 +234,34 @@ class AuthService {
     final uid = user.id;
     var profile = await SupabaseService.instance.fetchUserProfile(uid);
 
-    if (profile == null) {
-      final autoRole = user.userMetadata?['role']?.toString() ?? 'Owner';
-      final autoTenant = user.userMetadata?['tenant_id']?.toString() ?? '';
-      final autoName = user.userMetadata?['name']?.toString() ?? cleanEmail.split('@').first;
-      if (autoTenant.isEmpty) {
+    // No agency yet (e.g. first login after confirming the sign-up email):
+    // finish onboarding from the details saved at sign-up. Role and tenant are
+    // never taken from user metadata, which the user can edit.
+    if (profile == null || profile['tenant_id'] == null || profile['tenant_id'].toString().isEmpty) {
+      final pending = await SupabaseService.instance.takePendingAgency(cleanEmail);
+      if (pending == null) {
         await SupabaseService.instance.signOut();
-        return AppAuthResult.failure('Your account is not linked to a workspace. Please sign up to onboard your agency.');
-      }
-      profile = {
-        'id': uid,
-        'email': cleanEmail,
-        'name': autoName,
-        'role': autoRole,
-        'tenant_id': autoTenant,
-        'is_active': true,
-        'account_status': 'active',
-      };
-      try {
-        await SupabaseService.instance.upsertUserProfile(
-          uid: uid,
-          email: cleanEmail,
-          name: autoName,
-          role: autoRole,
-          tenantId: autoTenant,
+        return AppAuthResult.failure(
+          'Your account is not linked to an agency yet. Please use Sign Up to register your agency, or ask your agency owner to add you.',
         );
-      } catch (_) {}
-    } else if (profile['tenant_id'] == null || profile['tenant_id'].toString().isEmpty) {
-      await SupabaseService.instance.signOut();
-      return AppAuthResult.failure('Your account is not linked to a workspace. Please sign up to onboard your agency.');
+      }
+      final onboard = await SupabaseService.instance.onboardCurrentUserAsOwner(
+        businessName: pending['businessName']?.toString() ?? '',
+        contactPerson: pending['contactPerson']?.toString() ?? cleanEmail.split('@').first,
+        mobile: pending['mobile']?.toString() ?? '',
+        city: pending['city']?.toString() ?? '',
+        gstin: pending['gstin']?.toString(),
+      );
+      if (onboard['success'] != true) {
+        await SupabaseService.instance.signOut();
+        return AppAuthResult.failure(onboard['error']?.toString() ?? 'Could not finish setting up your agency.');
+      }
+      await SupabaseService.instance.clearPendingAgency(cleanEmail);
+      profile = await SupabaseService.instance.fetchUserProfile(uid);
+      if (profile == null) {
+        await SupabaseService.instance.signOut();
+        return AppAuthResult.failure('Your agency was created, but your profile could not be loaded. Please sign in again.');
+      }
     }
 
     if (profile['is_active'] == false ||
@@ -304,12 +306,15 @@ class AuthService {
       return {'success': false, 'message': 'Please enter a valid email address.'};
     }
 
-    if (SupabaseService.instance.isInitialized) {
-      try {
-        await SupabaseService.instance.sendEmailOtp(email: cleanEmail);
-      } catch (e) {
-        debugPrint('sendEmailOtp notice: $e');
-      }
+    if (!await SupabaseService.instance.ensureInitialized()) {
+      return {'success': false, 'message': 'Cannot reach the SalesArmy server. Please check your internet connection and try again.'};
+    }
+    try {
+      await SupabaseService.instance.sendEmailOtp(email: cleanEmail);
+    } catch (e) {
+      // Previously swallowed and reported as "sent" — now the user sees why.
+      debugPrint('sendEmailOtp failed: $e');
+      return {'success': false, 'message': AppError.message(e, action: 'send the code')};
     }
     return {'success': true, 'message': 'Verification code dispatched to $cleanEmail'};
   }
@@ -329,16 +334,21 @@ class AuthService {
     String? accessToken;
 
     // Verify OTP strictly through Supabase — no bypass codes in production.
-    if (SupabaseService.instance.isInitialized) {
-      try {
-        final authRes = await SupabaseService.instance.verifyEmailOtp(
-          email: cleanEmail,
-          token: cleanOtp,
-        );
-        verifiedUser = authRes?.user;
-        accessToken = authRes?.session?.accessToken;
-      } catch (e) {
-        if (kDebugMode) debugPrint('Supabase verifyEmailOtp token note: $e');
+    if (!await SupabaseService.instance.ensureInitialized()) {
+      return AppAuthResult.failure('Cannot reach the SalesArmy server. Please check your internet connection and try again.');
+    }
+    try {
+      final authRes = await SupabaseService.instance.verifyEmailOtp(
+        email: cleanEmail,
+        token: cleanOtp,
+      );
+      verifiedUser = authRes?.user;
+      accessToken = authRes?.session?.accessToken;
+    } catch (e) {
+      debugPrint('Supabase verifyEmailOtp failed: $e');
+      final msg = e.toString().toLowerCase();
+      if (!(msg.contains('expired') || msg.contains('invalid') || msg.contains('token'))) {
+        return AppAuthResult.failure(AppError.message(e, action: 'verify the code'));
       }
     }
 
@@ -366,7 +376,7 @@ class AuthService {
   /// configuration that must exist in Supabase and Google Cloud Console.
   Future<GoogleAuthResult?> signInWithGoogle() async {
     final supabase = SupabaseService.instance;
-    if (!supabase.isInitialized) {
+    if (!await supabase.ensureInitialized()) {
       return GoogleAuthResult.failure(
         'Cloud sign-in is unavailable. Please check your connection and try again.',
       );

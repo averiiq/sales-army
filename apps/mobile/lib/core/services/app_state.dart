@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
 import 'package:salesarmy/features/inventory/data/models/product_model.dart';
@@ -2167,6 +2168,7 @@ class AppState extends ChangeNotifier {
       if (data['enforceOtp'] is bool) {
         _enforceMobileOtp = data['enforceOtp'] as bool;
       }
+      _applyFreeBillingPolicy(data);
       debugPrint('⚡ Real-Time Remote Config Synced from Admin Panel.');
       notifyListeners();
     }
@@ -2387,6 +2389,7 @@ class AppState extends ChangeNotifier {
       if (rc['enforceOtp'] is bool) _enforceMobileOtp = rc['enforceOtp'] as bool;
       if (rc['smsMode'] != null) _smsGatewayMode = rc['smsMode'].toString();
       if (rc['otpDigits'] is num) _otpDigits = (rc['otpDigits'] as num).toInt();
+      _applyFreeBillingPolicy(rc);
     }
 
     if (data['remoteFeatureFlags'] is Map) {
@@ -2907,6 +2910,9 @@ class AppState extends ChangeNotifier {
     final tenantId = currentTenantId ?? _tenant.tenantId;
     if (tenantId.isEmpty) return;
 
+    Object? syncError;
+    _isCloudSyncing = true;
+    notifyListeners();
     try {
       // 1. Supabase Cloud Sync (PostgreSQL tables)
       final sb = SupabaseService.instance;
@@ -3082,6 +3088,7 @@ class AppState extends ChangeNotifier {
           }
         } catch (e) {
           debugPrint('Supabase cloud fetch note: $e');
+          syncError = e;
         }
       }
 
@@ -3091,10 +3098,25 @@ class AppState extends ChangeNotifier {
       await flushOutbox();
 
       debugPrint('Cloud-First Sync Complete: All data fetched from central database for tenant $tenantId');
-      notifyListeners();
     } catch (e) {
       debugPrint('Cloud-First Sync notice: $e');
+      syncError ??= e;
+    } finally {
+      _isCloudSyncing = false;
+      _cloudSyncError = syncError == null ? null : AppError.message(syncError, action: 'refresh your data from the cloud');
+      notifyListeners();
     }
+  }
+
+  // ── Cloud sync status (shown on Home with a Retry button) ──
+  bool _isCloudSyncing = false;
+  bool get isCloudSyncing => _isCloudSyncing;
+  String? _cloudSyncError;
+  /// Readable message when the last cloud refresh failed; null when it worked.
+  String? get cloudSyncError => _cloudSyncError;
+  void dismissCloudSyncError() {
+    _cloudSyncError = null;
+    notifyListeners();
   }
 
   Future<void> syncWithCloudNow() async {
@@ -4115,17 +4137,103 @@ class AppState extends ChangeNotifier {
         .fold<double>(0.0, (total, p) => total + p.amount);
   }
 
+  /// Remaining due on a single bill.
+  static double invoiceDue(InvoiceModel i) {
+    if (i.paymentStatus.toLowerCase() == 'paid') return 0.0;
+    final due = i.dueAmount > 0 ? i.dueAmount : (i.grandTotal - i.paidAmount);
+    return due > 0.009 ? due : 0.0;
+  }
+
+  bool _isUnbilledOpenOrder(OrderModel o) =>
+      (o.status.toLowerCase() == 'pending' || o.status.toLowerCase() == 'confirmed') &&
+      !_invoices.any((i) => i.orderId == o.orderId);
+
+  /// Unbilled pending/confirmed orders for a shop, oldest first.
+  List<OrderModel> _unbilledOpenOrders(String shopId) {
+    final list = _orders.where((o) => o.shopId == shopId && _isUnbilledOpenOrder(o)).toList();
+    list.sort((a, b) => (a.placedAt ?? a.createdAt ?? DateTime(2000))
+        .compareTo(b.placedAt ?? b.createdAt ?? DateTime(2000)));
+    return list;
+  }
+
+  /// Money received from a shop that is not yet absorbed by any bill — i.e.
+  /// payments made against unbilled orders (partial or full) or advances.
+  /// = all payments for the shop − amount already marked paid on its bills.
+  double getShopUnallocatedCredit(String shopId) {
+    final paymentsTotal = _payments
+        .where((p) => p.shopId == shopId)
+        .fold<double>(0.0, (acc, p) => acc + p.amount);
+    final billedPaid = _invoices
+        .where((i) => i.shopId == shopId)
+        .fold<double>(0.0, (acc, i) => acc + i.paidAmount);
+    final credit = paymentsTotal - billedPaid;
+    return credit > 0.009 ? credit : 0.0;
+  }
+
+  /// How much of each unbilled order has been paid. Payments that name an
+  /// order (in notes / reference) go to that order first; any remaining credit
+  /// is applied oldest order first.
+  Map<String, double> getUnbilledOrderPaidAmounts(String shopId) {
+    final orders = _unbilledOpenOrders(shopId);
+    final paid = <String, double>{for (final o in orders) o.orderId: 0.0};
+    if (orders.isEmpty) return paid;
+    double credit = getShopUnallocatedCredit(shopId);
+    if (credit <= 0) return paid;
+
+    for (final p in _payments.where((p) => p.shopId == shopId)) {
+      if (credit <= 0) break;
+      for (final o in orders) {
+        final tagged = (p.notes?.contains(o.orderId) ?? false) ||
+            (p.referenceNumber?.contains(o.orderId) ?? false);
+        if (!tagged) continue;
+        final room = o.grandTotal - paid[o.orderId]!;
+        final take = math.min(math.min(p.amount, room), credit);
+        if (take > 0) {
+          paid[o.orderId] = paid[o.orderId]! + take;
+          credit -= take;
+        }
+        break;
+      }
+    }
+    for (final o in orders) {
+      if (credit <= 0) break;
+      final room = o.grandTotal - paid[o.orderId]!;
+      final take = math.min(room, credit);
+      if (take > 0) {
+        paid[o.orderId] = paid[o.orderId]! + take;
+        credit -= take;
+      }
+    }
+    return paid;
+  }
+
+  /// Amount paid so far against an order (from its bill if billed).
+  double getOrderPaidAmount(OrderModel order) {
+    final inv = _invoices.where((i) => i.orderId == order.orderId);
+    if (inv.isNotEmpty) return inv.first.paidAmount;
+    return getUnbilledOrderPaidAmounts(order.shopId)[order.orderId] ?? 0.0;
+  }
+
+  /// Amount still to be collected for an order.
+  double getOrderDueAmount(OrderModel order) {
+    final inv = _invoices.where((i) => i.orderId == order.orderId);
+    if (inv.isNotEmpty) return invoiceDue(inv.first);
+    final s = order.status.toLowerCase();
+    if (s == 'cancelled') return 0.0;
+    final due = order.grandTotal - getOrderPaidAmount(order);
+    return due > 0.009 ? due : 0.0;
+  }
+
   double getShopOutstandingDue(ShopModel s) {
-    final pendingOrdersTotal = _orders
-        .where((o) =>
-            o.shopId == s.shopId &&
-            (o.status.toLowerCase() == 'pending' || o.status.toLowerCase() == 'confirmed') &&
-            !_invoices.any((i) => i.orderId == o.orderId))
+    final pendingOrdersTotal = _unbilledOpenOrders(s.shopId)
         .fold<double>(0.0, (acc, o) => acc + o.grandTotal);
     final unpaidInvoicesTotal = _invoices
-        .where((i) => i.shopId == s.shopId && (i.dueAmount > 0 || (i.grandTotal - i.paidAmount) > 0))
-        .fold<double>(0.0, (acc, i) => acc + (i.dueAmount > 0 ? i.dueAmount : (i.grandTotal - i.paidAmount)));
-    return math.max(s.currentOutstanding, pendingOrdersTotal + unpaidInvoicesTotal);
+        .where((i) => i.shopId == s.shopId)
+        .fold<double>(0.0, (acc, i) => acc + invoiceDue(i));
+    // Payments against unbilled orders must reduce the derived due too,
+    // otherwise a partial (or even full) payment on an order never shows.
+    final derived = math.max(0.0, pendingOrdersTotal + unpaidInvoicesTotal - getShopUnallocatedCredit(s.shopId));
+    return math.max(s.currentOutstanding, derived);
   }
 
   double get totalOutstanding {
@@ -4369,10 +4477,9 @@ class AppState extends ChangeNotifier {
 
   // Actions: Orders & Invoices
   Future<void> createOrder(OrderModel order) async {
-    // Freemium Core Selling: Unsubscribed & free-tier users can always take orders, make estimated bills, and generate bills
-    if (isAccountPausedOrCancelled || isSubscriptionExpired) {
-      throw StateError('Subscription Inactive / Account Suspended: Please renew your subscription to create orders.');
-    }
+    // Free / expired-trial users may sell unless the super admin disabled it
+    // (Remote Config → allowFreeUserBilling). Paused accounts are always blocked.
+    ensureCanCreateBills();
 
     if (SupabaseService.instance.client != null) {
       await SupabaseService.instance.insertOrder(tenantId: currentTenantId ?? _tenant.tenantId,
@@ -4599,6 +4706,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> createInvoice(InvoiceModel invoice) async {
+    ensureCanCreateBills();
     if (SupabaseService.instance.client != null) {
       await SupabaseService.instance.insertInvoice(tenantId: currentTenantId ?? _tenant.tenantId, invoiceData: invoice.toMap());
     }
@@ -4615,8 +4723,13 @@ class AppState extends ChangeNotifier {
 
     if (shopIdx != -1) {
       final old = _shops[shopIdx];
+      // For an existing order the order total is already in the balance; only
+      // the difference matters (e.g. it was billed at a different price tier).
+      final orderTotal = hasExistingOrder
+          ? _orders.firstWhere((o) => o.orderId == invoice.orderId).grandTotal
+          : 0.0;
       newOutstanding = hasExistingOrder
-          ? old.currentOutstanding
+          ? (old.currentOutstanding + (invoice.grandTotal - orderTotal)).clamp(0.0, double.infinity)
           : old.currentOutstanding + invoice.grandTotal;
       _shops[shopIdx] = old.copyWith(currentOutstanding: newOutstanding);
 
@@ -4838,6 +4951,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addOrder(OrderModel order, [InvoiceModel? invoice]) async {
+    // Check up front so a blocked attempt never saves the bill without its order.
+    ensureCanCreateBills();
     if (invoice != null) {
       await createInvoice(invoice);
       await createOrder(order);
@@ -4912,8 +5027,101 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  bool _invoiceMatchesRef(InvoiceModel inv, String? ref) =>
+      ref != null && ref.isNotEmpty && (inv.invoiceNumber == ref || inv.invoiceId == ref || inv.orderId == ref);
+
+  /// Applies [amount] to a shop's open bills: the bill matching [targetRef]
+  /// first, then oldest bill first. Returns the amount left over.
+  double _allocateToInvoices(String shopId, double amount, {String? targetRef}) {
+    double left = amount;
+    final indices = <int>[
+      for (int i = 0; i < _invoices.length; i++)
+        if (_invoices[i].shopId == shopId && invoiceDue(_invoices[i]) > 0) i,
+    ];
+    indices.sort((a, b) {
+      final ta = _invoiceMatchesRef(_invoices[a], targetRef) ? 0 : 1;
+      final tb = _invoiceMatchesRef(_invoices[b], targetRef) ? 0 : 1;
+      if (ta != tb) return ta.compareTo(tb);
+      return _invoices[a].invoiceDate.compareTo(_invoices[b].invoiceDate);
+    });
+    for (final i in indices) {
+      if (left <= 0.009) break;
+      final inv = _invoices[i];
+      final take = math.min(left, invoiceDue(inv));
+      final newPaid = inv.paidAmount + take;
+      final newDue = (inv.grandTotal - newPaid).clamp(0.0, double.infinity);
+      _invoices[i] = inv.copyWith(
+        paidAmount: newPaid,
+        dueAmount: newDue,
+        paymentStatus: newDue <= 0.01 ? 'paid' : 'partial',
+        updatedAt: DateTime.now(),
+      );
+      _syncInvoiceToCloud(_invoices[i]);
+      left -= take;
+    }
+    return left;
+  }
+
+  /// Reverses [amount] of bill payments for a shop (used when a payment is
+  /// deleted or reduced): the bill matching [targetRef] first, then newest first.
+  void _unallocateFromInvoices(String shopId, double amount, {String? targetRef}) {
+    double left = amount;
+    final indices = <int>[
+      for (int i = 0; i < _invoices.length; i++)
+        if (_invoices[i].shopId == shopId && _invoices[i].paidAmount > 0) i,
+    ];
+    indices.sort((a, b) {
+      final ta = _invoiceMatchesRef(_invoices[a], targetRef) ? 0 : 1;
+      final tb = _invoiceMatchesRef(_invoices[b], targetRef) ? 0 : 1;
+      if (ta != tb) return ta.compareTo(tb);
+      return _invoices[b].invoiceDate.compareTo(_invoices[a].invoiceDate);
+    });
+    for (final i in indices) {
+      if (left <= 0.009) break;
+      final inv = _invoices[i];
+      final take = math.min(left, inv.paidAmount);
+      final newPaid = inv.paidAmount - take;
+      final newDue = (inv.grandTotal - newPaid).clamp(0.0, double.infinity);
+      _invoices[i] = inv.copyWith(
+        paidAmount: newPaid,
+        dueAmount: newDue,
+        paymentStatus: newDue <= 0.01 ? 'paid' : (newPaid > 0.009 ? 'partial' : 'unpaid'),
+        updatedAt: DateTime.now(),
+      );
+      _syncInvoiceToCloud(_invoices[i]);
+      left -= take;
+    }
+  }
+
+  /// Best-effort reference a payment was collected against (invoice no. or order id).
+  String? _paymentTargetRef(PaymentModel p) {
+    for (final inv in _invoices.where((i) => i.shopId == p.shopId)) {
+      if ((p.referenceNumber != null && p.referenceNumber == inv.invoiceNumber) ||
+          (p.notes?.contains(inv.invoiceNumber) ?? false) ||
+          (inv.orderId.isNotEmpty && (p.notes?.contains(inv.orderId) ?? false))) {
+        return inv.invoiceNumber;
+      }
+    }
+    return null;
+  }
+
+  void _syncInvoiceToCloud(InvoiceModel inv) {
+    final supaTid = currentTenantId ?? _tenant.tenantId;
+    if (supaTid.isNotEmpty && SupabaseService.instance.isInitialized) {
+      SupabaseService.instance.upsertInvoice(tenantId: supaTid, invoiceData: inv.toMap());
+    }
+  }
+
   // Actions: Payments
-  Future<void> recordPayment(PaymentModel payment) async {
+  /// Records a payment. [targetRef] (invoice number or order id the payment was
+  /// collected for) is paid off first. Pass [allocateToInvoices] = false when
+  /// the bill was already created with this payment in its paidAmount (billing
+  /// flow) — otherwise the same money would be applied twice.
+  Future<void> recordPayment(
+    PaymentModel payment, {
+    String? targetRef,
+    bool allocateToInvoices = true,
+  }) async {
     if (!payment.amount.isFinite || payment.amount <= 0) throw ArgumentError('Payment must be a positive amount');
     if (_payments.any((p) => p.paymentId == payment.paymentId)) return;
     if (SupabaseService.instance.client != null) {
@@ -4954,43 +5162,21 @@ class AppState extends ChangeNotifier {
     }
     _syncBalancesToFirestore();
 
-    // 3. Reconcile unpaid / partial invoices for this customer
-    double unallocated = payment.amount;
-    for (int i = 0; i < _invoices.length && unallocated > 0; i++) {
-      final inv = _invoices[i];
-      if (inv.shopId == payment.shopId && inv.paymentStatus.toLowerCase() != 'paid') {
-        final remainingDue = inv.dueAmount > 0 ? inv.dueAmount : (inv.grandTotal - inv.paidAmount);
-        if (remainingDue <= 0) continue;
-        final paymentToApply = unallocated >= remainingDue ? remainingDue : unallocated;
-        final newPaid = inv.paidAmount + paymentToApply;
-        final newDue = (inv.grandTotal - newPaid).clamp(0.0, double.infinity);
-        final newStatus = newDue <= 0.01 ? 'paid' : 'partial';
-
-        _invoices[i] = InvoiceModel(
-          invoiceId: inv.invoiceId,
-          invoiceNumber: inv.invoiceNumber,
-          orderId: inv.orderId,
-          shopId: inv.shopId,
-          invoiceType: inv.invoiceType,
-          invoiceDate: inv.invoiceDate,
-          seller: inv.seller,
-          buyer: inv.buyer,
-          placeOfSupply: inv.placeOfSupply,
-          items: inv.items,
-          taxableSubtotal: inv.taxableSubtotal,
-          cgst: inv.cgst,
-          sgst: inv.sgst,
-          igst: inv.igst,
-          grandTotal: inv.grandTotal,
-          paidAmount: newPaid,
-          dueAmount: newDue,
-          paymentStatus: newStatus,
-          pdfUrl: inv.pdfUrl,
-          whatsappSent: inv.whatsappSent,
-          createdAt: inv.createdAt,
-          updatedAt: DateTime.now(),
-        );
-        unallocated -= paymentToApply;
+    // 3. Reconcile unpaid / partial invoices for this customer. A payment
+    //    collected for a specific unbilled order stays with that order (it is
+    //    tracked as order credit, see getUnbilledOrderPaidAmounts).
+    final targetsUnbilledOrder = targetRef != null &&
+        _orders.any((o) => o.orderId == targetRef && o.shopId == payment.shopId && _isUnbilledOpenOrder(o));
+    if (allocateToInvoices) {
+      if (!targetsUnbilledOrder) {
+        _allocateToInvoices(payment.shopId, payment.amount, targetRef: targetRef);
+      } else {
+        // Anything beyond what the shop's unbilled orders can absorb pays bills.
+        final absorbedByOrders = getUnbilledOrderPaidAmounts(payment.shopId)
+            .values
+            .fold<double>(0.0, (a, b) => a + b);
+        final overflow = getShopUnallocatedCredit(payment.shopId) - absorbedByOrders;
+        if (overflow > 0.009) _allocateToInvoices(payment.shopId, overflow);
       }
     }
 
@@ -5045,7 +5231,15 @@ class AppState extends ChangeNotifier {
     if (idx == -1) return false;
 
     final payment = _payments[idx];
+    // Whatever part of this payment was absorbed by bills must be taken back
+    // off those bills (unabsorbed credit simply disappears with the payment).
+    final creditBefore = getShopUnallocatedCredit(payment.shopId);
+    final targetRef = _paymentTargetRef(payment);
     _payments.removeAt(idx);
+    final toUnapply = payment.amount - creditBefore;
+    if (toUnapply > 0.009) {
+      _unallocateFromInvoices(payment.shopId, toUnapply, targetRef: targetRef);
+    }
 
     // 1. Revert shop balance (increase outstanding)
     final shopIdx = _shops.indexWhere((s) => s.shopId == payment.shopId);
@@ -5082,6 +5276,7 @@ class AppState extends ChangeNotifier {
     _persistPaymentsLocally();
     _persistShopsLocally();
     _persistLedgerLocally();
+    _persistInvoicesLocally();
 
     final supaTid = currentTenantId ?? _tenant.tenantId;
     if (supaTid.isNotEmpty && SupabaseService.instance.isInitialized) {
@@ -5099,10 +5294,22 @@ class AppState extends ChangeNotifier {
     if (idx == -1) return false;
 
     final old = _payments[idx];
+    final creditBefore = getShopUnallocatedCredit(old.shopId);
+    final targetRef = _paymentTargetRef(old);
     _payments[idx] = updated;
 
     // 1. Balance difference: more paid => less outstanding
     final diff = updated.amount - old.amount;
+
+    // 1a. Keep bill paid/due figures in step with the edited amount.
+    if (diff > 0.009) {
+      _allocateToInvoices(updated.shopId, diff, targetRef: targetRef);
+    } else if (diff < -0.009) {
+      final toUnapply = -diff - creditBefore;
+      if (toUnapply > 0.009) {
+        _unallocateFromInvoices(updated.shopId, toUnapply, targetRef: targetRef);
+      }
+    }
     final shopIdx = _shops.indexWhere((s) => s.shopId == updated.shopId);
     if (shopIdx != -1) {
       final oldShop = _shops[shopIdx];
@@ -5134,6 +5341,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     _persistPaymentsLocally();
     _persistShopsLocally();
+    _persistInvoicesLocally();
 
     final supaTid = currentTenantId ?? _tenant.tenantId;
     if (supaTid.isNotEmpty && SupabaseService.instance.isInitialized) {
@@ -5525,6 +5733,49 @@ class AppState extends ChangeNotifier {
     }
     notifyListeners();
 
+  }
+
+  // ── Free-user billing policy (controlled from Web Admin → Remote Config) ──
+  // When the super admin turns this off, agencies on the free tier or with an
+  // expired trial/plan cannot create bills or orders until they subscribe.
+  bool _allowFreeUserBilling = true;
+  bool get allowFreeUserBilling => _allowFreeUserBilling;
+  String _freeBillingBlockedMessage = '';
+
+  /// True when this agency is not on an active paid plan or running trial.
+  bool get isOnFreeOrLapsedPlan => isFreeTier || isSubscriptionExpired;
+
+  /// Human-readable reason why bills/orders are blocked right now, or null
+  /// when billing is allowed. Checked BEFORE anything is saved so a blocked
+  /// attempt never leaves half-created bills behind.
+  String? get billingBlockReason {
+    if (isSuperAdminUser || isSuperAdminMode) return null;
+    if (isAccountPausedOrCancelled) {
+      return 'Your agency account is paused or suspended. Please contact SalesArmy support to reactivate it.';
+    }
+    if (!_allowFreeUserBilling && isOnFreeOrLapsedPlan) {
+      return _freeBillingBlockedMessage.trim().isNotEmpty
+          ? _freeBillingBlockedMessage.trim()
+          : (isSubscriptionExpired
+              ? 'Your plan or free trial has ended. Billing is available on paid plans — please upgrade from Plan & Pricing to continue creating bills.'
+              : 'Bill creation is available on paid plans. Please upgrade from Plan & Pricing to continue.');
+    }
+    return null;
+  }
+
+  /// Throws [BillingBlockedException] when billing is not allowed.
+  void ensureCanCreateBills() {
+    final reason = billingBlockReason;
+    if (reason != null) throw BillingBlockedException(reason);
+  }
+
+  void _applyFreeBillingPolicy(Map<String, dynamic> rc) {
+    if (rc['allowFreeUserBilling'] is bool) {
+      _allowFreeUserBilling = rc['allowFreeUserBilling'] as bool;
+    }
+    if (rc['freeBillingBlockedMessage'] != null) {
+      _freeBillingBlockedMessage = rc['freeBillingBlockedMessage'].toString();
+    }
   }
 
   // Platform Security & SMS Gateway Configuration (FR-AUTH-3, FR-AUTH-4)
@@ -5968,4 +6219,14 @@ class AppState extends ChangeNotifier {
 
     super.dispose();
   }
+}
+
+/// Thrown when the agency is not allowed to create bills/orders right now
+/// (account paused, or free/expired plan while the admin has disabled
+/// free-user billing). [message] is safe to show to the user as-is.
+class BillingBlockedException implements Exception {
+  final String message;
+  const BillingBlockedException(this.message);
+  @override
+  String toString() => message;
 }

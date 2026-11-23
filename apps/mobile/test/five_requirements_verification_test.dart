@@ -177,7 +177,7 @@ void main() {
       await tester.tap(find.text('Collect Payment').first);
       await tester.pumpAndSettle();
 
-      expect(find.text('UPI & Razorpay Payment'), findsOneWidget);
+      expect(find.text('UPI QR'), findsOneWidget);
       expect(find.text('Launch Razorpay Checkout'), findsOneWidget);
       expect(find.text('Share Payment Link'), findsOneWidget);
     });
@@ -204,11 +204,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 1. Verify single merged row 'Profile & Business Details'
-      expect(find.text('Profile & Business Details'), findsOneWidget);
+      // 1. Verify single merged row 'Profile' (renamed from 'Profile & Business Details')
+      expect(find.text('Profile'), findsOneWidget);
 
       // 2. Open unified modal
-      await tester.tap(find.text('Profile & Business Details'));
+      await tester.tap(find.text('Profile'));
       await tester.pumpAndSettle();
 
       // 3. Verify Unique User ID banner is prominently placed at the top with 1-tap copy

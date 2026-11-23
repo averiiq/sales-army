@@ -61,33 +61,33 @@ class _DistributorProfileModalState extends State<DistributorProfileModal> {
     final tenant = appState.tenant;
     _isGstBillingEnabled = tenant.isGstBillingEnabled ?? appState.isGstBillingEnabled;
 
-    _agentNameController = TextEditingController(text: tenant.representativeName ?? 'Distributor Owner');
-    _mobileController = TextEditingController(text: tenant.mobile ?? '+91 98220 11223');
-    _whatsappController = TextEditingController(text: tenant.whatsappNumber ?? '+91 98765 43210');
-    _emailController = TextEditingController(text: tenant.email ?? 'admin@salesarmy.app');
-    _firmNameController = TextEditingController(text: tenant.firmName ?? 'SalesArmy SaaS HQ');
+    _agentNameController = TextEditingController(text: tenant.representativeName ?? '');
+    _mobileController = TextEditingController(text: tenant.mobile ?? '');
+    _whatsappController = TextEditingController(text: tenant.whatsappNumber ?? '');
+    _emailController = TextEditingController(text: tenant.email ?? '');
+    _firmNameController = TextEditingController(text: tenant.firmName ?? '');
     _classificationController = TextEditingController(
-      text: tenant.agencyClassification ?? 'Super Stockist & Wholesale Agency',
+      text: tenant.agencyClassification ?? '',
     );
     _distributorIdController = TextEditingController(
-      text: tenant.distributorId.isNotEmpty ? tenant.distributorId : 'DST-MH-7041',
+      text: tenant.distributorId.isNotEmpty ? tenant.distributorId : '',
     );
     _brandsController = TextEditingController(
       text: (tenant.authorizedBrandsPortfolio != null && tenant.authorizedBrandsPortfolio!.isNotEmpty)
           ? tenant.authorizedBrandsPortfolio!.join(', ')
-          : 'Britannia, Parle, ITC, Nestle, Tata Consumer, Dabur',
+          : '',
     );
-    _gstinController = TextEditingController(text: tenant.gstin ?? '27ABCDE1234F1Z5');
-    _panController = TextEditingController(text: tenant.pan ?? 'ABCDE1234F');
-    _fssaiController = TextEditingController(text: tenant.fssaiLicenseNo ?? '11521019000452');
+    _gstinController = TextEditingController(text: tenant.gstin ?? '');
+    _panController = TextEditingController(text: tenant.pan ?? '');
+    _fssaiController = TextEditingController(text: tenant.fssaiLicenseNo ?? '');
     _gstRateController = TextEditingController(
       text: (tenant.defaultGstRate?.toInt() ?? 18).toString(),
     );
     _warehouseController = TextEditingController(
-      text: tenant.warehouseAddress ?? 'Plot 42, Sector 8, Industrial Estate, APMC Market Yard, Pune - 411037',
+      text: tenant.warehouseAddress ?? '',
     );
     _beatRouteController = TextEditingController(
-      text: tenant.beatRoute ?? 'Pune Central & PCMC Retail Route - Beat 4',
+      text: tenant.beatRoute ?? '',
     );
     _bankNameController = TextEditingController(
       text: tenant.bankAccount?['bankName'] ?? '',

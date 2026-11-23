@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/supabase_service.dart';
 import 'package:salesarmy/features/auth/data/services/auth_service.dart';
@@ -214,9 +215,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
         final tenantId = regRes['tenantId']?.toString() ?? '';
         final uid = regRes['uid']?.toString() ?? '';
-        if (tenantId.isEmpty || uid.isEmpty) {
+        if (regRes['success'] != true || tenantId.isEmpty || uid.isEmpty) {
+          if (regRes['needsEmailConfirmation'] == true) {
+            // Account exists now — switch to sign-in so they can log in after confirming.
+            setState(() => _isSignUpMode = false);
+          }
           setState(() {
-            _errorMessage = 'Could not provision your workspace. Please try again or contact support.';
+            _errorMessage = regRes['error']?.toString() ??
+                'Could not provision your workspace. Please try again or contact support.';
             _isLoading = false;
           });
           return;
@@ -273,7 +279,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _errorMessage = 'Authentication error: $e');
+      if (mounted) setState(() => _errorMessage = AppError.message(e, action: 'sign you in'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -376,7 +382,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _errorMessage = 'Verification error: $e');
+      if (mounted) setState(() => _errorMessage = AppError.message(e, action: 'verify the code'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -516,41 +522,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     final phoneVal = phoneController.text.trim();
                     final cityVal = cityController.text.trim();
                     if (bName.isEmpty || phoneVal.isEmpty || cityVal.isEmpty) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(
-                          content: Text('Agency name, mobile, and city are all required.'),
-                          backgroundColor: Color(0xFFDC2626),
-                        ),
-                      );
+                      showAppError(ctx, 'Agency name, mobile, and city are all required.');
                       return;
                     }
                     Navigator.pop(ctx);
                     setState(() => _isLoading = true);
-                    // Deterministic fallback password used only to seed the
-                    // local-registered-users vault. The real auth session was
-                    // already established via Google OAuth, so this value is
-                    // never used to log in to Supabase.
-                    // Generate a cryptographically random seed password instead of
-                    // a deterministic hash that can be brute-forced from the email.
-                    final rng = Random.secure();
-                    final seedPassword = 'g_${List.generate(24, (_) => rng.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
-                    final regRes = await SupabaseService.instance.registerAgencyOwnerAndSeed(
+                    // The Google OAuth session already exists — just create the
+                    // agency for this signed-in user (no password involved).
+                    final regRes = await SupabaseService.instance.onboardCurrentUserAsOwner(
                       businessName: bName,
-                      representativeName: name,
-                      email: email,
-                      password: seedPassword,
-                      phone: phoneVal,
+                      contactPerson: name,
+                      mobile: phoneVal,
                       city: cityVal,
                     );
                     final tenantId = regRes['tenantId']?.toString() ?? '';
                     final uid = regRes['uid']?.toString() ?? '';
-                    if (tenantId.isEmpty || uid.isEmpty) {
+                    if (regRes['success'] != true || tenantId.isEmpty || uid.isEmpty) {
                       if (mounted) {
                         setState(() => _isLoading = false);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Could not provision workspace. Please try again.'),
-                          backgroundColor: Color(0xFFDC2626),
-                        ));
+                        showAppError(context, regRes['error']?.toString() ?? 'Could not provision workspace. Please try again.');
                       }
                       return;
                     }
@@ -602,27 +592,30 @@ class _LoginScreenState extends State<LoginScreen> {
                   // App Brand Header
                   Center(
                     child: Container(
-                      width: 56,
-                      height: 56,
+                      width: 84,
+                      height: 84,
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF1E56E2), Color(0xFF3B82F6)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: borderCol),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF1E56E2).withValues(alpha: 0.3),
+                            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
                             blurRadius: 16,
                             offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.shield_rounded,
-                        color: Colors.white,
-                        size: 32,
+                      child: Image.asset(
+                        'assets/SalesArmy Logo 2.png',
+                        fit: BoxFit.contain,
+                        semanticLabel: 'SalesArmy',
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.star_rounded,
+                          size: 44,
+                          color: Color(0xFFFFCC00),
+                        ),
                       ),
                     ),
                   ),
@@ -1249,7 +1242,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
-                            icon: const Icon(Icons.g_mobiledata_rounded, size: 26, color: Color(0xFFEA4335)),
+                            icon: SvgPicture.asset(
+                              'assets/google_g_logo.svg',
+                              width: 20,
+                              height: 20,
+                              semanticsLabel: 'Google',
+                            ),
                             label: Text(
                               _isSignUpMode ? 'Sign up with Google' : 'Continue with Google',
                               style: TextStyle(

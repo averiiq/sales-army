@@ -79,6 +79,62 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
     );
   }
 
+  /// Order / bill label with a "Paid ₹X of ₹Y · Partial" line when part-paid.
+  Widget _buildDocLabel(String title, {required double total, required double paid, required bool isDark}) {
+    final isPartial = paid > 0.009 && paid < total - 0.009;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (isPartial)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.5) : const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Partial',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    'Paid ${AppFormatters.currency(paid)} of ${AppFormatters.currency(total)}',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   void _showGatewayPaymentModal(BuildContext context, ShopModel shop, {double? initialAmount, String? orderId}) {
     showGatewayPaymentDialog(
       context,
@@ -154,53 +210,59 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
         ),
         child: SafeArea(
           bottom: false,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              // 1. Optional Back Bar
+          child: Column(
+            children: [
               if (widget.onBack != null)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: Row(
-                      children: [
-                        Material(
-                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          elevation: 0,
-                          child: InkWell(
-                            onTap: () {
-                              HapticFeedback.lightImpact();
-                              widget.onBack?.call();
-                            },
-                            borderRadius: BorderRadius.circular(24),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Row(
+                    children: [
+                      Material(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        shape: const CircleBorder(),
+                        elevation: 0,
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            widget.onBack?.call();
+                          },
+                          child: Tooltip(
+                            message: 'Back to Dashboard',
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              width: 40,
+                              height: 40,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(24),
+                                shape: BoxShape.circle,
                                 border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                                 boxShadow: AppTheme.softShadow(blur: 6, dy: 1),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.arrow_back_rounded, size: 16, color: isDark ? Colors.white : const Color(0xFF334155)),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Back to Dashboard',
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF334155)),
-                                  ),
-                                ],
-                              ),
+                              child: Icon(Icons.arrow_back_rounded, size: 20, color: isDark ? Colors.white : const Color(0xFF0F172A)),
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Collections & Khata',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-
-              // 2. Executive Territory Outstanding Balance Card
+              Expanded(
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // 2. Executive Territory Outstanding Balance Card
               SliverToBoxAdapter(
                 child: Container(
                   margin: const EdgeInsets.fromLTRB(16, 12, 16, 10),
@@ -250,7 +312,7 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                     fit: BoxFit.scaleDown,
                                     alignment: Alignment.centerLeft,
                                     child: Text(
-                                      'Territory Credit Outstanding',
+                                      'Parties Outstanding',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 13,
@@ -427,30 +489,6 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                     ),
                                   ),
                                 ],
-                              ),
-                              const SizedBox(width: 16),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.6)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.storefront_rounded, size: 12, color: Color(0xFFFEF08A)),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${allShopsWithDues.length} Shops Due',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
                             ],
                           ),
@@ -784,15 +822,23 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                           final shopDue = appState.getShopOutstandingDue(shop);
 
                           // Find specific pending orders and unpaid invoices for this retailer
+                          // (partially paid ones included, fully paid ones dropped).
+                          final orderPaid = appState.getUnbilledOrderPaidAmounts(shop.shopId);
                           final retailerPendingOrders = appState.orders.where((o) {
                             final isPending = o.status.toLowerCase() == 'pending' || o.status.toLowerCase() == 'confirmed';
                             final hasInv = appState.invoices.any((i) => i.orderId == o.orderId);
-                            return o.shopId == shop.shopId && isPending && !hasInv;
+                            final due = o.grandTotal - (orderPaid[o.orderId] ?? 0.0);
+                            return o.shopId == shop.shopId && isPending && !hasInv && due > 0.009;
                           }).toList();
 
                           final retailerUnpaidInvoices = appState.invoices.where((i) {
-                            return i.shopId == shop.shopId && i.paymentStatus.toLowerCase() != 'paid' && (i.dueAmount > 0 || (i.grandTotal - i.paidAmount) > 0);
+                            return i.shopId == shop.shopId && AppState.invoiceDue(i) > 0;
                           }).toList();
+
+                          final partialCount = retailerPendingOrders.where((o) => (orderPaid[o.orderId] ?? 0) > 0.009).length +
+                              retailerUnpaidInvoices.where((i) => i.paidAmount > 0.009).length;
+                          final paidSoFar = retailerPendingOrders.fold<double>(0.0, (a, o) => a + (orderPaid[o.orderId] ?? 0.0)) +
+                              retailerUnpaidInvoices.fold<double>(0.0, (a, i) => a + i.paidAmount);
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 14),
@@ -909,6 +955,23 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                                   ],
                                                 ),
                                               ),
+                                              if (partialCount > 0)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: isDark ? const Color(0xFF064E3B).withValues(alpha: 0.4) : const Color(0xFFECFDF5),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(color: isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0)),
+                                                  ),
+                                                  child: Text(
+                                                    'Partially paid: ${AppFormatters.currency(paidSoFar)}',
+                                                    style: TextStyle(
+                                                      fontSize: 10.5,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: isDark ? const Color(0xFF34D399) : const Color(0xFF047857),
+                                                    ),
+                                                  ),
+                                                ),
                                               if (shop.creditLimit > 0)
                                                 Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -1023,18 +1086,15 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                                   const Icon(Icons.shopping_bag_outlined, size: 14, color: Color(0xFFD97706)),
                                                   const SizedBox(width: 6),
                                                   Expanded(
-                                                    child: Text(
+                                                    child: _buildDocLabel(
                                                       '#${ord.orderId} • ${ord.items.length} items',
-                                                      style: TextStyle(
-                                                        fontSize: 11.5,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                                      ),
-                                                      overflow: TextOverflow.ellipsis,
+                                                      total: ord.grandTotal,
+                                                      paid: orderPaid[ord.orderId] ?? 0.0,
+                                                      isDark: isDark,
                                                     ),
                                                   ),
                                                   Text(
-                                                    AppFormatters.currency(ord.grandTotal),
+                                                    AppFormatters.currency(ord.grandTotal - (orderPaid[ord.orderId] ?? 0.0)),
                                                     style: const TextStyle(
                                                       fontSize: 12,
                                                       fontWeight: FontWeight.w800,
@@ -1048,7 +1108,7 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                                       _showCollectPaymentModal(
                                                         context,
                                                         shop,
-                                                        initialAmount: ord.grandTotal,
+                                                        initialAmount: ord.grandTotal - (orderPaid[ord.orderId] ?? 0.0),
                                                         orderId: ord.orderId,
                                                       );
                                                     },
@@ -1081,18 +1141,15 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                                   const Icon(Icons.receipt_rounded, size: 14, color: Color(0xFF4F46E5)),
                                                   const SizedBox(width: 6),
                                                   Expanded(
-                                                    child: Text(
+                                                    child: _buildDocLabel(
                                                       'Bill #${inv.invoiceNumber}',
-                                                      style: TextStyle(
-                                                        fontSize: 11.5,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                                      ),
-                                                      overflow: TextOverflow.ellipsis,
+                                                      total: inv.grandTotal,
+                                                      paid: inv.paidAmount,
+                                                      isDark: isDark,
                                                     ),
                                                   ),
                                                   Text(
-                                                    AppFormatters.currency(inv.dueAmount > 0 ? inv.dueAmount : (inv.grandTotal - inv.paidAmount)),
+                                                    AppFormatters.currency(AppState.invoiceDue(inv)),
                                                     style: const TextStyle(
                                                       fontSize: 12,
                                                       fontWeight: FontWeight.w800,
@@ -1106,7 +1163,7 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                                       _showCollectPaymentModal(
                                                         context,
                                                         shop,
-                                                        initialAmount: inv.dueAmount > 0 ? inv.dueAmount : (inv.grandTotal - inv.paidAmount),
+                                                        initialAmount: AppState.invoiceDue(inv),
                                                         orderId: inv.invoiceNumber,
                                                       );
                                                     },
@@ -1135,10 +1192,9 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                 Divider(height: 1, color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
                                 const SizedBox(height: 12),
 
-                                // Action Buttons: Record Payment & Collect Payment
+                                // Action Buttons: Record Payment (manual entry) + Collect Payment (UPI QR / Cash)
                                 Row(
                                   children: [
-                                    // 1. Record Payment (Manual / Counter / Cash / Cheque / Ledger Entry)
                                     Expanded(
                                       child: Material(
                                         color: Colors.transparent,
@@ -1167,7 +1223,7 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                                 mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
                                                   Icon(
-                                                    Icons.payments_rounded,
+                                                    Icons.edit_note_rounded,
                                                     size: 16,
                                                     color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
                                                   ),
@@ -1187,9 +1243,7 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-
-                                    // 2. Collect Payment (Major button — opens live UPI QR / Razorpay checkout modal)
+                                    const SizedBox(width: 10),
                                     Expanded(
                                       child: Material(
                                         color: Colors.transparent,
@@ -1206,17 +1260,8 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
                                             decoration: BoxDecoration(
-                                              gradient: const LinearGradient(
-                                                colors: [Color(0xFF1E56E2), Color(0xFF173BBF)],
-                                              ),
+                                              color: const Color(0xFF1E56E2),
                                               borderRadius: BorderRadius.circular(14),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: const Color(0xFF1E56E2).withValues(alpha: 0.35),
-                                                  blurRadius: 8,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
                                             ),
                                             child: const FittedBox(
                                               fit: BoxFit.scaleDown,
@@ -1543,8 +1588,11 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
             ],
           ),
         ),
-      ),
-    );
+      ],
+    ),
+  ),
+),
+);
   }
 
   void _confirmDeletePayment(BuildContext context, AppState appState, dynamic payment, ShopModel shop) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -1006,21 +1007,11 @@ class _RecordExpenseSliderModalState extends State<_RecordExpenseSliderModal> {
               onPressed: () {
                 final title = _titleController.text.trim();
                 if (title.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter an expense description'),
-                      backgroundColor: Color(0xFFEF4444),
-                    ),
-                  );
+                  showAppError(context, 'Please enter an expense description');
                   return;
                 }
                 if (_amount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please specify an amount greater than ₹0'),
-                      backgroundColor: Color(0xFFEF4444),
-                    ),
-                  );
+                  showAppError(context, 'Please specify an amount greater than ₹0');
                   return;
                 }
 

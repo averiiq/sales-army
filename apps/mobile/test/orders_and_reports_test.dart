@@ -190,12 +190,14 @@ void main() {
     await tester.pumpAndSettle();
 
     // Territory Summary Card
-    expect(find.text('Territory Credit Outstanding'), findsOneWidget);
+    expect(find.text('Parties Outstanding'), findsOneWidget);
+    expect(find.text('Territory Credit Outstanding'), findsNothing);
     expect(find.text(AppFormatters.currency(16400)), findsOneWidget);
     expect(find.text('Khata Ledger'), findsOneWidget);
     expect(find.text('Cash: ₹2745'), findsOneWidget);
     expect(find.text('PG: ₹0'), findsOneWidget);
-    expect(find.text('6 Shops Due'), findsOneWidget);
+    // "N Shops Due" pill was removed from the outstanding card.
+    expect(find.textContaining('Shops Due'), findsNothing);
 
     // Gateway Strip
     expect(find.text('Razorpay Gateway Connected & Ready'), findsOneWidget);

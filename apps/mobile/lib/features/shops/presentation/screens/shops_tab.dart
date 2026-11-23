@@ -8,6 +8,7 @@ import 'package:salesarmy/core/utils/app_image_helper.dart';
 import 'package:salesarmy/features/shops/presentation/screens/shop_detail_screen.dart';
 import 'package:salesarmy/features/shops/presentation/dialogs/add_shop_dialog.dart';
 import 'package:salesarmy/core/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ShopsTab extends StatefulWidget {
   final Function(ShopModel)? onStartOrderForShop;
@@ -472,7 +473,7 @@ class _ShopsTabState extends State<ShopsTab> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (shop.address != null && shop.address!.trim().isNotEmpty) ...[
+                            if (shop.fullAddress.isNotEmpty) ...[
                               const SizedBox(height: 4),
                               Row(
                                 children: [
@@ -480,7 +481,7 @@ class _ShopsTabState extends State<ShopsTab> {
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
-                                      shop.address!.trim(),
+                                      shop.fullAddress,
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: isDark ? const Color(0xFF64748B) : const Color(0xFF64748B),
@@ -552,7 +553,9 @@ class _ShopsTabState extends State<ShopsTab> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  (shop.sellerCategory == 'Wholesaler') ? Icons.warehouse_rounded : Icons.storefront_rounded,
+                                  (shop.sellerCategory == 'Wholesaler')
+                                      ? Icons.warehouse_rounded
+                                      : (shop.sellerCategory == 'Walk-in Customer' ? Icons.directions_walk_rounded : Icons.storefront_rounded),
                                   size: 12,
                                   color: (shop.sellerCategory == 'Wholesaler')
                                       ? (isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF))
@@ -658,9 +661,7 @@ class _ShopsTabState extends State<ShopsTab> {
                     InkWell(
                       onTap: () {
                         HapticFeedback.lightImpact();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Opening WhatsApp for ${shop.shopName}...')),
-                        );
+                        _openWhatsApp(context, shop);
                       },
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
@@ -681,9 +682,7 @@ class _ShopsTabState extends State<ShopsTab> {
                     OutlinedButton.icon(
                       onPressed: () {
                         HapticFeedback.lightImpact();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Calling ${shop.ownerName} (${shop.phone ?? ""})...')),
-                        );
+                        _callParty(context, shop);
                       },
                       icon: const Icon(Icons.phone_rounded, size: 13, color: Color(0xFF1E56E2)),
                       label: const Text('Call', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF1E56E2))),
@@ -717,7 +716,7 @@ class _ShopsTabState extends State<ShopsTab> {
                                 );
                               }
                             },
-                            icon: const Icon(Icons.shopping_cart_outlined, size: 13, color: Colors.white),
+                            icon: const Icon(Icons.add_shopping_cart_rounded, size: 14, color: Colors.white),
                             label: const Text('New Order', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.white)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1E56E2),
@@ -734,12 +733,7 @@ class _ShopsTabState extends State<ShopsTab> {
                           return ElevatedButton.icon(
                             onPressed: () {
                               HapticFeedback.lightImpact();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Opening Navigation Route to ${shop.shopName}...'),
-                                  backgroundColor: const Color(0xFF1E56E2),
-                                ),
-                              );
+                              _openDirections(context, shop);
                             },
                             icon: const Icon(Icons.directions_rounded, size: 14, color: Colors.white),
                             label: const Text('Directions', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.white)),
@@ -822,5 +816,65 @@ class _ShopsTabState extends State<ShopsTab> {
         ],
       ),
     );
+  }
+
+  /// Indian mobile numbers are stored as 10 digits; WhatsApp needs the 91 prefix.
+  static String _digitsForWhatsApp(String raw) {
+    final d = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (d.length == 10) return '91$d';
+    if (d.length == 11 && d.startsWith('0')) return '91${d.substring(1)}';
+    return d;
+  }
+
+  Future<void> _launchOrWarn(BuildContext context, Uri uri, String failMsg) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok) messenger.showSnackBar(SnackBar(content: Text(failMsg)));
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(failMsg)));
+    }
+  }
+
+  Future<void> _openWhatsApp(BuildContext context, ShopModel shop) async {
+    final raw = (shop.whatsappNumber?.trim().isNotEmpty ?? false) ? shop.whatsappNumber! : (shop.phone ?? '');
+    final number = _digitsForWhatsApp(raw);
+    if (number.length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No WhatsApp / phone number saved for ${shop.shopName}.')),
+      );
+      return;
+    }
+    final firm = context.read<AppState>().tenant.firmName ?? '';
+    final text = 'Hello ${shop.ownerName.isNotEmpty ? shop.ownerName : shop.shopName}'
+        '${firm.isNotEmpty ? ', this is $firm' : ''}.';
+    final uri = Uri.parse('https://wa.me/$number?text=${Uri.encodeComponent(text)}');
+    await _launchOrWarn(context, uri, 'Could not open WhatsApp. Is it installed?');
+  }
+
+  Future<void> _callParty(BuildContext context, ShopModel shop) async {
+    final digits = (shop.phone ?? '').replaceAll(RegExp(r'[^0-9+]'), '');
+    if (digits.length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No phone number saved for ${shop.shopName}.')),
+      );
+      return;
+    }
+    await _launchOrWarn(context, Uri(scheme: 'tel', path: digits), 'Could not open the phone dialer.');
+  }
+
+  Future<void> _openDirections(BuildContext context, ShopModel shop) async {
+    final Uri uri;
+    if (shop.latitude != null && shop.longitude != null) {
+      uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}');
+    } else if (shop.fullAddress.isNotEmpty) {
+      uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(shop.fullAddress)}');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No GPS location or address saved for ${shop.shopName}.')),
+      );
+      return;
+    }
+    await _launchOrWarn(context, uri, 'Could not open Maps.');
   }
 }

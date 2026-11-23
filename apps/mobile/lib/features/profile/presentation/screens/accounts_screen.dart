@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -870,22 +871,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
                                 final upi = upiCtrl.text.trim();
 
                                 if (bName.isEmpty || num.isEmpty || ifsc.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Please fill mandatory fields: Bank Name, Account Number & IFSC'),
-                                      backgroundColor: Color(0xFFDC2626),
-                                    ),
-                                  );
+                                  showAppError(context, 'Please fill mandatory fields: Bank Name, Account Number & IFSC');
                                   return;
                                 }
 
                                 if (confirm.isNotEmpty && num != confirm) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Account Number and Confirm Account Number do not match!'),
-                                      backgroundColor: Color(0xFFDC2626),
-                                    ),
-                                  );
+                                  showAppError(context, 'Account Number and Confirm Account Number do not match!');
                                   return;
                                 }
 

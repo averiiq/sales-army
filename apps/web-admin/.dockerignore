@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+data/
+test/
+test_*.js
+scripts/
+.wrangler/
+node_modules/
+security.js
+checkout.js

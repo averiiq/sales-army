@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -12,6 +13,7 @@ import 'package:salesarmy/core/utils/responsive_helper.dart';
 import 'package:salesarmy/features/billing/presentation/screens/gst_tax_invoice_viewer.dart';
 import 'package:salesarmy/features/orders/presentation/dialogs/complete_and_bill_order_modal.dart';
 import 'package:salesarmy/features/orders/presentation/screens/order_taker_flow.dart';
+import 'package:salesarmy/features/collections/presentation/dialogs/collect_payment_dialog.dart';
 
 class OrdersTab extends StatefulWidget {
   final int initialTabIndex;
@@ -33,13 +35,7 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
     }
 
     if (!appState.isOwnerRole && !appState.isFieldSalesRole && !appState.canAccessModule('billing')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Access Restricted: Role (${appState.activeRole}) cannot create orders.'),
-          backgroundColor: const Color(0xFFDC2626),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      showAppError(context, 'Access Restricted: Role (${appState.activeRole}) cannot create orders.');
       return;
     }
 
@@ -357,77 +353,6 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
     );
   }
 
-  void _showEditInvoiceDialog(BuildContext context, AppState appState, InvoiceModel inv) {
-    String currentStatus = inv.paymentStatus;
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDlgState) {
-            return AlertDialog(
-              scrollable: true,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Edit Bill Payment', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Bill: ${inv.invoiceNumber}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF64748B))),
-                  const SizedBox(height: 12),
-                  const Text('Payment Status:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: currentStatus.toLowerCase(),
-                    decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                    items: const [
-                      DropdownMenuItem(value: 'paid', child: Text('PAID (Settled)')),
-                      DropdownMenuItem(value: 'partial', child: Text('PARTIAL (Partially Paid)')),
-                      DropdownMenuItem(value: 'unpaid', child: Text('UNPAID (Pending Due)')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setDlgState(() => currentStatus = val);
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    final updated = inv.copyWith(
-                      paymentStatus: currentStatus,
-                      paidAmount: currentStatus == 'paid' ? inv.grandTotal : (currentStatus == 'unpaid' ? 0.0 : inv.paidAmount),
-                      dueAmount: currentStatus == 'paid' ? 0.0 : (currentStatus == 'unpaid' ? inv.grandTotal : inv.dueAmount),
-                      updatedAt: DateTime.now(),
-                    );
-                    await appState.updateInvoice(updated);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Bill ${inv.invoiceNumber} updated!'),
-                          backgroundColor: const Color(0xFF059669),
-                        ),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E56E2),
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Save Changes'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -438,21 +363,7 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-      floatingActionButton: (appState.isOwnerRole || appState.isFieldSalesRole || appState.canAccessModule('billing'))
-          ? FloatingActionButton.extended(
-              heroTag: 'fab_orders_tab',
-              backgroundColor: const Color(0xFF1E56E2),
-              foregroundColor: Colors.white,
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-              onPressed: () {
-                HapticFeedback.mediumImpact();
-                _handleTakeNewOrder(context, appState);
-              },
-              icon: const Icon(Icons.add_shopping_cart_rounded, size: 20),
-              label: const Text('Take New Order', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
-            )
-          : null,
+      // Take New Order floating button removed (client request).
       body: Container(
         decoration: BoxDecoration(
           gradient: AppTheme.getOrdersGradient(isDark),
@@ -1112,11 +1023,11 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Action Buttons Row: Cancel, Edit, Delete
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (!isCancelled) ...[
+                // Action Buttons Row: Cancel only
+                if (!isCancelled)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
@@ -1158,93 +1069,8 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
                     ],
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => _showEditOrderDialog(context, appState, order),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF1E3A8A).withValues(alpha: 0.25)
-                                : const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF3B82F6).withValues(alpha: 0.35)
-                                  : const Color(0xFFBFDBFE),
-                              width: 0.8,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.edit_outlined,
-                                size: 12.5,
-                                color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8),
-                              ),
-                              const SizedBox(width: 3.5),
-                              Text(
-                                'Edit',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => _confirmDeleteOrder(context, appState, order, shop),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF7F1D1D).withValues(alpha: 0.25)
-                                : const Color(0xFFFEF2F2),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFFEF4444).withValues(alpha: 0.35)
-                                  : const Color(0xFFFECACA),
-                              width: 0.8,
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.delete_outline_rounded,
-                                size: 12.5,
-                                color: Color(0xFFDC2626),
-                              ),
-                              SizedBox(width: 3.5),
-                              Text(
-                                'Delete',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFDC2626),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),
@@ -1625,6 +1451,61 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                     ),
                   );
                 }
+              }
+
+              // 3. Collect Payment — opens the same Collect Payment dialog used
+              //    on the Collections page, prefilled with this order's due.
+              final orderDue = appState.getOrderDueAmount(order);
+              if (!isCancelled && orderDue > 0.009 && !appState.isStoreManagerRole) {
+                if (actionWidgets.isNotEmpty) actionWidgets.add(const SizedBox(width: 8));
+                actionWidgets.add(
+                  Expanded(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          showGatewayPaymentDialog(
+                            context,
+                            shop,
+                            initialAmount: orderDue,
+                            // Billed orders are paid against their bill number.
+                            orderId: hasInvoice ? invoiceMatch.first.invoiceNumber : order.orderId,
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF064E3B).withValues(alpha: 0.35) : const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0)),
+                          ),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.payments_outlined, size: 15, color: isDark ? const Color(0xFF34D399) : const Color(0xFF047857)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Collect Payment',
+                                  style: TextStyle(
+                                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF047857),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
               }
 
               if (actionWidgets.isEmpty) return const SizedBox.shrink();
@@ -2459,36 +2340,6 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
                                 color: isDark ? Colors.white : const Color(0xFF0F172A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-
-                    // Edit Bill button
-                    InkWell(
-                      onTap: () => _showEditInvoiceDialog(context, appState, inv),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.3) : const Color(0xFFEFF6FF),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: isDark ? const Color(0xFF3B82F6).withValues(alpha: 0.4) : const Color(0xFFBFDBFE)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.edit_outlined, size: 14, color: Color(0xFF1D4ED8)),
-                            SizedBox(width: 4),
-                            Text(
-                              'Edit',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF1D4ED8),
                               ),
                             ),
                           ],

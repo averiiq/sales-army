@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -482,12 +483,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           final title = titleCtrl.text.trim();
                           final notes = notesCtrl.text.trim();
                           if (title.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Please enter a reminder title'),
-                                backgroundColor: Color(0xFFDC2626),
-                              ),
-                            );
+                            showAppError(context, 'Please enter a reminder title');
                             return;
                           }
 

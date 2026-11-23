@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:salesarmy/features/shops/domain/entities/shop_entity.dart';
 import 'package:salesarmy/features/shops/domain/repositories/i_shop_repository.dart';
@@ -114,7 +115,9 @@ class ShopRepositoryImpl implements IShopRepository {
           final paginated = _cache.getPaginated(limit: limit, startAfterId: startAfterId);
           if (paginated.isNotEmpty) return paginated;
         }
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('shop_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
     return cached;
@@ -158,7 +161,9 @@ class ShopRepositoryImpl implements IShopRepository {
             return entity;
           }
         }
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('shop_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
     return null;
@@ -177,7 +182,9 @@ class ShopRepositoryImpl implements IShopRepository {
           tenantId: tenantId,
           shopData: model.toMap(),
         );
-      } catch (_) {}
+      } catch (e) {
+      debugPrint('shop_repository: cloud sync deferred (kept locally): $e');
+    }
     }
 
   }

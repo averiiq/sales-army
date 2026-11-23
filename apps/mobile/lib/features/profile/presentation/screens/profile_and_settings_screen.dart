@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -185,13 +186,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating details: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showAppError(context, e, action: 'update your details');
       }
     }
   }
@@ -271,13 +266,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sync failed: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showAppError(context, e, action: 'sync your data');
       }
     } finally {
       if (mounted) setState(() => _isSyncing = false);
@@ -1031,13 +1020,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
     HapticFeedback.lightImpact();
     final appState = Provider.of<AppState>(context, listen: false);
     if (!appState.canAccessModule('billing') && !appState.canAccessModule('orders')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Access Restricted: Role (${appState.activeRole}) cannot access Sales & Invoicing.'),
-          backgroundColor: const Color(0xFFDC2626),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      showAppError(context, 'Access Restricted: Role (${appState.activeRole}) cannot access Sales & Invoicing.');
       return;
     }
     if (widget.onNavigateToTab != null) {
@@ -2563,7 +2546,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                         // Profile & Business Details (Unified)
                         _buildSettingsRow(
                           icon: Icons.badge_outlined,
-                          title: 'Profile & Business Details',
+                          title: 'Profile',
                           subtitle: '${tenant.representativeName ?? "Distributor Owner"} • $firmName',
                           onTap: () => _showUnifiedProfileModal(context),
                           isDark: isDark,
@@ -2683,11 +2666,11 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                           ),
                           Divider(height: 1, color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9), indent: 52),
 
-                          // Payment & Preferences (UPI QR, Soundbox & Payment Gateways)
+                          // Payment & Preferences (UPI QR & Payment Gateways)
                           _buildSettingsRow(
                             icon: Icons.qr_code_2_rounded,
                             title: 'Payment & Preferences',
-                            subtitle: 'UPI QR code, soundbox & payment gateways',
+                            subtitle: 'UPI QR code & payment gateways',
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -2702,7 +2685,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                           _buildSettingsRow(
                             icon: Icons.receipt_long_rounded,
                             title: 'GST Details',
-                            subtitle: 'GSTIN: ${tenant.gstin ?? "27ABCDE1234F1Z5"} • PAN: ${tenant.pan ?? "ABCDE1234F"}${appState.isGstBillingEnabled ? " • Active" : " • Off"}',
+                            subtitle: 'GSTIN: ${tenant.gstin ?? "Not Set"} • PAN: ${tenant.pan ?? "Not Set"}${appState.isGstBillingEnabled ? " • Active" : " • Off"}',
                             onTap: () {
                               if (appState.isFreeTier) {
                                 _showSubscriptionUpgradeSheet(
@@ -3056,12 +3039,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                             titleColor: const Color(0xFFDC2626),
                             onTap: () {
                               if (!appState.isOwnerRole) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Access Restricted: Role (${appState.activeRole}) cannot reset account data.'),
-                                    backgroundColor: const Color(0xFFDC2626),
-                                  ),
-                                );
+                                showAppError(context, 'Access Restricted: Role (${appState.activeRole}) cannot reset account data.');
                                 return;
                               }
                               ResetAccountDialog.show(context);
@@ -3080,12 +3058,7 @@ class _ProfileAndSettingsScreenState extends State<ProfileAndSettingsScreen> {
                             titleColor: const Color(0xFFDC2626),
                             onTap: () {
                               if (!appState.isOwnerRole) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Access Restricted: Role (${appState.activeRole}) cannot delete account.'),
-                                    backgroundColor: const Color(0xFFDC2626),
-                                  ),
-                                );
+                                showAppError(context, 'Access Restricted: Role (${appState.activeRole}) cannot delete account.');
                                 return;
                               }
                               _showDeleteAccountDialog(context);

@@ -30,13 +30,13 @@ DROP POLICY IF EXISTS "profiles_insert_rbac" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_update_rbac" ON public.profiles;
 
 CREATE POLICY "profiles_select_rbac" ON public.profiles FOR SELECT TO authenticated
-  USING (public.is_super_admin() OR tenant_id = public.get_auth_tenant_id() OR id = auth.uid()::text);
+  USING (public.is_super_admin() OR tenant_id = public.get_auth_tenant_id() OR id = auth.uid());
 
 CREATE POLICY "profiles_insert_rbac" ON public.profiles FOR INSERT TO authenticated
-  WITH CHECK (public.is_super_admin() OR id = auth.uid()::text);
+  WITH CHECK (public.is_super_admin() OR id = auth.uid());
 
 CREATE POLICY "profiles_update_rbac" ON public.profiles FOR UPDATE TO authenticated
-  USING (public.is_super_admin() OR id = auth.uid()::text OR (tenant_id = public.get_auth_tenant_id() AND public.get_auth_role() IN ('owner', 'distributor')));
+  USING (public.is_super_admin() OR id = auth.uid() OR (tenant_id = public.get_auth_tenant_id() AND public.get_auth_role() IN ('owner', 'distributor')));
 
 -- Platform settings — super admin only
 DROP POLICY IF EXISTS "platform_settings_read" ON public.platform_settings;
@@ -62,7 +62,7 @@ CREATE POLICY "order_items_select_tenant" ON public.order_items FOR SELECT TO au
     public.is_super_admin()
     OR EXISTS (
       SELECT 1 FROM public.orders o
-      WHERE o.order_id = order_items.order_id
+      WHERE o.id = order_items.order_id
         AND o.tenant_id = public.get_auth_tenant_id()
     )
   );
@@ -72,7 +72,7 @@ CREATE POLICY "order_items_write_tenant" ON public.order_items FOR ALL TO authen
     public.is_super_admin()
     OR EXISTS (
       SELECT 1 FROM public.orders o
-      WHERE o.order_id = order_items.order_id
+      WHERE o.id = order_items.order_id
         AND o.tenant_id = public.get_auth_tenant_id()
     )
   )
@@ -80,7 +80,7 @@ CREATE POLICY "order_items_write_tenant" ON public.order_items FOR ALL TO authen
     public.is_super_admin()
     OR EXISTS (
       SELECT 1 FROM public.orders o
-      WHERE o.order_id = order_items.order_id
+      WHERE o.id = order_items.order_id
         AND o.tenant_id = public.get_auth_tenant_id()
     )
   );
@@ -101,6 +101,8 @@ BEGIN
       END IF;
     END IF;
   END IF;
+  -- BEFORE DELETE triggers must return OLD; returning NEW (NULL) cancels the delete.
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

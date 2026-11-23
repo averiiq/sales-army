@@ -1,4 +1,12 @@
 -- ============================================================================
+-- WARNING: LEGACY BOOTSTRAP SCRIPT. Its RLS policies are permissive and its
+-- profile trigger trusts user-editable metadata. It is NOT safe on its own.
+-- For any environment, apply every file in supabase/migrations/ in order
+-- (e.g. supabase db push). The final state is defined by
+-- migrations/20261123000000_admin_platform_hardening.sql.
+-- ============================================================================
+
+-- ============================================================================
 -- ⚠️  LEGACY — DO NOT RUN ON ANY NEW ENVIRONMENT ⚠️
 -- ============================================================================
 -- This file predates the hardened RLS introduced in

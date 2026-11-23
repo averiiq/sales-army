@@ -54,7 +54,7 @@ class GstTaxInvoiceViewer extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'This will reverse ₹${invoice.grandTotal.toStringAsFixed(1)} from the shop ledger balance and restore ${invoice.items.length} item(s) back into inventory.',
+                'This will reverse ₹${invoice.grandTotal.toStringAsFixed(2)} from the shop ledger balance and restore ${invoice.items.length} item(s) back into inventory.',
                 style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
               ),
             ],
@@ -335,16 +335,16 @@ class GstTaxInvoiceViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buyerName = invoice.buyer['shopName'] ?? 'Shree Ganesh Kirana & General Store';
+    final buyerName = invoice.buyer['shopName'] ?? 'N/A';
     final buyerGstin = invoice.buyer['gstin'] ?? 'Unregistered / B2C';
-    final buyerAddress = invoice.buyer['address'] ?? 'Shop #4, Market Road, Near City Post Office';
-    final buyerPhone = invoice.buyer['phone'] ?? '+91 98234 11223';
+    final buyerAddress = invoice.buyer['address'] ?? '';
+    final buyerPhone = invoice.buyer['phone'] ?? '';
 
-    final sellerFirm = invoice.seller['firmName'] ?? 'SalesArmy SaaS HQ';
-    final sellerGstin = invoice.seller['gstin'] ?? '27ABCDE1234F1Z5';
-    final sellerState = invoice.seller['state'] ?? '27 (Maharashtra)';
-    final sellerAddress = invoice.seller['address'] ?? 'Plot 42, APMC Market Yard, Pune, Maharashtra - 411037';
-    final sellerContact = 'Phone: ${invoice.seller['phone'] ?? "+91 98220 11223"} | Email: ${invoice.seller['email'] ?? "admin@salesarmy.app"}';
+    final sellerFirm = invoice.seller['firmName'] ?? '';
+    final sellerGstin = invoice.seller['gstin'] ?? 'Not Provided';
+    final sellerState = invoice.seller['state'] ?? '';
+    final sellerAddress = invoice.seller['address'] ?? '';
+    final sellerContact = 'Phone: ${invoice.seller['phone'] ?? ""} | Email: ${invoice.seller['email'] ?? ""}';
 
     AppState? appState;
     try {
@@ -524,7 +524,7 @@ class GstTaxInvoiceViewer extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Place of Supply: ${invoice.placeOfSupply.isNotEmpty ? invoice.placeOfSupply : "Maharashtra (27)"}',
+                                  'Place of Supply: ${invoice.placeOfSupply.isNotEmpty ? invoice.placeOfSupply : sellerState.isNotEmpty ? sellerState : "N/A"}',
                                   style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569)),
                                 ),
                               ],
@@ -720,7 +720,7 @@ class GstTaxInvoiceViewer extends StatelessWidget {
                                           child: FittedBox(
                                             fit: BoxFit.scaleDown,
                                             child: Text(
-                                              '₹${item.rate.toInt()}',
+                                              '₹${item.rate.toStringAsFixed(2)}',
                                               textAlign: TextAlign.center,
                                               style: const TextStyle(fontSize: 10.5, color: Color(0xFF334155)),
                                             ),
@@ -731,7 +731,7 @@ class GstTaxInvoiceViewer extends StatelessWidget {
                                           child: FittedBox(
                                             fit: BoxFit.scaleDown,
                                             child: Text(
-                                              '₹${item.taxableAmount.toInt()}',
+                                              '₹${item.taxableAmount.toStringAsFixed(2)}',
                                               textAlign: TextAlign.center,
                                               style: const TextStyle(fontSize: 10.5, color: Color(0xFF334155)),
                                             ),
@@ -754,7 +754,7 @@ class GstTaxInvoiceViewer extends StatelessWidget {
                                             fit: BoxFit.scaleDown,
                                             alignment: Alignment.centerRight,
                                             child: Text(
-                                              '₹${item.total.toStringAsFixed(1)}',
+                                              '₹${item.total.toStringAsFixed(2)}',
                                               textAlign: TextAlign.end,
                                               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                                             ),
@@ -915,12 +915,12 @@ class GstTaxInvoiceViewer extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              'Paid: ₹${invoice.paidAmount.toInt()}',
+                              'Paid: ₹${invoice.paidAmount.toStringAsFixed(2)}',
                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
                             ),
                           ),
                           Text(
-                            'Due Balance: ₹${invoice.dueAmount.toInt()}',
+                            'Due Balance: ₹${invoice.dueAmount.toStringAsFixed(2)}',
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
                           ),
                         ],
@@ -1048,10 +1048,10 @@ class GstTaxInvoiceViewer extends StatelessWidget {
                     onTap: () async {
                       final invoiceText = 'Invoice #${invoice.invoiceNumber}\n'
                           'Customer: ${invoice.shopName}\n'
-                          'Date: ${Formatters.date(invoice.invoiceDate)}\n'
-                          'Total: ₹${Formatters.currency(invoice.grandTotal)}\n'
-                          'Paid: ₹${Formatters.currency(invoice.paidAmount)}\n'
-                          'Due: ₹${Formatters.currency(invoice.dueAmount)}';
+                          'Date: ${AppFormatters.date(invoice.invoiceDate)}\n'
+                          'Total: ₹${AppFormatters.currency(invoice.grandTotal)}\n'
+                          'Paid: ₹${AppFormatters.currency(invoice.paidAmount)}\n'
+                          'Due: ₹${AppFormatters.currency(invoice.dueAmount)}';
                       await Clipboard.setData(ClipboardData(text: invoiceText));
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/services/supabase_service.dart';
@@ -400,7 +401,9 @@ class _SuperAdminConsoleState extends State<SuperAdminConsole> with SingleTicker
             printerGstRate: pg,
             applyGstOnInvoices: apply,
           );
-        } catch (_) {}
+        } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
       },
     );
   }
@@ -568,7 +571,9 @@ class _SuperAdminConsoleState extends State<SuperAdminConsole> with SingleTicker
               if (code != null) {
                 try {
                   context.read<AppState>().removeCoupon(code);
-                } catch (_) {}
+                } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
               }
             },
           ),
@@ -580,7 +585,9 @@ class _SuperAdminConsoleState extends State<SuperAdminConsole> with SingleTicker
               setState(() => _maintenanceMode = val);
               try {
                 context.read<AppState>().setMaintenanceMode(val);
-              } catch (_) {}
+              } catch (e) {
+        showAppError(context, e, action: 'save this setting');
+      }
             },
             autoBackupEnabled: _autoBackupEnabled,
             onToggleAutoBackup: (val) => setState(() => _autoBackupEnabled = val),

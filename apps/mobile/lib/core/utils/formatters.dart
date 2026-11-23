@@ -1,3 +1,11 @@
+/// Rounds a rupee amount UP to the next whole rupee (57.47 -> 58, 57.00 -> 57).
+/// Snaps to paise first so floating-point noise (e.g. 57.0000001) doesn't bump
+/// an exact amount up by a rupee.
+double roundUpRupee(double value) {
+  final paise = (value * 100).round();
+  return (paise / 100).ceilToDouble();
+}
+
 class AppFormatters {
   static String currency(double? amount, {bool showSymbol = true, bool trimZeroDecimals = true}) {
     if (amount == null) return showSymbol ? '₹0' : '0';

@@ -61,3 +61,9 @@ functions/lib/
 # Cloudflare Wrangler
 .wrangler/
 
+
+# Build-time dart defines (Supabase URL + anon key)
+apps/mobile/dart_defines.json
+
+# Web admin runtime data (never commit: contains secrets / customer data)
+apps/web-admin/data/

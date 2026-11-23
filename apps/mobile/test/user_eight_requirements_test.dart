@@ -135,7 +135,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Register New Retail Outlet'), findsOneWidget);
+      expect(find.text('Register New Party'), findsOneWidget);
       expect(find.text('Camera'), findsOneWidget);
       expect(find.text('Gallery'), findsOneWidget);
       expect(find.text('+ Paste Image URL'), findsOneWidget);

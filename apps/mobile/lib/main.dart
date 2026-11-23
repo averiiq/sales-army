@@ -13,19 +13,38 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salesarmy/core/services/supabase_service.dart';
 
 import 'package:salesarmy/core/services/notification_service.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Global error handler — prevents red screen of death in release builds.
+  // ── Global error handling ────────────────────────────────────────────────
+  // Errors thrown by button/tap handlers (gesture library) are surfaced to the
+  // user as a toast so actions never fail silently. Layout/rendering issues
+  // are only logged — they are developer bugs, not user-actionable.
   FlutterError.onError = (details) {
     if (kDebugMode) {
       FlutterError.presentError(details);
     } else {
-      // In release mode, log silently instead of showing red screen.
       debugPrint('FlutterError: ${details.exceptionAsString()}');
     }
+    final lib = details.library ?? '';
+    if (lib.contains('gesture') || lib.contains('services')) {
+      showAppError(null, details.exception);
+    }
   };
+
+  // Uncaught async errors (e.g. an `onPressed: () async { await save(); }`
+  // whose future throws) land here — show them instead of swallowing them.
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    debugPrint('Uncaught async error: $error\n$stack');
+    showAppError(null, error);
+    return true;
+  };
+
+  // Release builds: a widget that fails to build shows a small friendly note
+  // instead of a grey box.
+  ErrorWidget.builder = appErrorWidgetBuilder;
 
   try {
     await SupabaseService.instance.initialize();
@@ -281,10 +300,7 @@ class _AppEntryWrapperState extends State<AppEntryWrapper> {
             ? appState.currentUid!
             : '';
         if (tid.isEmpty || uid.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Workspace missing. Please sign in again.'),
-            backgroundColor: Color(0xFFDC2626),
-          ));
+          showAppError(context, 'Workspace missing. Please sign in again.');
           return;
         }
 

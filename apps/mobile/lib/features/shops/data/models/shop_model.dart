@@ -7,11 +7,14 @@ class ShopModel {
   final String? whatsappNumber;
   
   final String? businessType;
-  final String? sellerCategory; // 'Retailer' or 'Wholesaler'
+  final String? sellerCategory; // 'Retailer', 'Wholesaler' or 'Walk-in Customer'
   final String? categoryId; // References categories collection
   final String? gstin;
   
-  final String? address;
+  final String? address; // street address & landmark
+  final String? city;
+  final String? state;
+  final String? pincode;
   
   final String visitFrequency; // weekly, biweekly, monthly
   
@@ -41,6 +44,9 @@ class ShopModel {
     this.categoryId,
     this.gstin,
     this.address,
+    this.city,
+    this.state,
+    this.pincode,
     this.visitFrequency = 'weekly',
     this.creditLimit = 0.0,
     this.currentOutstanding = 0.0,
@@ -73,6 +79,9 @@ class ShopModel {
       categoryId: data['categoryId'] ?? data['category_id'] ?? data['category'],
       gstin: data['gstin'],
       address: data['address'],
+      city: data['city'],
+      state: data['state'],
+      pincode: (data['pincode'] ?? data['pin_code'])?.toString(),
       visitFrequency: data['visitFrequency'] ?? data['visit_frequency'] ?? 'weekly',
       creditLimit: (data['creditLimit'] ?? data['credit_limit'] as num?)?.toDouble() ?? 0.0,
       currentOutstanding: (data['currentOutstanding'] ?? data['current_outstanding'] as num?)?.toDouble() ?? 0.0,
@@ -100,6 +109,9 @@ class ShopModel {
       'categoryId': categoryId,
       'gstin': gstin,
       'address': address,
+      'city': city,
+      'state': state,
+      'pincode': pincode,
       'visitFrequency': visitFrequency,
       'creditLimit': creditLimit,
       'currentOutstanding': currentOutstanding,
@@ -126,6 +138,9 @@ class ShopModel {
     String? categoryId,
     String? gstin,
     String? address,
+    String? city,
+    String? state,
+    String? pincode,
     String? visitFrequency,
     double? creditLimit,
     double? currentOutstanding,
@@ -150,6 +165,9 @@ class ShopModel {
       categoryId: categoryId ?? this.categoryId,
       gstin: gstin ?? this.gstin,
       address: address ?? this.address,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      pincode: pincode ?? this.pincode,
       visitFrequency: visitFrequency ?? this.visitFrequency,
       creditLimit: creditLimit ?? this.creditLimit,
       currentOutstanding: currentOutstanding ?? this.currentOutstanding,
@@ -166,4 +184,12 @@ class ShopModel {
   }
 
   String get shopCategory => businessType ?? 'General';
+
+  /// Street address + city, state and pincode as one line (for display,
+  /// maps and sharing). Skips empty parts.
+  String get fullAddress {
+    final cityState = [city, state].where((p) => p != null && p.trim().isNotEmpty).map((p) => p!.trim()).join(', ');
+    final tail = [cityState, pincode?.trim() ?? ''].where((p) => p.isNotEmpty).join(' - ');
+    return [address?.trim() ?? '', tail].where((p) => p.isNotEmpty).join(', ');
+  }
 }

@@ -1,11 +1,10 @@
-_worker.js
-wrangler.toml
-package.json
-server.js
-test/
-test_*.js
-scripts/
-Dockerfile
-render.yaml
-.wrangler/
-node_modules
+# Upload ONLY the browser bundle. The worker also enforces an allow-list
+# (api/static.mjs), this file just keeps everything else off the CDN.
+*
+!index.html
+!legal.html
+!app.js
+!styles.css
+!favicon.ico
+!vendor/
+!vendor/*.js

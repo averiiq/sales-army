@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -138,13 +139,7 @@ class _SubscriptionCheckoutScreenState extends State<SubscriptionCheckoutScreen>
 
     if (_hasHardwareSelected && _selectedAddressType == 1) {
       if (_streetCtrl.text.trim().isEmpty || _pincodeCtrl.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter street address and PIN code for hardware delivery.'),
-            backgroundColor: Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showAppError(context, 'Please enter street address and PIN code for hardware delivery.');
         return;
       }
     }
@@ -1413,9 +1408,7 @@ class _SubscriptionCheckoutScreenState extends State<SubscriptionCheckoutScreen>
                       SnackBar(content: Text('Coupon "$code" applied!'), backgroundColor: const Color(0xFF059669)),
                     );
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Invalid coupon "$code"'), backgroundColor: const Color(0xFFDC2626)),
-                    );
+                    showAppError(context, 'Invalid coupon "$code"');
                   }
                 },
                 child: const Text('Apply', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
