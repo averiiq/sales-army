@@ -1,8 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salesarmy/core/services/platform_api.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
@@ -150,84 +150,100 @@ class _SubscriptionCheckoutScreenState extends State<SubscriptionCheckoutScreen>
     final shippingAddress = _hasHardwareSelected ? _getDeliveryAddress(appState.tenant) : null;
     final selectedAddons = appState.subscriptionAddons.where((a) => _selectedAddonIds.contains(a.id)).toList();
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'pending_checkout_${appState.currentTenantId}';
-      final pending = prefs.getString(key);
       Map<String, dynamic>? result;
       bool serverHandled = false;
 
       if (PlatformApi.isConfigured) {
         try {
-          result = pending == null
-              ? await PlatformApi.request('/api/checkout', body: {
-                  'planId': _selectedPlan.id,
-                  'yearly': _isYearly,
-                  'printerId': _includePrinter ? _selectedPrinter.id : null,
-                  'addonIds': _selectedAddonIds.toList(),
-                  'shippingAddress': shippingAddress,
-                  'couponCode': appState.appliedCoupon?.code,
-                })
-              : await PlatformApi.request('/api/checkout?id=${Uri.encodeQueryComponent(pending)}');
-
-          if (result['status'] == 'expired' || result['status'] == 'cancelled') {
-            await prefs.remove(key);
-            throw StateError('The previous checkout expired. Please try again.');
+          // A payment made earlier (app closed before verifying) may already
+          // be confirmed — activate that instead of charging again.
+          final earlier = await appState.reconcilePendingCheckout();
+          if (earlier != null) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Your earlier payment was confirmed and your plan is now active.'),
+            ));
+            Navigator.of(context).maybePop();
+            return;
           }
 
+          // The server re-prices everything (plan, coupon, GST, hardware) and
+          // reuses an open link for the same purchase, so repeated taps never
+          // create a second payment.
+          result = await PlatformApi.request('/api/checkout', body: {
+            'planId': _selectedPlan.id,
+            'yearly': _isYearly,
+            'printerId': _includePrinter ? _selectedPrinter.id : null,
+            'addonIds': _selectedAddonIds.toList(),
+            'shippingAddress': shippingAddress,
+            'couponCode': appState.appliedCoupon?.code,
+          });
+
           if (result['status'] != 'paid') {
-            await prefs.setString(key, result['id'].toString());
+            final checkoutId = result['id']?.toString() ?? '';
             final url = result['url']?.toString();
-            if (url != null && !await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
+            if (checkoutId.isEmpty || url == null || url.isEmpty) {
+              throw StateError('The payment server did not return a payment link. Please try again.');
+            }
+            await appState.savePendingCheckout(id: checkoutId, planId: _selectedPlan.id);
+            if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
               throw StateError('Unable to open Razorpay checkout.');
             }
             if (!mounted) return;
-            final verify = await showDialog<bool>(
+            final amountPaise = result['amount'] is num ? (result['amount'] as num).toInt() : null;
+            result = await showDialog<Map<String, dynamic>>(
               context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Complete payment on Razorpay'),
-                content: const Text(
-                  'Return after paying, then verify your payment. Your plan activates only after the server confirms receipt.',
-                ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Later')),
-                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Verify payment')),
-                ],
+              barrierDismissible: false,
+              builder: (_) => _AwaitingPaymentDialog(
+                checkoutId: checkoutId,
+                paymentUrl: url,
+                amountPaise: amountPaise,
+                planName: _selectedPlan.name,
               ),
             );
-            if (verify != true) return;
-            result = await PlatformApi.request('/api/checkout?id=${Uri.encodeQueryComponent(result['id'].toString())}');
+            // "Later": the saved checkout is re-checked on the next launch.
+            if (result == null) return;
           }
 
           if (result['status'] != 'paid') {
-            throw StateError('Payment is still pending. Tap checkout again to verify; your payment link is saved.');
+            throw StateError('Payment is not confirmed yet. If you paid, it will activate automatically within a few minutes.');
           }
           serverHandled = true;
         } catch (serverErr) {
+          // Only when online payment is NOT set up at all (platform function
+          // not deployed yet, or no Razorpay keys on it) do we fall through to
+          // test activation — which the admin toggle still controls. Any real
+          // payment/server error is shown, never silently upgraded for free.
           final msg = serverErr.toString().toLowerCase();
-          if (msg.contains('expired') || msg.contains('cancelled') || msg.contains('still pending')) {
-            rethrow;
-          }
-          debugPrint('PlatformApi checkout notice (falling back to direct activation): $serverErr');
+          final paymentsNotSetUp = msg.contains('requested function was not found') ||
+              msg.contains('payments are not configured') ||
+              msg.contains('razorpay is not configured');
+          debugPrint('PlatformApi checkout error: $serverErr');
+          if (!paymentsNotSetUp) rethrow;
         }
       }
 
-      await prefs.remove(key);
+      await appState.clearPendingCheckout();
 
-      final appliedCoupon = appState.appliedCoupon;
-      final isTrial = appliedCoupon?.type.name == 'trial';
-      final newStatus = isTrial ? 'trial' : 'active';
-      final endDate = (serverHandled && result != null && result['expiresAt'] != null)
-          ? DateTime.parse(result['expiresAt'].toString())
-          : (isTrial
-              ? DateTime.now().add(Duration(days: appliedCoupon?.trialDays ?? 30))
-              : DateTime.now().add(Duration(days: _isYearly ? 365 : 30)));
+      // The plan is ALWAYS activated by the server: either the payment server
+      // confirmed a paid checkout above, or (testing, no payment server yet)
+      // the database RPC activates it while the admin allows test activation.
+      // Never only on this phone — the next cloud sync would undo that.
+      final bool testActivation = !serverHandled;
+      final DateTime endDate;
+      if (serverHandled) {
+        endDate = DateTime.tryParse(result?['expiresAt']?.toString() ?? '') ??
+            DateTime.now().add(Duration(days: _isYearly ? 365 : 30));
+        await appState.applyServerPlanActivation(
+          planId: _selectedPlan.id,
+          expiresAt: endDate,
+          status: appState.appliedCoupon?.type.name == 'trial' ? 'trial' : 'active',
+        );
+      } else {
+        endDate = await appState.activatePlanForTesting(_selectedPlan.id, yearly: _isYearly);
+      }
 
       final updatedTenant = appState.tenant.copyWith(
-        subscriptionPlanId: _selectedPlan.id,
-        subscriptionStatus: newStatus,
-        subscriptionEndDate: endDate,
-        maxUsers: _selectedPlan.maxUsers,
-        maxShops: _selectedPlan.maxShops,
         hardwareConfig: {
           'hasPrinter': _includePrinter,
           'printerModel': _includePrinter ? _selectedPrinter.name : 'None',
@@ -270,7 +286,7 @@ class _SubscriptionCheckoutScreenState extends State<SubscriptionCheckoutScreen>
       if (!mounted) return;
       final paymentId = (serverHandled && result != null && result['paymentId'] != null)
           ? result['paymentId'].toString()
-          : (isTrial ? null : 'RZP-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}');
+          : (testActivation ? 'TEST ACTIVATION — no payment taken' : null);
       _showSuccessReceiptDialog(appState, endDate, shippingAddress, selectedAddons, paymentId);
     } catch (error) {
       if (mounted) {
@@ -1720,6 +1736,136 @@ class _SubscriptionCheckoutScreenState extends State<SubscriptionCheckoutScreen>
           ),
         ],
       ),
+    );
+  }
+}
+
+
+/// Shown while the user pays on Razorpay. Checks the payment with the server
+/// automatically (on returning to the app and every few seconds), so the plan
+/// activates without relying on the user tapping "Verify". Pops with the
+/// server result once PAID, or null for "Later".
+class _AwaitingPaymentDialog extends StatefulWidget {
+  final String checkoutId;
+  final String paymentUrl;
+  final int? amountPaise;
+  final String planName;
+
+  const _AwaitingPaymentDialog({
+    required this.checkoutId,
+    required this.paymentUrl,
+    required this.amountPaise,
+    required this.planName,
+  });
+
+  @override
+  State<_AwaitingPaymentDialog> createState() => _AwaitingPaymentDialogState();
+}
+
+class _AwaitingPaymentDialogState extends State<_AwaitingPaymentDialog> with WidgetsBindingObserver {
+  Timer? _poll;
+  bool _checking = false;
+  bool _closed = false;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _poll = Timer.periodic(const Duration(seconds: 6), (_) => _check());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check(userAsked: true);
+  }
+
+  Future<void> _check({bool userAsked = false}) async {
+    if (_checking || _closed || !mounted) return;
+    setState(() => _checking = true);
+    try {
+      final result = await PlatformApi.request(
+        '/api/checkout?id=${Uri.encodeQueryComponent(widget.checkoutId)}',
+      );
+      if (!mounted || _closed) return;
+      final status = result['status']?.toString();
+      if (status == 'paid') {
+        _closed = true;
+        _poll?.cancel();
+        Navigator.of(context).pop(result);
+        return;
+      }
+      if (status == 'expired' || status == 'cancelled') {
+        _poll?.cancel();
+        setState(() => _message = 'This payment link has $status. Close this and tap Pay again for a new link.');
+      } else if (userAsked) {
+        setState(() => _message = 'Payment not received yet. If you just paid, wait a few seconds.');
+      }
+    } catch (e) {
+      if (mounted && userAsked) {
+        setState(() => _message = e.toString().replaceFirst('Bad state: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = widget.amountPaise;
+    return AlertDialog(
+      title: const Text('Complete payment on Razorpay'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.planName, style: const TextStyle(fontWeight: FontWeight.w700)),
+          if (amount != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Amount to pay: ₹${(amount / 100).toStringAsFixed(2)} (incl. GST)',
+              key: const ValueKey('checkout_server_amount'),
+            ),
+          ],
+          const SizedBox(height: 12),
+          const Text(
+            'Your plan activates automatically as soon as Razorpay confirms the payment. '
+            'You can come back to the app after paying.',
+          ),
+          if (_message != null) ...[
+            const SizedBox(height: 12),
+            Text(_message!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ],
+          if (_checking) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            _closed = true;
+            Navigator.of(context).pop();
+          },
+          child: const Text('Later'),
+        ),
+        TextButton(
+          onPressed: () => launchUrl(Uri.parse(widget.paymentUrl), mode: LaunchMode.externalApplication),
+          child: const Text('Open payment page'),
+        ),
+        FilledButton(
+          onPressed: _checking ? null : () => _check(userAsked: true),
+          child: const Text("I've paid"),
+        ),
+      ],
     );
   }
 }

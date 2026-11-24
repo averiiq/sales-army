@@ -555,7 +555,7 @@ class _ShopsTabState extends State<ShopsTab> {
                                 Icon(
                                   (shop.sellerCategory == 'Wholesaler')
                                       ? Icons.warehouse_rounded
-                                      : (shop.sellerCategory == 'Walk-in Customer' ? Icons.directions_walk_rounded : Icons.storefront_rounded),
+                                      : (shop.sellerCategory == 'Customer' ? Icons.directions_walk_rounded : Icons.storefront_rounded),
                                   size: 12,
                                   color: (shop.sellerCategory == 'Wholesaler')
                                       ? (isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF))

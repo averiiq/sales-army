@@ -1,3 +1,13 @@
+/// Party categories. Older builds saved walk-in buyers as "Walk-in Customer";
+/// they are shown and saved as "Customer" now.
+String normalizeSellerCategory(Object? value) {
+  final v = value?.toString().trim() ?? '';
+  if (v.isEmpty) return 'Retailer';
+  final lower = v.toLowerCase();
+  if (lower == 'walk-in customer' || lower == 'walk-in' || lower == 'walkin customer') return 'Customer';
+  return v;
+}
+
 class ShopModel {
   final String shopId;
   final String shopName;
@@ -7,7 +17,7 @@ class ShopModel {
   final String? whatsappNumber;
   
   final String? businessType;
-  final String? sellerCategory; // 'Retailer', 'Wholesaler' or 'Walk-in Customer'
+  final String? sellerCategory; // 'Retailer', 'Wholesaler' or 'Customer'
   final String? categoryId; // References categories collection
   final String? gstin;
   
@@ -75,7 +85,7 @@ class ShopModel {
       phone: data['phone'],
       whatsappNumber: data['whatsappNumber'] ?? data['whatsapp_number'] ?? data['whatsapp'],
       businessType: data['businessType'] ?? data['business_type'],
-      sellerCategory: data['sellerCategory'] ?? data['seller_category'] ?? 'Retailer',
+      sellerCategory: normalizeSellerCategory(data['sellerCategory'] ?? data['seller_category']),
       categoryId: data['categoryId'] ?? data['category_id'] ?? data['category'],
       gstin: data['gstin'],
       address: data['address'],
@@ -161,7 +171,7 @@ class ShopModel {
       phone: phone ?? this.phone,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
       businessType: businessType ?? this.businessType,
-      sellerCategory: sellerCategory ?? this.sellerCategory,
+      sellerCategory: sellerCategory != null ? normalizeSellerCategory(sellerCategory) : this.sellerCategory,
       categoryId: categoryId ?? this.categoryId,
       gstin: gstin ?? this.gstin,
       address: address ?? this.address,

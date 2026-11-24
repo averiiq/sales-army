@@ -45,7 +45,7 @@ void main() {
     expect(find.text('Shree Ganesh Kirana & General Store'), findsWidgets);
     expect(find.textContaining('Order Placed:'), findsWidgets);
     expect(find.text('Delivered'), findsWidgets);
-    expect(find.text('Collect Payment'), findsWidgets);
+    expect(find.text('Payment'), findsWidgets);
     expect(find.text('View Bill'), findsWidgets);
   });
 
@@ -204,7 +204,7 @@ void main() {
     expect(find.text('LIVE'), findsOneWidget);
 
     // Sub Tabs
-    expect(find.byWidgetPredicate((w) => w is Text && (w.data == 'Outstanding Dues' || w.data == 'Retailer Dues')), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is Text && (w.data == 'Outstanding Dues' || w.data == 'Dues')), findsOneWidget);
     expect(find.byWidgetPredicate((w) => w is Text && (w.data == 'Payment Ledger' || w.data == 'Ledger')), findsOneWidget);
 
     // Download Ledger Banner

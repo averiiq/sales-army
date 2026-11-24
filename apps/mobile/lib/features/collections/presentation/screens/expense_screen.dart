@@ -6,6 +6,7 @@ import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/theme/app_theme.dart';
 import 'package:salesarmy/core/utils/formatters.dart';
 import 'package:salesarmy/features/collections/data/models/expense_model.dart';
+import 'package:salesarmy/core/utils/feature_gate.dart';
 
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({super.key});
@@ -476,7 +477,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         backgroundColor: const Color(0xFF059669),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded, size: 20, color: Colors.white),
-        label: const Text('Add Expense', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white)),
+        tooltip: 'Add Expense',
+        label: const Text('Add', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white)),
       ),
     );
   }
@@ -1045,6 +1047,7 @@ class _RecordExpenseSliderModalState extends State<_RecordExpenseSliderModal> {
                   createdAt: DateTime.now(),
                 );
 
+                if (!FeatureGate.allowWrite(context, feature: 'expenses')) return;
                 appState.addExpense(exp);
                 Navigator.pop(context);
 

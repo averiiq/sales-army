@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/navigation/main_shell.dart';
 import 'package:salesarmy/core/services/app_state.dart';
+import 'package:salesarmy/features/admin/data/models/subscription_plan_model.dart';
 import 'package:salesarmy/features/auth/presentation/screens/login_screen.dart';
 import 'package:salesarmy/features/profile/presentation/screens/profile_and_settings_screen.dart';
 import 'package:salesarmy/features/dashboard/presentation/screens/distributor_dashboard.dart';
@@ -95,16 +96,23 @@ void main() {
       expect(find.text('Delete Account'), findsOneWidget);
     });
 
-    testWidgets('4. Free Tier displays PRO / GROW+ badges and triggers upgrade sheet', (tester) async {
+    testWidgets('4. A plan without Reports shows the upgrade sheet when exporting', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
       final appState = AppState();
       appState.setActiveRole('Owner');
-      // Set Free Tier
-      appState.setFreeTier(true);
-      expect(appState.isFreeTier, isTrue);
+      // Admin-configured plan that does NOT include the Reports capability.
+      appState.setSubscriptionPlansForTest(const [
+        SubscriptionPlanModel(id: 'basic', name: 'Basic', monthlyPrice: 99, allowedFeatures: ['order_taking', 'invoicing']),
+      ]);
+      appState.tenant = appState.tenant.copyWith(
+        subscriptionPlanId: 'basic',
+        subscriptionStatus: 'active',
+        subscriptionEndDate: DateTime.now().add(const Duration(days: 30)),
+      );
+      expect(appState.hasFeature('reports'), isFalse);
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -116,16 +124,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap Export Reports row on Free Tier (extra tags cleaned per user request)
       await tester.ensureVisible(find.text('Export Reports & Statements'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Export Reports & Statements'));
       await tester.pumpAndSettle();
 
-      // Verify Subscription Upgrade Sheet opens
-      expect(find.text('Unlock Export Reports & Statements'), findsOneWidget);
-      expect(find.textContaining('SalesArmy Pro or Grow Plan'), findsOneWidget);
-      expect(find.text('View Plans & Upgrade'), findsOneWidget);
+      // Upgrade sheet (FeatureGate) names the capability and the current plan.
+      expect(find.text('Upgrade required'), findsOneWidget);
+      expect(find.textContaining('Reports Hub is not included in your Basic plan'), findsOneWidget);
+      expect(find.text('View plans'), findsOneWidget);
     });
 
     testWidgets('5. DistributorDashboard applies RBAC by strictly removing unauthorized features with zero LOCKED badges', (tester) async {
@@ -188,7 +195,7 @@ void main() {
       expect(find.text('Delivery Staff'), findsOneWidget);
 
       // Unauthorized tabs (Bill, Collection) are completely removed from bottom nav
-      expect(find.text('Bill'), findsNothing);
+      expect(find.byKey(const ValueKey('nav_billing')), findsNothing);
       expect(find.text('Collection'), findsNothing);
 
       // Only authorized tabs are visible

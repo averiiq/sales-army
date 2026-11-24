@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SalesArmy · Orders, bills and khata for FMCG distributors</title>
+  <meta name="description" content="SalesArmy puts your salesmen, delivery vans and accounts on one app. Take orders at the shop, print a GST or kaccha bill on a Bluetooth printer, and know every shop's dues by evening.">
+  <meta name="theme-color" content="#0B1736">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://salesarmy.in/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://salesarmy.in/">
+  <meta property="og:title" content="SalesArmy · Orders, bills and khata for FMCG distributors">
+  <meta property="og:description" content="Take orders at the shop, print a GST or kaccha bill on a Bluetooth printer, and know every shop's dues by evening.">
+  <meta property="og:image" content="https://salesarmy.in/assets/logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Icon sprite (lucide, 1.5 stroke) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="i-package" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></symbol>
+    <symbol id="i-offline" viewBox="0 0 24 24"><path d="M2 2l20 20"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 4.17-2.65"/><path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/><path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/><path d="M5 13a10 10 0 0 1 5.24-2.76"/><path d="M12 20h.01"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============ HEADER ============ -->
+<header class="site-header">
+  <div class="wrap header-row">
+    <a href="#top" class="brand" aria-label="SalesArmy home">
+      <span class="logo-tile"><img src="assets/logo.svg" alt=""></span>
+      <span>SalesArmy</span>
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#app">The app</a>
+        <a href="#roles">For your team</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#about">About</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="header-actions">
+      <a href="#contact" class="link-quiet">Talk to us</a>
+      <a href="#pricing" class="btn btn-gold btn-sm">Start free trial</a>
+    </div>
+    <details class="nav-menu">
+      <summary aria-label="Open menu"><svg class="ic"><use href="#i-menu"/></svg></summary>
+      <div class="nav-menu-panel">
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#app">The app</a>
+        <a href="#roles">For your team</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#about">About</a>
+        <a href="#faq">FAQ</a>
+        <a href="#contact">Talk to us</a>
+        <a href="#pricing" class="btn btn-gold">Start free trial</a>
+      </div>
+    </details>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy rise">
+      <p class="eyebrow"><span class="dot"></span>For FMCG distributors and agencies</p>
+      <h1>Take the order, print the bill, collect the dues. Right at the shop counter</h1>
+      <p class="lede">SalesArmy puts your salesmen, delivery vans and accounts on one app. Print a GST or kaccha bill on a Bluetooth printer, and know every shop's dues by evening.</p>
+      <div class="hero-actions">
+        <a href="#pricing" class="btn btn-gold">Start 14-day free trial <svg class="ic"><use href="#i-arrow"/></svg></a>
+        <a href="#how" class="btn btn-ghost">See how it works</a>
+      </div>
+      <ul class="hero-facts">
+        <li><svg class="ic"><use href="#i-printer"/></svg>58mm and 80mm printers</li>
+        <li><svg class="ic"><use href="#i-offline"/></svg>Works without network</li>
+        <li><svg class="ic"><use href="#i-receipt"/></svg>CGST, SGST and IGST</li>
+      </ul>
+    </div>
+
+    <div class="hero-visual rise rise-2" aria-label="SalesArmy order taker with a printed kaccha bill">
+      <!-- Phone: order taker -->
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="app-bar">
+            <span class="monogram">AT</span>
+            <span class="app-brand">Sales Army</span>
+            <svg class="ic ic-sm"><use href="#i-bell"/></svg>
+          </div>
+          <div class="app-shop">
+            <div>
+              <p class="app-shop-name">Sharma Kirana Store</p>
+              <p class="app-shop-meta"><svg class="ic ic-xs"><use href="#i-pin"/></svg>Beat 4 · Karol Bagh</p>
+            </div>
+            <span class="app-dues">Dues ₹1,450</span>
+          </div>
+          <div class="app-search"><svg class="ic ic-xs"><use href="#i-search"/></svg>Search products</div>
+          <div class="app-pills">
+            <span class="on">All</span><span>Biscuits</span><span>Staples</span><span>Detergent</span>
+          </div>
+          <ul class="app-items">
+            <li><div><p>Parle-G 800g</p><span>₹85 · retail</span></div><div class="stepper"><b>−</b>12<b>+</b></div></li>
+            <li><div><p>Tata Salt 1kg</p><span>₹28 · retail</span></div><div class="stepper"><b>−</b>10<b>+</b></div></li>
+            <li><div><p>Surf Excel 1kg</p><span>₹140 · retail</span></div><div class="stepper"><b>−</b>6<b>+</b></div></li>
+            <li><div><p>Maggi 70g × 12</p><span>₹168 · retail</span></div><div class="stepper"><b>−</b>4<b>+</b></div></li>
+          </ul>
+          <div class="app-total">
+            <div><span>4 items · 32 units</span><p>₹2,812</p></div>
+            <span class="app-cta">Print bill</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Printed thermal receipt -->
+      <div class="receipt" aria-hidden="true">
+        <p class="r-center r-strong">AGARWAL TRADERS</p>
+        <p class="r-center">Estimate · Kaccha bill</p>
+        <p class="r-center r-muted">24 Nov 2026 · 11:20 am</p>
+        <hr>
+        <p>To: Sharma Kirana Store</p>
+        <hr>
+        <div class="r-row"><span>Parle-G 800g 12×85</span><span>1,020</span></div>
+        <div class="r-row"><span>Tata Salt 1kg 10×28</span><span>280</span></div>
+        <div class="r-row"><span>Surf Excel 1kg 6×140</span><span>840</span></div>
+        <div class="r-row"><span>Maggi 70g×12 4×168</span><span>672</span></div>
+        <hr>
+        <div class="r-row r-strong"><span>Bill total</span><span>2,812</span></div>
+        <div class="r-row"><span>Previous dues</span><span>1,450</span></div>
+        <div class="r-row"><span>Paid · cash</span><span>2,000</span></div>
+        <div class="r-row r-strong"><span>Balance due</span><span>2,262</span></div>
+        <hr>
+        <p class="r-center r-muted">Thank you · Visit again</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WORKS WITH ============ -->
+<section class="strip" aria-label="Works with">
+  <div class="wrap strip-row">
+    <span class="strip-label">Works with what your agency already uses</span>
+    <ul>
+      <li><svg class="ic"><use href="#i-receipt"/></svg>GST invoices</li>
+      <li><svg class="ic"><use href="#i-qr"/></svg>UPI and BharatQR</li>
+      <li><svg class="ic"><use href="#i-chat"/></svg>WhatsApp sharing</li>
+      <li><svg class="ic"><use href="#i-printer"/></svg>Bluetooth thermal printers</li>
+      <li><svg class="ic"><use href="#i-chart"/></svg>Excel export</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section id="how" class="section">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <h2>One day on the beat, start to finish</h2>
+      <p>Your salesman's whole route runs on one phone. Every order, bill and rupee collected reaches your books the moment it happens, or as soon as the network comes back.</p>
+    </div>
+    <ol class="route reveal">
+      <li>
+        <time>9:30 am</time>
+        <h3>Plan the beat</h3>
+        <p>Today's shops, visits and reminders are waiting on the salesman's phone, with each shop's location and dues.</p>
+      </li>
+      <li>
+        <time>11:15 am</time>
+        <h3>Take the order</h3>
+        <p>Search the catalogue, tap quantities and see wholesale, retail and MRP for every item. No order books, no copying later.</p>
+      </li>
+      <li>
+        <time>11:20 am</time>
+        <h3>Print the bill</h3>
+        <p>A GST invoice or a kaccha estimate prints on a Bluetooth printer at the counter, or goes to the shop owner on WhatsApp.</p>
+      </li>
+      <li>
+        <time>6:00 pm</time>
+        <h3>Close the day</h3>
+        <p>Cash, UPI and dues are already in the khata. You see the day's sales, collections and cash in hand on your home screen.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ FEATURES: BILLING ============ -->
+<section id="features" class="section section-alt">
+  <div class="wrap split">
+    <div class="split-copy reveal">
+      <h2>Pakka or kaccha. Both bills, done right</h2>
+      <p>Give a full GST tax invoice when the shop needs one, or a quick estimate when it doesn't. SalesArmy works out CGST and SGST for local sales, IGST for interstate, and writes the amount in words for you.</p>
+      <ul class="ticks">
+        <li><svg class="ic"><use href="#i-check"/></svg>Prints on 58mm and 80mm Bluetooth thermal printers, or as an A4 PDF</li>
+        <li><svg class="ic"><use href="#i-check"/></svg>Share any bill on WhatsApp in one tap</li>
+        <li><svg class="ic"><use href="#i-check"/></svg>Your own GST slabs and invoice numbering</li>
+        <li><svg class="ic"><use href="#i-check"/></svg>Delete a wrong bill and stock and dues reverse on their own</li>
+      </ul>
+    </div>
+    <div class="bills reveal" aria-hidden="true">
+      <div class="paper invoice">
+        <div class="inv-head">
+          <div><p class="inv-firm">Agarwal Traders</p><p class="inv-meta">GSTIN 07AABCA1234F1Z5</p></div>
+          <div class="inv-tag">Tax invoice</div>
+        </div>
+        <div class="inv-meta-row"><span>INV-2026-0418</span><span>24 Nov 2026</span></div>
+        <table>
+          <thead><tr><th>Item</th><th>HSN</th><th>Qty</th><th>Amount</th></tr></thead>
+          <tbody>
+            <tr><td>Parle-G 800g</td><td>1905</td><td>12</td><td>1,020.00</td></tr>
+            <tr><td>Tata Salt 1kg</td><td>2501</td><td>10</td><td>280.00</td></tr>
+            <tr><td>Surf Excel 1kg</td><td>3402</td><td>6</td><td>840.00</td></tr>
+          </tbody>
+        </table>
+        <div class="inv-sum">
+          <div><span>Taxable value</span><span>2,140.00</span></div>
+          <div><span>CGST</span><span>167.40</span></div>
+          <div><span>SGST</span><span>167.40</span></div>
+          <div class="inv-total"><span>Total</span><span>₹2,474.80</span></div>
+        </div>
+        <p class="inv-words">Rupees two thousand four hundred seventy-four and eighty paise only</p>
+      </div>
+      <div class="receipt receipt-sm">
+        <p class="r-center r-strong">ESTIMATE</p>
+        <p class="r-center r-muted">No tax · kaccha</p>
+        <hr>
+        <div class="r-row"><span>Parle-G 12×85</span><span>1,020</span></div>
+        <div class="r-row"><span>Tata Salt 10×28</span><span>280</span></div>
+        <div class="r-row"><span>Surf Excel 6×140</span><span>840</span></div>
+        <hr>
+        <div class="r-row r-strong"><span>Total</span><span>2,140</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES: KHATA ============ -->
+<section class="section">
+  <div class="wrap split split-rev">
+    <div class="split-copy reveal">
+      <h2>A khata that always adds up</h2>
+      <p>Every bill, payment and return goes into a proper double-entry ledger, so a shop's balance is never a guess. See who owes what, for how long, and send a statement before the salesman reaches the counter.</p>
+      <ul class="ticks">
+        <li><svg class="ic"><use href="#i-check"/></svg>Collect in cash, by UPI QR with the amount filled in, or online</li>
+        <li><svg class="ic"><use href="#i-check"/></svg>Statements for this month, the quarter or the financial year</li>
+        <li><svg class="ic"><use href="#i-check"/></svg>Export to Excel or send on WhatsApp</li>
+      </ul>
+    </div>
+    <div class="ledger reveal" aria-hidden="true">
+      <div class="ledger-head">
+        <div>
+          <p class="ledger-label">Market dues</p>
+          <p class="ledger-figure">₹3,84,620</p>
+          <p class="ledger-change">₹42,300 collected this week</p>
+        </div>
+        <div class="ledger-legend">
+          <span><i class="k k1"></i>0–30 days</span>
+          <span><i class="k k2"></i>31–60</span>
+          <span><i class="k k3"></i>60+</span>
+        </div>
+      </div>
+      <ul class="ledger-rows">
+        <li><div><p>Gupta General Store</p><span>Beat 2 · Paharganj</span></div><div class="aging"><i style="--w:62%" class="k1"></i><i style="--w:28%" class="k2"></i><i style="--w:10%" class="k3"></i></div><span class="amt">₹48,210</span></li>
+        <li><div><p>Sharma Kirana Store</p><span>Beat 4 · Karol Bagh</span></div><div class="aging"><i style="--w:44%" class="k1"></i><i style="--w:0%" class="k2"></i><i style="--w:0%" class="k3"></i></div><span class="amt">₹2,262</span></li>
+        <li><div><p>New Bharat Provisions</p><span>Beat 1 · Rajouri Garden</span></div><div class="aging"><i style="--w:30%" class="k1"></i><i style="--w:38%" class="k2"></i><i style="--w:0%" class="k3"></i></div><span class="amt">₹36,940</span></li>
+        <li><div><p>Jain Super Bazaar</p><span>Beat 3 · Patel Nagar</span></div><div class="aging"><i style="--w:20%" class="k1"></i><i style="--w:22%" class="k2"></i><i style="--w:36%" class="k3"></i></div><span class="amt">₹71,580</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ EVERYTHING ELSE ============ -->
+<section class="section section-alt">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <h2>Everything else your agency runs on</h2>
+      <p>The work around the bill, in the same app, with the same numbers.</p>
+    </div>
+    <div class="feature-grid reveal">
+      <div class="feature"><svg class="ic"><use href="#i-undo"/></svg><h3>Returns at the counter</h3><p>Take back damaged, expired or excess stock. It goes back into inventory and the shop's dues drop on their own.</p></div>
+      <div class="feature"><svg class="ic"><use href="#i-package"/></svg><h3>Stock and three prices</h3><p>Wholesale, retail and MRP on every product, with stock that moves with every bill, return and purchase.</p></div>
+      <div class="feature"><svg class="ic"><use href="#i-truck"/></svg><h3>Purchases from suppliers</h3><p>Log a supplier bill and the stock is added. Paid or on credit, it is all recorded.</p></div>
+      <div class="feature"><svg class="ic"><use href="#i-wallet"/></svg><h3>Daily expenses</h3><p>Fuel, food, repairs, loading. One tap per expense, and your cash in hand updates.</p></div>
+      <div class="feature"><svg class="ic"><use href="#i-chart"/></svg><h3>Reports that answer things</h3><p>Sales by beat and salesman, stock running low, dead stock and how old your dues are.</p></div>
+      <div class="feature"><svg class="ic"><use href="#i-offline"/></svg><h3>Works without network</h3><p>Orders and payments are saved on the phone and sync on their own when the signal returns. Nothing is entered twice.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INSIDE THE APP ============ -->
+<section id="app" class="section screens-section">
+  <div class="wrap">
+    <div class="section-head section-head-center reveal">
+      <h2>Your whole business, in your pocket</h2>
+      <p>Open the app in the morning and see the cash in hand, the day's sales and who owes you. Everything else is two taps away.</p>
+    </div>
+    <div class="screens">
+      <figure class="reveal">
+        <div class="phone phone-static">
+          <div class="phone-screen">
+            <div class="app-bar"><span class="monogram">AT</span><span class="app-brand">Sales Army</span><svg class="ic ic-sm"><use href="#i-bell"/></svg></div>
+            <div class="scr-pad">
+              <p class="scr-greet">Good morning</p>
+              <p class="scr-firm">Agarwal Traders</p>
+              <div class="scr-cash">
+                <span>Cash in hand</span>
+                <p>₹18,450</p>
+                <div class="scr-cash-row"><div><span>Today's sales</span><b>₹42,860</b></div><div><span>Bills</span><b>14</b></div></div>
+              </div>
+              <div class="scr-dock">
+                <span><svg class="ic"><use href="#i-receipt"/></svg>New bill</span>
+                <span><svg class="ic"><use href="#i-package"/></svg>Order</span>
+                <span><svg class="ic"><use href="#i-wallet"/></svg>Collect</span>
+                <span><svg class="ic"><use href="#i-users"/></svg>Parties</span>
+                <span><svg class="ic"><use href="#i-package"/></svg>Stock</span>
+                <span><svg class="ic"><use href="#i-truck"/></svg>Purchase</span>
+                <span><svg class="ic"><use href="#i-book"/></svg>Expense</span>
+                <span><svg class="ic"><use href="#i-chart"/></svg>Reports</span>
+              </div>
+              <div class="scr-dues"><div><span>Market dues</span><b>₹3,84,620</b></div><em>42 shops</em></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Home</b>Cash, sales and dues the moment you open the app</figcaption>
+      </figure>
+
+      <figure class="reveal">
+        <div class="phone phone-static">
+          <div class="phone-screen">
+            <div class="app-bar"><span class="monogram">AT</span><span class="app-brand">Sales Army</span><svg class="ic ic-sm"><use href="#i-bell"/></svg></div>
+            <div class="scr-pad">
+              <p class="scr-title">Collect payment</p>
+              <div class="app-shop scr-flat">
+                <div><p class="app-shop-name">Gupta General Store</p><p class="app-shop-meta"><svg class="ic ic-xs"><use href="#i-pin"/></svg>Beat 2 · Paharganj</p></div>
+                <span class="app-dues">Dues ₹48,210</span>
+              </div>
+              <div class="scr-amount"><span>Amount</span><p>₹10,000</p></div>
+              <div class="scr-tabs"><span>Cash</span><span class="on">UPI QR</span><span>Online</span></div>
+              <div class="scr-qr"><svg class="qr" viewBox="-2 -2 25 25" aria-hidden="true"><rect x="-2" y="-2" width="25" height="25" fill="#fff"/><path fill="#0f172a" d="M0 0h1v1h-1zM0 1h1v1h-1zM0 2h1v1h-1zM0 3h1v1h-1zM0 4h1v1h-1zM0 5h1v1h-1zM0 6h1v1h-1zM1 0h1v1h-1zM1 6h1v1h-1zM2 0h1v1h-1zM2 2h1v1h-1zM2 3h1v1h-1zM2 4h1v1h-1zM2 6h1v1h-1zM3 0h1v1h-1zM3 2h1v1h-1zM3 3h1v1h-1zM3 4h1v1h-1zM3 6h1v1h-1zM4 0h1v1h-1zM4 2h1v1h-1zM4 3h1v1h-1zM4 4h1v1h-1zM4 6h1v1h-1zM5 0h1v1h-1zM5 6h1v1h-1zM6 0h1v1h-1zM6 1h1v1h-1zM6 2h1v1h-1zM6 3h1v1h-1zM6 4h1v1h-1zM6 5h1v1h-1zM6 6h1v1h-1zM14 0h1v1h-1zM14 1h1v1h-1zM14 2h1v1h-1zM14 3h1v1h-1zM14 4h1v1h-1zM14 5h1v1h-1zM14 6h1v1h-1zM15 0h1v1h-1zM15 6h1v1h-1zM16 0h1v1h-1zM16 2h1v1h-1zM16 3h1v1h-1zM16 4h1v1h-1zM16 6h1v1h-1zM17 0h1v1h-1zM17 2h1v1h-1zM17 3h1v1h-1zM17 4h1v1h-1zM17 6h1v1h-1zM18 0h1v1h-1zM18 2h1v1h-1zM18 3h1v1h-1zM18 4h1v1h-1zM18 6h1v1h-1zM19 0h1v1h-1zM19 6h1v1h-1zM20 0h1v1h-1zM20 1h1v1h-1zM20 2h1v1h-1zM20 3h1v1h-1zM20 4h1v1h-1zM20 5h1v1h-1zM20 6h1v1h-1zM0 14h1v1h-1zM0 15h1v1h-1zM0 16h1v1h-1zM0 17h1v1h-1zM0 18h1v1h-1zM0 19h1v1h-1zM0 20h1v1h-1zM1 14h1v1h-1zM1 20h1v1h-1zM2 14h1v1h-1zM2 16h1v1h-1zM2 17h1v1h-1zM2 18h1v1h-1zM2 20h1v1h-1zM3 14h1v1h-1zM3 16h1v1h-1zM3 17h1v1h-1zM3 18h1v1h-1zM3 20h1v1h-1zM4 14h1v1h-1zM4 16h1v1h-1zM4 17h1v1h-1zM4 18h1v1h-1zM4 20h1v1h-1zM5 14h1v1h-1zM5 20h1v1h-1zM6 14h1v1h-1zM6 15h1v1h-1zM6 16h1v1h-1zM6 17h1v1h-1zM6 18h1v1h-1zM6 19h1v1h-1zM6 20h1v1h-1zM0 8h1v1h-1zM0 9h1v1h-1zM0 11h1v1h-1zM1 8h1v1h-1zM1 9h1v1h-1zM1 11h1v1h-1zM1 12h1v1h-1zM2 8h1v1h-1zM2 9h1v1h-1zM2 10h1v1h-1zM2 12h1v1h-1zM3 8h1v1h-1zM3 12h1v1h-1zM4 9h1v1h-1zM4 11h1v1h-1zM4 12h1v1h-1zM5 8h1v1h-1zM5 9h1v1h-1zM5 11h1v1h-1zM6 9h1v1h-1zM6 11h1v1h-1zM6 12h1v1h-1zM7 8h1v1h-1zM7 10h1v1h-1zM7 11h1v1h-1zM8 0h1v1h-1zM8 1h1v1h-1zM8 4h1v1h-1zM8 9h1v1h-1zM8 11h1v1h-1zM8 12h1v1h-1zM8 14h1v1h-1zM8 16h1v1h-1zM9 0h1v1h-1zM9 4h1v1h-1zM9 7h1v1h-1zM9 9h1v1h-1zM9 14h1v1h-1zM9 15h1v1h-1zM9 17h1v1h-1zM9 18h1v1h-1zM9 19h1v1h-1zM9 20h1v1h-1zM10 0h1v1h-1zM10 2h1v1h-1zM10 3h1v1h-1zM10 4h1v1h-1zM10 6h1v1h-1zM10 7h1v1h-1zM10 12h1v1h-1zM10 13h1v1h-1zM10 14h1v1h-1zM10 17h1v1h-1zM10 18h1v1h-1zM10 19h1v1h-1zM10 20h1v1h-1zM11 2h1v1h-1zM11 3h1v1h-1zM11 4h1v1h-1zM11 5h1v1h-1zM11 12h1v1h-1zM11 17h1v1h-1zM11 18h1v1h-1zM11 19h1v1h-1zM12 0h1v1h-1zM12 1h1v1h-1zM12 2h1v1h-1zM12 3h1v1h-1zM12 4h1v1h-1zM12 5h1v1h-1zM12 6h1v1h-1zM12 7h1v1h-1zM12 8h1v1h-1zM12 9h1v1h-1zM12 10h1v1h-1zM12 13h1v1h-1zM12 14h1v1h-1zM12 15h1v1h-1zM12 16h1v1h-1zM12 17h1v1h-1zM12 20h1v1h-1zM13 9h1v1h-1zM13 10h1v1h-1zM13 11h1v1h-1zM13 12h1v1h-1zM13 14h1v1h-1zM13 15h1v1h-1zM13 18h1v1h-1zM13 20h1v1h-1zM14 12h1v1h-1zM14 13h1v1h-1zM14 14h1v1h-1zM14 18h1v1h-1zM14 19h1v1h-1zM15 13h1v1h-1zM15 15h1v1h-1zM15 16h1v1h-1zM15 17h1v1h-1zM15 18h1v1h-1zM15 19h1v1h-1zM16 9h1v1h-1zM16 13h1v1h-1zM16 14h1v1h-1zM16 15h1v1h-1zM16 16h1v1h-1zM16 17h1v1h-1zM17 8h1v1h-1zM17 11h1v1h-1zM17 16h1v1h-1zM17 17h1v1h-1zM17 19h1v1h-1zM18 9h1v1h-1zM18 10h1v1h-1zM18 13h1v1h-1zM18 14h1v1h-1zM18 15h1v1h-1zM18 18h1v1h-1zM19 9h1v1h-1zM19 11h1v1h-1zM19 12h1v1h-1zM19 17h1v1h-1zM19 20h1v1h-1zM20 8h1v1h-1zM20 9h1v1h-1zM20 10h1v1h-1zM20 12h1v1h-1zM20 13h1v1h-1zM20 14h1v1h-1zM20 16h1v1h-1zM20 17h1v1h-1zM20 20h1v1h-1z"/></svg><p>Scan to pay ₹10,000</p><span>agarwaltraders@upi</span></div>
+              <span class="scr-btn">Record payment</span>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Collect</b>A UPI QR with the amount already filled in</figcaption>
+      </figure>
+
+      <figure class="reveal">
+        <div class="phone phone-static">
+          <div class="phone-screen">
+            <div class="app-bar"><span class="monogram">AT</span><span class="app-brand">Sales Army</span><svg class="ic ic-sm"><use href="#i-bell"/></svg></div>
+            <div class="scr-pad">
+              <p class="scr-title">Sales report</p>
+              <div class="scr-stat"><span>November so far</span><p>₹8,46,200</p><em>+12% vs October</em></div>
+              <div class="scr-bars" aria-hidden="true">
+                <div><i style="--h:58%"></i><span>Week 1</span></div>
+                <div><i style="--h:72%"></i><span>Week 2</span></div>
+                <div><i style="--h:64%"></i><span>Week 3</span></div>
+                <div class="now"><i style="--h:88%"></i><span>Week 4</span></div>
+              </div>
+              <p class="scr-sub">By beat</p>
+              <ul class="scr-rank">
+                <li><span>Karol Bagh</span><i style="--w:92%"></i><b>₹2.41L</b></li>
+                <li><span>Paharganj</span><i style="--w:74%"></i><b>₹1.94L</b></li>
+                <li><span>Rajouri Garden</span><i style="--w:61%"></i><b>₹1.60L</b></li>
+                <li><span>Patel Nagar</span><i style="--w:47%"></i><b>₹1.23L</b></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Reports</b>See which beat and which salesman is selling</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ROLES ============ -->
+<section id="roles" class="section">
+  <div class="wrap split">
+    <div class="split-copy reveal">
+      <h2>Each person sees only their part</h2>
+      <p>Your salesman doesn't need your accounts, and your delivery boy doesn't need the price list. Give each person a role and switch individual permissions on or off.</p>
+      <ul class="ticks">
+        <li><svg class="ic"><use href="#i-check"/></svg>Ten permissions per person, from billing to staff</li>
+        <li><svg class="ic"><use href="#i-check"/></svg>Staff join with your agency code, no setup on their phone</li>
+      </ul>
+    </div>
+    <div class="matrix-card reveal">
+      <table class="matrix">
+        <caption class="sr-only">Screens each role sees</caption>
+        <thead>
+          <tr><th scope="col">Role</th><th scope="col">Home</th><th scope="col">Parties</th><th scope="col">Bill</th><th scope="col">Orders</th><th scope="col">Collection</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Owner</th><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+          <tr><th scope="row">Salesman</th><td class="y">Yes</td><td class="y">Yes</td><td>No</td><td class="y">Yes</td><td>No</td></tr>
+          <tr><th scope="row">Accountant</th><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td><td>No</td><td class="y">Yes</td></tr>
+          <tr><th scope="row">Store manager</th><td class="y">Yes</td><td class="y">Yes</td><td>No</td><td class="y">Yes</td><td>No</td></tr>
+          <tr><th scope="row">Delivery</th><td class="y">Yes</td><td>No</td><td>No</td><td class="y">Yes</td><td>No</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section id="pricing" class="section section-alt">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <h2>Simple plans, priced per agency</h2>
+      <p>Every new agency starts with a 14-day free trial. Prices exclude 18% GST.</p>
+    </div>
+    <input type="radio" name="billing" id="bill-m" class="bill-radio" checked>
+    <input type="radio" name="billing" id="bill-y" class="bill-radio">
+    <div class="bill-toggle" role="group" aria-label="Billing period">
+      <label for="bill-m">Monthly</label>
+      <label for="bill-y">Yearly <em>save 20%</em></label>
+    </div>
+    <div class="plans reveal">
+      <article class="plan">
+        <h3>Startup</h3>
+        <p class="plan-for">For an owner billing on their own</p>
+        <p class="price m"><span>₹399</span>/month</p>
+        <p class="price-alt m">or ₹319/month billed yearly</p>
+        <p class="price y"><span>₹319</span>/month</p>
+        <p class="price-alt y">₹3,828 billed once a year</p>
+        <ul>
+          <li><svg class="ic"><use href="#i-check"/></svg>1 user</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>Up to 50 products and 200 shops</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>GST invoices and kaccha bills</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>58mm thermal printing</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>Cloud sync and backup</li>
+        </ul>
+        <a href="#contact" class="btn btn-line">Start free trial</a>
+      </article>
+      <article class="plan plan-main">
+        <h3>Grow</h3>
+        <p class="plan-for">For an agency with a small sales team</p>
+        <p class="price m"><span>₹599</span>/month</p>
+        <p class="price-alt m">or ₹479/month billed yearly</p>
+        <p class="price y"><span>₹479</span>/month</p>
+        <p class="price-alt y">₹5,748 billed once a year</p>
+        <ul>
+          <li><svg class="ic"><use href="#i-check"/></svg>Up to 5 staff</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>Up to 200 products and 1,000 shops</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>Everything in Startup</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>UPI QR with the amount filled in</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>Van stock</li>
+        </ul>
+        <a href="#contact" class="btn btn-blue">Start free trial</a>
+      </article>
+      <article class="plan">
+        <h3>Enterprise</h3>
+        <p class="plan-for">For distributors running a fleet</p>
+        <p class="price m"><span>₹899</span>/month</p>
+        <p class="price-alt m">or ₹719/month billed yearly</p>
+        <p class="price y"><span>₹719</span>/month</p>
+        <p class="price-alt y">₹8,628 billed once a year</p>
+        <ul>
+          <li><svg class="ic"><use href="#i-check"/></svg>Up to 50 staff</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>Unlimited products, 10,000 shops</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>Everything in Grow</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>Multiple vans and custom tax slabs</li>
+          <li><svg class="ic"><use href="#i-check"/></svg>A dedicated account manager</li>
+        </ul>
+        <a href="#contact" class="btn btn-line">Talk to us</a>
+      </article>
+    </div>
+    <p class="plans-note"><svg class="ic"><use href="#i-printer"/></svg>Need a printer? Add a 58mm, 80mm or rugged van Bluetooth printer when you subscribe, and we ship it to you.</p>
+  </div>
+</section>
+
+<!-- ============ ABOUT ============ -->
+<section id="about" class="section">
+  <div class="wrap about">
+    <div class="about-copy reveal">
+      <h2>Built for the distributor who still keeps a khata</h2>
+      <p>Most distribution in India still runs on a godown, a few vans, a team of salesmen and a register full of dues. The software made for it is usually either too simple to trust with your books or too complicated for your salesmen to use.</p>
+      <p>SalesArmy takes the work that happens at the shop counter, the order, the bill and the payment, and puts it on one phone that a salesman learns in a morning. Behind that sits an accounting system that keeps your stock, dues and cash exact.</p>
+    </div>
+    <ul class="principles reveal">
+      <li>
+        <svg class="ic"><use href="#i-users"/></svg>
+        <div><h3>Easy for every salesman</h3><p>Plain words, big buttons and only the screens each person needs.</p></div>
+      </li>
+      <li>
+        <svg class="ic"><use href="#i-book"/></svg>
+        <div><h3>Books that stay exact</h3><p>Every rupee is recorded twice, so stock, dues and cash always match.</p></div>
+      </li>
+      <li>
+        <svg class="ic"><use href="#i-shield"/></svg>
+        <div><h3>Your data stays yours</h3><p>Each agency's data is kept apart from every other, with regular backups.</p></div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section id="faq" class="section section-alt">
+  <div class="wrap faq-wrap">
+    <div class="section-head section-head-left">
+      <h2>Questions distributors ask us</h2>
+      <p>Can't find yours? <a href="#contact">Talk to us</a></p>
+    </div>
+    <div class="faq reveal">
+      <details>
+        <summary>Does it work where there is no network?</summary>
+        <p>Yes. Orders, bills and payments are saved on the phone first and sync on their own when the network returns. Each entry is sent once, so nothing is counted twice.</p>
+      </details>
+      <details>
+        <summary>Which printers can I use?</summary>
+        <p>Any 58mm (2 inch) or 80mm (3 inch) Bluetooth thermal printer that supports ESC/POS, which covers most printers sold for billing. You can also buy one with your plan.</p>
+      </details>
+      <details>
+        <summary>Can I give a bill without GST?</summary>
+        <p>Yes. You can print a kaccha estimate with no tax, or a full GST tax invoice, for any order. Both go into the shop's khata the same way.</p>
+      </details>
+      <details>
+        <summary>What happens when my trial or plan ends?</summary>
+        <p>Nothing is deleted. You can still sign in, see all your data and reports, and collect dues. Creating new orders, bills and other entries starts again as soon as you renew.</p>
+      </details>
+      <details>
+        <summary>Can my staff see my accounts?</summary>
+        <p>Only if you allow it. Each person gets a role, and you can switch every permission on or off, from billing and collections to staff and settings.</p>
+      </details>
+      <details>
+        <summary>Can I move from my current register or software?</summary>
+        <p>Yes. Add your products, shops and opening dues and you can start billing the same day. Talk to us if you want help with a large catalogue.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA / CONTACT ============ -->
+<section id="contact" class="cta">
+  <div class="wrap cta-grid">
+    <div>
+      <h2>Put your next beat on SalesArmy</h2>
+      <p>Start a 14-day free trial, or talk to us and we'll set it up with your products and shops.</p>
+      <div class="hero-actions">
+        <a href="https://wa.me/919716980633?text=Hi%2C%20I%20want%20to%20start%20the%20SalesArmy%20free%20trial" target="_blank" rel="noopener" class="btn btn-gold">Start 14-day free trial <svg class="ic"><use href="#i-arrow"/></svg></a>
+      </div>
+    </div>
+    <ul class="contact-list">
+      <li><svg class="ic"><use href="#i-phone"/></svg><div><span>Call us</span><a href="tel:+919716980633">+91 97169 80633</a></div></li>
+      <li><svg class="ic"><use href="#i-chat"/></svg><div><span>WhatsApp</span><a href="https://wa.me/919716980633" target="_blank" rel="noopener">Chat on WhatsApp</a></div></li>
+      <li><svg class="ic"><use href="#i-mail"/></svg><div><span>Email</span><a href="mailto:hello@salesarmy.in">hello@salesarmy.in</a></div></li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <a href="#top" class="footer-logo" aria-label="SalesArmy home">
+        <img src="assets/logo.svg" alt="SalesArmy" width="120" height="120" loading="lazy">
+      </a>
+      <p class="footer-note">Orders, bills and khata for FMCG distributors.</p>
+      <p class="footer-contact"><a href="tel:+919716980633">+91 97169 80633</a> · <a href="mailto:hello@salesarmy.in">hello@salesarmy.in</a></p>
+    </div>
+    <nav aria-label="Footer">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#about">About</a>
+      <a href="#faq">FAQ</a>
+      <a href="../web-admin/legal.html">Privacy and terms</a>
+    </nav>
+  </div>
+  <div class="wrap footer-base">
+    <span>© 2026 SalesArmy</span>
+  </div>
+</footer>
+
+<script>
+  // Gentle reveal on scroll. Content stays visible without JS or with reduced motion.
+  (function () {
+    var header = document.querySelector('.site-header');
+    addEventListener('scroll', function () { header.classList.toggle('scrolled', scrollY > 8); }, { passive: true });
+    if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    document.documentElement.classList.add('js-reveal');
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+  })();
+</script>
+</body>
+</html>

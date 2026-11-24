@@ -118,11 +118,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500)); // Advance dialog transition
       await tester.pumpAndSettle();
 
-      // Resilient fallback: activates plan directly when platform server is not configured
-      expect(find.text('Payment & Plan Activated!'), findsOneWidget);
-      expect(find.text('Back to Dashboard'), findsOneWidget);
-      expect(appState.tenant.subscriptionStatus, equals('trial'));
-      expect(appState.tenant.subscriptionPlanId, equals('grow'));
+      // Plans are activated only by the server (payment server or the
+      // database test-activation RPC). With no server reachable here, the
+      // phone must NOT grant itself the plan — it shows an error instead.
+      expect(find.text('Payment & Plan Activated!'), findsNothing);
+      expect(appState.tenant.subscriptionPlanId, equals(previousPlan));
+      expect(appState.tenant.subscriptionEndDate, equals(previousExpiry));
+      expect(find.byType(SnackBar), findsOneWidget);
     });
   });
 }

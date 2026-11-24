@@ -64,23 +64,35 @@ const DEFAULT_COUPONS = [];
 // Canonical capability catalog — shared with mobile FeatureGate.
 // Admin toggles these per tier to control what each plan actually unlocks.
 const CAPABILITY_CATALOG = [
-  { key: 'invoicing',           label: 'GST Tax Invoicing',            group: 'Billing' },
-  { key: 'gst_reports',         label: 'GST Reports & Export',         group: 'Billing' },
-  { key: 'khata_ledger',        label: 'Khata Ledgers & PDF Export',   group: 'Billing' },
-  { key: 'dynamic_upi_qr',      label: 'Dynamic UPI QR on Bills',      group: 'Billing' },
-  { key: 'offline_sync',        label: 'Offline Outbox & Cloud Sync',  group: 'Core' },
-  { key: 'bulk_import',         label: 'Bulk CSV Import',              group: 'Core' },
-  { key: 'live_tracking',       label: 'Live Beat Tracking (GPS)',     group: 'Operations' },
-  { key: 'van_stock',           label: 'Van Stock & Reconciliation',   group: 'Operations' },
-  { key: 'multi_van',           label: 'Multi-Van Fleet Management',   group: 'Operations' },
-  { key: 'multi_branch',        label: 'Multi-Branch Locations',       group: 'Operations' },
-  { key: 'custom_branding',     label: 'Logo & Brand Customization',   group: 'Customization' },
-  { key: 'custom_tax_slabs',    label: 'Custom Tax Slabs',             group: 'Customization' },
-  { key: 'admin_customization', label: 'Admin Panel Customization',    group: 'Customization' },
-  { key: 'audit_vault',         label: 'Audit Vault & Compliance',     group: 'Enterprise' },
-  { key: 'priority_support',    label: 'Priority Phone / WhatsApp',    group: 'Support' },
-  { key: 'dedicated_manager',   label: 'Dedicated Account Manager',    group: 'Support' },
+  { key: 'order_taking',      label: 'Order Taking & Bill Page',     group: 'Selling' },
+  { key: 'estimate_bills',    label: 'Kaccha / Estimate Bills',      group: 'Selling' },
+  { key: 'invoicing',         label: 'GST Tax Invoicing',            group: 'Selling' },
+  { key: 'sales_returns',     label: 'Sales Returns',                group: 'Selling' },
+  { key: 'collections',       label: 'Payment Collection',           group: 'Money' },
+  { key: 'khata_ledger',      label: 'Khata Ledgers & PDF Export',   group: 'Money' },
+  { key: 'dynamic_upi_qr',    label: 'Dynamic UPI QR on Bills',      group: 'Money' },
+  { key: 'purchases',         label: 'Purchases / Stock Inward',     group: 'Operations' },
+  { key: 'expenses',          label: 'Expense Tracking',             group: 'Operations' },
+  { key: 'visits',            label: 'Visits & Reminders',           group: 'Operations' },
+  { key: 'staff_management',  label: 'Staff Logins & Permissions',   group: 'Operations' },
+  { key: 'thermal_printer',   label: 'Bluetooth Thermal Printing',   group: 'Operations' },
+  { key: 'reports',           label: 'Reports Hub',                  group: 'Reports' },
+  { key: 'gst_reports',       label: 'GST Reports & Export',         group: 'Reports' },
+  { key: 'offline_sync',      label: 'Offline Outbox & Cloud Sync',  group: 'Core' },
+  { key: 'bulk_import',       label: 'Bulk CSV Import',              group: 'Core' },
+  { key: 'live_tracking',     label: 'Live Beat Tracking (GPS)',     group: 'Advanced' },
+  { key: 'van_stock',         label: 'Van Stock & Reconciliation',   group: 'Advanced' },
+  { key: 'multi_van',         label: 'Multi-Van Fleet Management',   group: 'Advanced' },
+  { key: 'multi_branch',      label: 'Multi-Branch Locations',       group: 'Advanced' },
+  { key: 'custom_branding',   label: 'Logo & Brand Customization',   group: 'Customization' },
+  { key: 'custom_tax_slabs',  label: 'Custom Tax Slabs',             group: 'Customization' },
+  { key: 'admin_customization', label: 'Admin Panel Customization',  group: 'Customization' },
+  { key: 'audit_vault',       label: 'Audit Vault & Compliance',     group: 'Enterprise' },
+  { key: 'priority_support',  label: 'Priority Phone / WhatsApp',    group: 'Support' },
+  { key: 'dedicated_manager', label: 'Dedicated Account Manager',    group: 'Support' },
 ];
+const CORE_CAPABILITIES = ['order_taking', 'estimate_bills', 'invoicing', 'sales_returns', 'collections', 'khata_ledger',
+  'purchases', 'expenses', 'visits', 'thermal_printer', 'reports', 'gst_reports', 'offline_sync'];
 
 const DEFAULT_PLANS = {
   // Legacy rates for backwards compatibility
@@ -101,16 +113,19 @@ const DEFAULT_PLANS = {
       maxStaff: 2,
       maxOrdersPerMonth: 200,
       maxBranches: 1,
+      maxProducts: 50,
+      maxShops: 200,
+      featuresVersion: 2,
       tagline: 'Ideal for single-van distributors and emerging agencies.',
       features: [
-        'Everything in Free Core',
+        'GST & Kaccha Billing',
         '2 Field Sales Staff Logins',
         '200 Orders / Invoices per month',
         '1 Branch / Godown Location',
         'Instant Kaccha & Tax Bills',
         'Standard WhatsApp PDF Sharing',
       ],
-      allowedFeatures: ['invoicing', 'gst_reports', 'offline_sync', 'khata_ledger'],
+      allowedFeatures: [...CORE_CAPABILITIES],
       isPopular: false,
     },
     {
@@ -122,6 +137,9 @@ const DEFAULT_PLANS = {
       maxStaff: 10,
       maxOrdersPerMonth: 1000,
       maxBranches: 3,
+      maxProducts: 200,
+      maxShops: 1000,
+      featuresVersion: 2,
       tagline: 'Most popular for expanding regional wholesale operations.',
       features: [
         'Everything in Startup',
@@ -132,7 +150,7 @@ const DEFAULT_PLANS = {
         'Route Optimization & Beat Tracking',
         '24/7 Priority WhatsApp Support',
       ],
-      allowedFeatures: ['invoicing', 'gst_reports', 'offline_sync', 'khata_ledger', 'dynamic_upi_qr', 'live_tracking', 'van_stock', 'bulk_import', 'multi_branch', 'priority_support'],
+      allowedFeatures: [...CORE_CAPABILITIES, 'staff_management', 'dynamic_upi_qr', 'live_tracking', 'van_stock', 'bulk_import', 'multi_branch', 'priority_support'],
       isPopular: true,
     },
     {
@@ -142,8 +160,11 @@ const DEFAULT_PLANS = {
       yearlyMonthlyEquivalent: 719,
       annualPrice: 8628,
       maxStaff: 999,
-      maxOrdersPerMonth: 999999,
+      maxOrdersPerMonth: 0,
       maxBranches: 10,
+      maxProducts: 0,
+      maxShops: 10000,
+      featuresVersion: 2,
       tagline: 'Maximum power & scale for enterprise FMCG operations.',
       features: [
         'Unlimited Staff & Shop Logins',
@@ -153,7 +174,7 @@ const DEFAULT_PLANS = {
         'Custom ERP & Tally Integration',
         'Dedicated Enterprise Account Manager',
       ],
-      allowedFeatures: ['invoicing', 'gst_reports', 'offline_sync', 'khata_ledger', 'dynamic_upi_qr', 'live_tracking', 'van_stock', 'bulk_import', 'multi_branch', 'multi_van', 'custom_branding', 'custom_tax_slabs', 'admin_customization', 'audit_vault', 'priority_support', 'dedicated_manager'],
+      allowedFeatures: CAPABILITY_CATALOG.map(c => c.key),
       isPopular: false,
     },
   ],
@@ -363,8 +384,8 @@ const REMOTE_MODULES_METADATA = [
     name: 'Order Taker & Kaccha Bill',
     title: 'Order Taker & Kaccha Billing Flow',
     category: 'Core Selling',
-    desc: 'Core wholesale booking and quotation bills. Guaranteed permanent free core in freemium tiers.',
-    description: 'Core wholesale booking and quotation bills. Guaranteed permanent free core in freemium tiers.',
+    desc: 'Core wholesale booking and quotation bills (platform-wide kill switch; per-plan access is set in Plans).',
+    description: 'Core wholesale booking and quotation bills (platform-wide kill switch; per-plan access is set in Plans).',
     icon: '📝',
     isFreemiumProtected: true,
     isCoreSelling: true,
@@ -2995,8 +3016,8 @@ class AdminPortal {
     tenants.forEach(t => {
       const plan = (t.subscriptionPlanId || t.planName || '').toLowerCase();
       const status = (t.subscriptionStatus || '').toLowerCase();
-      if (status === 'freemium' || plan.includes('free') || status === 'trial' || plan.includes('trial')) {
-        freemium++;
+      if (status === 'expired') {
+        freemium++; // "expired / read-only" bucket (there is no free plan)
       } else if (plan.includes('enterprise') || plan.includes('platinum')) {
         enterprise++;
       } else if (plan.includes('grow') || plan.includes('growth') || plan.includes('gold')) {
@@ -3026,7 +3047,7 @@ class AdminPortal {
       { label: 'Enterprise', val: enterprise, color: '#10B981' },
       { label: 'Grow', val: grow, color: '#8B5CF6' },
       { label: 'Startup', val: startup, color: '#3B82F6' },
-      { label: 'Freemium', val: freemium, color: '#F59E0B' },
+      { label: 'Expired', val: freemium, color: '#F59E0B' },
     ];
 
     const cx = width / 2;
@@ -3459,8 +3480,8 @@ class AdminPortal {
     tenants.forEach(t => {
       const plan = (t.subscriptionPlanId || t.planName || '').toLowerCase();
       const status = (t.subscriptionStatus || '').toLowerCase();
-      if (status === 'freemium' || plan.includes('free') || status === 'trial' || plan.includes('trial')) {
-        freemium++;
+      if (status === 'expired') {
+        freemium++; // "expired / read-only" bucket (there is no free plan)
       } else if (plan.includes('enterprise') || plan.includes('platinum')) {
         enterprise++;
       } else if (plan.includes('grow') || plan.includes('growth') || plan.includes('gold')) {
@@ -3489,7 +3510,7 @@ class AdminPortal {
       this.charts.planDistribution.destroy();
     }
 
-    const planLabels = hasPlans ? ['Enterprise (₹899)', 'Grow (₹599)', 'Startup (₹399)', 'Freemium (Free)'] : ['No Agencies Registered'];
+    const planLabels = hasPlans ? ['Enterprise (₹899)', 'Grow (₹599)', 'Startup (₹399)', 'Expired (Read-only)'] : ['No Agencies Registered'];
     const planData = hasPlans ? [enterprise, grow, startup, freemium] : [1];
     const planColors = hasPlans ? [
       theme.accentEmerald,
@@ -4498,24 +4519,7 @@ class AdminPortal {
     const defaultPrinter = this.getDefaultPrinterOption();
     const defaultPrinterPrice = defaultPrinter?.price || 2499;
 
-    container.innerHTML = `
-      <!-- 1. Free Starter Tier -->
-      <div class="plan-card">
-        <div class="plan-name">Free Starter (Freemium)</div>
-        <div class="plan-price">₹0 <span>/ forever</span></div>
-        <p style="font-size: 12px; color: #64748B; margin-bottom: 12px;">Unsubscribed users can sell, bill, and quote forever.</p>
-        <ul class="plan-features">
-          <li>✓ <strong>Order Taking Enabled</strong></li>
-          <li>✓ <strong>Estimated Bill (Kaccha Bill)</strong></li>
-          <li>✓ <strong>Full Tax Invoices & GST</strong></li>
-          <li>✓ Up to 50 Retailer Outlets</li>
-          <li>✓ 1 Field Executive</li>
-        </ul>
-        <div style="margin-top: auto; padding-top: 16px;">
-          <span class="badge badge-freemium" style="width: 100%; justify-content: center; padding: 8px;">Permanent Free Core</span>
-        </div>
-      </div>
-    ` + this.plans.tiers.map(tier => {
+    container.innerHTML = this.plans.tiers.map(tier => {
       const isPopular = tier.isPopular === true || tier.highlight === true;
       const annualTotal = (tier.yearlyMonthlyEquivalent || tier.monthlyPrice) * 12;
       const maxStaff = tier.maxStaff ?? tier.maxUsers ?? 5;
@@ -4661,6 +4665,10 @@ class AdminPortal {
     const enterprise = this.plans.tiers.find(t => t.id === 'enterprise') || this.plans.tiers[2];
 
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    for (const [key, tier, dProd, dShops] of [['Startup', startup, 50, 200], ['Grow', grow, 200, 1000], ['Enterprise', enterprise, 0, 10000]]) {
+      setVal(`cfg${key}MaxProducts`, tier.maxProducts ?? dProd);
+      setVal(`cfg${key}MaxShops`, tier.maxShops ?? dShops);
+    }
     const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
 
     // Startup
@@ -4719,6 +4727,12 @@ class AdminPortal {
       this.plans.tiers = JSON.parse(JSON.stringify(DEFAULT_PLANS.tiers));
     }
 
+    // Limits: 0 = unlimited (parseInt(..) || default would turn 0 back into the default).
+    const readLimit = (id, dflt) => {
+      const raw = document.getElementById(id)?.value;
+      const n = parseInt(raw, 10);
+      return Number.isInteger(n) && n >= 0 ? n : dflt;
+    };
     const parseFeatures = (val) => (val || '')
       .split('\n')
       .map(s => s.replace(/^[•✓\-\*]\s*/, '').trim())
@@ -4731,13 +4745,17 @@ class AdminPortal {
     startup.monthlyPrice = parseFloat(document.getElementById('cfgStartupPrice')?.value) || 399;
     startup.yearlyMonthlyEquivalent = parseFloat(document.getElementById('cfgStartupYearlyPrice')?.value) || Math.round(startup.monthlyPrice * 0.8);
     startup.annualPrice = startup.yearlyMonthlyEquivalent * 12;
-    startup.maxStaff = parseInt(document.getElementById('cfgStartupMaxStaff')?.value, 10) || 2;
-    startup.maxOrdersPerMonth = parseInt(document.getElementById('cfgStartupMaxOrders')?.value, 10) || 200;
-    startup.maxBranches = parseInt(document.getElementById('cfgStartupMaxBranches')?.value, 10) || 1;
+    startup.maxStaff = readLimit('cfgStartupMaxStaff', 2);
+    startup.maxUsers = startup.maxStaff;
+    startup.maxOrdersPerMonth = readLimit('cfgStartupMaxOrders', 200);
+    startup.maxBranches = readLimit('cfgStartupMaxBranches', 1);
+    startup.maxProducts = readLimit('cfgStartupMaxProducts', 50);
+    startup.maxShops = readLimit('cfgStartupMaxShops', 200);
     startup.isPopular = document.getElementById('cfgStartupPopular')?.checked || false;
     const startupFeats = parseFeatures(document.getElementById('cfgStartupFeatures')?.value);
     if (startupFeats.length > 0) startup.features = startupFeats;
     startup.allowedFeatures = this.collectAllowedFeatures('startup');
+    startup.featuresVersion = 2;
 
     // 2. Grow Plan
     const grow = this.plans.tiers.find(t => t.id === 'grow') || {};
@@ -4746,13 +4764,17 @@ class AdminPortal {
     grow.monthlyPrice = parseFloat(document.getElementById('cfgGrowPrice')?.value) || 599;
     grow.yearlyMonthlyEquivalent = parseFloat(document.getElementById('cfgGrowYearlyPrice')?.value) || Math.round(grow.monthlyPrice * 0.8);
     grow.annualPrice = grow.yearlyMonthlyEquivalent * 12;
-    grow.maxStaff = parseInt(document.getElementById('cfgGrowMaxStaff')?.value, 10) || 10;
-    grow.maxOrdersPerMonth = parseInt(document.getElementById('cfgGrowMaxOrders')?.value, 10) || 1000;
-    grow.maxBranches = parseInt(document.getElementById('cfgGrowMaxBranches')?.value, 10) || 3;
+    grow.maxStaff = readLimit('cfgGrowMaxStaff', 10);
+    grow.maxUsers = grow.maxStaff;
+    grow.maxOrdersPerMonth = readLimit('cfgGrowMaxOrders', 1000);
+    grow.maxBranches = readLimit('cfgGrowMaxBranches', 3);
+    grow.maxProducts = readLimit('cfgGrowMaxProducts', 200);
+    grow.maxShops = readLimit('cfgGrowMaxShops', 1000);
     grow.isPopular = document.getElementById('cfgGrowPopular')?.checked || false;
     const growFeats = parseFeatures(document.getElementById('cfgGrowFeatures')?.value);
     if (growFeats.length > 0) grow.features = growFeats;
     grow.allowedFeatures = this.collectAllowedFeatures('grow');
+    grow.featuresVersion = 2;
 
     // 3. Enterprise Plan
     const enterprise = this.plans.tiers.find(t => t.id === 'enterprise') || {};
@@ -4761,13 +4783,17 @@ class AdminPortal {
     enterprise.monthlyPrice = parseFloat(document.getElementById('cfgEnterprisePrice')?.value) || 899;
     enterprise.yearlyMonthlyEquivalent = parseFloat(document.getElementById('cfgEnterpriseYearlyPrice')?.value) || Math.round(enterprise.monthlyPrice * 0.8);
     enterprise.annualPrice = enterprise.yearlyMonthlyEquivalent * 12;
-    enterprise.maxStaff = parseInt(document.getElementById('cfgEnterpriseMaxStaff')?.value, 10) || 999;
-    enterprise.maxOrdersPerMonth = parseInt(document.getElementById('cfgEnterpriseMaxOrders')?.value, 10) || 999999;
-    enterprise.maxBranches = parseInt(document.getElementById('cfgEnterpriseMaxBranches')?.value, 10) || 10;
+    enterprise.maxStaff = readLimit('cfgEnterpriseMaxStaff', 999);
+    enterprise.maxUsers = enterprise.maxStaff;
+    enterprise.maxOrdersPerMonth = readLimit('cfgEnterpriseMaxOrders', 999999);
+    enterprise.maxBranches = readLimit('cfgEnterpriseMaxBranches', 10);
+    enterprise.maxProducts = readLimit('cfgEnterpriseMaxProducts', 0);
+    enterprise.maxShops = readLimit('cfgEnterpriseMaxShops', 10000);
     enterprise.isPopular = document.getElementById('cfgEnterprisePopular')?.checked || false;
     const enterpriseFeats = parseFeatures(document.getElementById('cfgEnterpriseFeatures')?.value);
     if (enterpriseFeats.length > 0) enterprise.features = enterpriseFeats;
     enterprise.allowedFeatures = this.collectAllowedFeatures('enterprise');
+    enterprise.featuresVersion = 2;
 
     this.plans.silverPrice = startup.monthlyPrice;
     this.plans.goldPrice = grow.monthlyPrice;
@@ -5479,8 +5505,8 @@ class AdminPortal {
     }
     const s = (status || 'active').toLowerCase();
     if (s === 'active') return { class: 'badge-active', label: 'ACTIVE PRO', dotColor: '#10B981' };
-    if (s === 'trial') return { class: 'badge-trial', label: '14-DAY TRIAL', dotColor: '#F59E0B' };
-    if (s === 'freemium') return { class: 'badge-freemium', label: 'FREEMIUM CORE', dotColor: '#3B82F6' };
+    if (s === 'trial') return { class: 'badge-trial', label: 'FREE TRIAL', dotColor: '#F59E0B' };
+    if (s === 'expired') return { class: 'badge-expired', label: 'EXPIRED · READ-ONLY', dotColor: '#EF4444' };
     return { class: 'badge-expired', label: s.toUpperCase(), dotColor: '#6B7280' };
   }
 
@@ -5508,8 +5534,6 @@ class AdminPortal {
     if (this.tenantFilter && this.tenantFilter !== 'all') {
       if (this.tenantFilter === 'suspended') {
         list = list.filter(t => t.subscriptionStatus === 'suspended' || t.isSuspended === true);
-      } else if (this.tenantFilter === 'freemium') {
-        list = list.filter(t => t.subscriptionStatus === 'freemium' || t.freemiumSelling === true);
       } else {
         list = list.filter(t => t.subscriptionStatus === this.tenantFilter && !t.isSuspended);
       }
@@ -5604,7 +5628,7 @@ class AdminPortal {
     const total = tenants.length;
     const active = tenants.filter(t => (t.subscriptionStatus || '').toLowerCase() === 'active' && !t.isSuspended).length;
     const trial = tenants.filter(t => (t.subscriptionStatus || '').toLowerCase() === 'trial').length;
-    const freemium = tenants.filter(t => (t.subscriptionStatus || '').toLowerCase() === 'freemium' || t.freemiumSelling).length;
+    const freemium = tenants.filter(t => (t.subscriptionStatus || '').toLowerCase() === 'expired').length; // expired / read-only
     const suspended = tenants.filter(t => (t.subscriptionStatus || '').toLowerCase() === 'suspended' || t.isSuspended).length;
 
     const estMRR = tenants.reduce((sum, t) => {
@@ -5996,8 +6020,9 @@ class AdminPortal {
     const tenant = this.findTenantById(tenantId);
     if (!tenant) return;
     const tier = (this.plans?.tiers || []).find(t => t.id === planId);
-    await this.updateTenant(tenant.id, { subscriptionPlanId: planId, subscriptionStatus: planId === 'free' ? 'freemium' : 'active' },
-      `Assigned "${tenant.firmName}" to ${tier ? tier.name : planId} (${tier ? `${tier.maxUsers} users, ${tier.maxShops} shops` : 'free tier'}).`, '🏷️');
+    if (!tier) { this.showToast(`Unknown plan "${planId}".`, '⚠️', 'warning'); return; }
+    await this.updateTenant(tenant.id, { subscriptionPlanId: planId, subscriptionStatus: 'active' },
+      `Assigned "${tenant.firmName}" to ${tier.name} (${tier.maxStaff ?? tier.maxUsers} users, ${tier.maxShops || 'unlimited'} shops).`, '🏷️');
   }
 
   upgradeTenantPlan(tenantId, planId) { return this.assignTenantPlan(tenantId, planId); }
@@ -6010,18 +6035,20 @@ class AdminPortal {
       `"${tenant.firmName}" activated on Enterprise for 1 year.`, '⭐');
   }
 
-  async setFreemium(tenantId) {
+  // There is no free tier any more: this ends the agency's plan now (read-only).
+  async expireTenantNow(tenantId) {
     const tenant = this.findTenantById(tenantId);
     if (!tenant) return;
-    await this.updateTenant(tenant.id, { subscriptionPlanId: 'free', subscriptionStatus: 'freemium', expiryDate: null },
-      `"${tenant.firmName}" switched to the free tier.`, '⚡');
+    if (!confirm(`End "${tenant.firmName}"'s plan now?\n\nThe app becomes read-only for them until they renew.`)) return;
+    await this.updateTenant(tenant.id, { subscriptionStatus: 'expired', expiryDate: new Date().toISOString() },
+      `"${tenant.firmName}" plan ended (read-only).`, '⚡');
   }
 
   async createPaymentLink(tenantId) {
     const tenant = this.findTenantById(tenantId);
     if (!tenant) return;
     const tiers = (this.plans?.tiers || []).filter(t => t.isActive !== false);
-    const planId = prompt(`Plan for "${tenant.firmName}" (${tiers.map(t => t.id).join(' / ')}):`, tenant.subscriptionPlanId && tenant.subscriptionPlanId !== 'free' ? tenant.subscriptionPlanId : (tiers[0]?.id || 'startup'));
+    const planId = prompt(`Plan for "${tenant.firmName}" (${tiers.map(t => t.id).join(' / ')}):`, tenant.subscriptionPlanId || (tiers[0]?.id || 'startup'));
     if (!planId) return;
     const yearly = confirm('Bill yearly? (OK = yearly, Cancel = monthly)');
     try {
@@ -6191,7 +6218,7 @@ class AdminPortal {
             <button type="button" class="btn ${tier.id === t.subscriptionPlanId ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="adminApp.assignTenantPlan('${jid}', '${this.escapeJs(tier.id)}'); adminApp.closeTenantDetailModal();">
               ${esc(tier.name)} (${esc(tier.maxUsers)} users, ${esc(tier.maxShops)} shops)
             </button>`).join('')}
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.setFreemium('${jid}'); adminApp.closeTenantDetailModal();">Free tier</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.expireTenantNow('${jid}'); adminApp.closeTenantDetailModal();">End plan now</button>
         </div>
 
         <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.04em;">Actions</h4>
@@ -6226,7 +6253,6 @@ class AdminPortal {
 
     container.innerHTML = REMOTE_MODULES_METADATA.map(mod => {
       const isEnabled = this.remoteConfig.featureFlags ? (this.remoteConfig.featureFlags[mod.key] !== false) : true;
-      const isCore = mod.isCoreSelling === true || mod.isFreemiumProtected === true;
       const title = mod.name || mod.title || mod.key;
       const category = mod.category || 'Core Feature';
       const description = mod.description || mod.desc || 'Feature configuration and status.';
@@ -6248,7 +6274,6 @@ class AdminPortal {
                   <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="adminApp.onFeatureToggleChanged('${mod.key}', this.checked)">
                   <span class="slider"></span>
                 </label>
-                ${isCore ? '<span class="badge badge-freemium" style="font-size: 9.5px;">Permanent Core Free</span>' : ''}
               </div>
             </div>
           </div>
@@ -6295,21 +6320,6 @@ class AdminPortal {
     const elMaintEta = document.getElementById('ctrlMaintenanceEta');
     if (elMaintEta) elMaintEta.value = this.remoteConfig.maintenance?.eta || '30 minutes';
 
-    // Free-user billing policy (default: allowed)
-    this.renderFreeBillingPolicy();
-  }
-
-  renderFreeBillingPolicy() {
-    const allowed = this.remoteConfig?.allowFreeUserBilling !== false;
-    const elToggle = document.getElementById('ctrlFreeBilling');
-    if (elToggle) elToggle.checked = allowed;
-    const elLabel = document.getElementById('freeBillingStatusLabel');
-    if (elLabel) {
-      elLabel.textContent = allowed ? 'FREE USERS CAN BILL' : 'BILLING BLOCKED FOR FREE USERS';
-      elLabel.style.color = allowed ? 'var(--emerald-text)' : 'var(--rose-text)';
-    }
-    const elMsg = document.getElementById('ctrlFreeBillingMessage');
-    if (elMsg && document.activeElement !== elMsg) elMsg.value = this.remoteConfig?.freeBillingBlockedMessage || '';
   }
 
   _persistRemoteConfig(eventName) {
@@ -6317,26 +6327,6 @@ class AdminPortal {
     this.saveToBridge({ remoteConfig: this.remoteConfig });
     this.syncRemoteConfigToSupabase();
     this.broadcastChange(eventName, this.remoteConfig);
-  }
-
-  onFreeBillingToggleChanged(enabled) {
-    if (!this.remoteConfig) this.remoteConfig = JSON.parse(JSON.stringify(DEFAULT_REMOTE_CONFIG));
-    if (!enabled && !confirm('Block bill creation for all Free-tier and expired-plan agencies?\n\nThey will be asked to upgrade before creating bills or booking orders.')) {
-      this.renderFreeBillingPolicy();
-      return;
-    }
-    this.remoteConfig.allowFreeUserBilling = enabled;
-    this._persistRemoteConfig('free_billing_policy_update');
-    this.renderFreeBillingPolicy();
-    this.showToast(enabled ? 'Free users can create bills again.' : 'Bill creation blocked for Free / expired agencies.', enabled ? '✓' : '⚠️', enabled ? 'success' : 'warning');
-  }
-
-  saveFreeBillingMessage() {
-    if (!this.remoteConfig) this.remoteConfig = JSON.parse(JSON.stringify(DEFAULT_REMOTE_CONFIG));
-    const msg = (document.getElementById('ctrlFreeBillingMessage')?.value || '').trim().slice(0, 300);
-    this.remoteConfig.freeBillingBlockedMessage = msg;
-    this._persistRemoteConfig('free_billing_policy_update');
-    this.showToast(msg ? 'Blocked-billing message saved.' : 'Reverted to the default blocked-billing message.', '✓');
   }
 
   onFeatureToggleChanged(key, enabled) {
@@ -6621,7 +6611,8 @@ class AdminPortal {
         if (targetPlan === 'enterprise') return plan.includes('enterprise') || plan.includes('platinum');
         if (targetPlan === 'grow') return plan.includes('grow') || plan.includes('growth') || plan.includes('gold');
         if (targetPlan === 'startup') return plan.includes('startup') || plan.includes('silver');
-        if (targetPlan === 'freemium') return status === 'freemium' || plan.includes('free') || status === 'trial' || plan.includes('trial');
+        if (targetPlan === 'expired' || targetPlan === 'freemium') return status === 'expired';
+        if (targetPlan === 'trial') return status === 'trial';
         return true;
       });
     }
@@ -6820,7 +6811,7 @@ class AdminPortal {
         type: 'festive',
         actionText: 'Claim 25% Off',
         actionUrl: '/pricing',
-        targetPlan: 'freemium',
+        targetPlan: 'expired',
         targetTenant: 'all'
       },
       system_upgrade: {
@@ -7003,7 +6994,8 @@ class AdminPortal {
       if (planVal === 'enterprise') planBadge = '💎 Enterprise';
       else if (planVal === 'grow') planBadge = '🚀 Grow';
       else if (planVal === 'startup') planBadge = '⚡ Startup';
-      else if (planVal === 'freemium') planBadge = '🆓 Freemium';
+      else if (planVal === 'expired' || planVal === 'freemium') planBadge = '⏳ Expired';
+      else if (planVal === 'trial') planBadge = '🎁 Trial';
       else if (planVal !== 'all') planBadge = `🏷️ ${this.escapeHtml(planVal.toUpperCase())}`;
 
       const notifId = n.id || n.notification_id;
@@ -7657,6 +7649,12 @@ class AdminPortal {
     if (!this.settings) {
       this.settings = { ...DEFAULT_SETTINGS };
     }
+    const planSelect = document.getElementById('settingDefaultPlanId');
+    const liveTiers = (this.plans?.tiers || []).filter(t => t.isActive !== false);
+    if (planSelect && liveTiers.length) {
+      const lim = v => (Number(v) > 0 ? Number(v).toLocaleString('en-IN') : 'Unlimited');
+      planSelect.innerHTML = liveTiers.map(t => `<option value="${this.escapeHtml(t.id)}">${this.escapeHtml(t.name)} — ${lim(t.maxStaff ?? t.maxUsers)} staff · ${lim(t.maxShops)} parties · ${lim(t.maxProducts)} products</option>`).join('');
+    }
     const chkMaint = document.getElementById('chkMaintenanceMode');
     if (chkMaint) chkMaint.checked = this.settings.maintenanceMode === true || this.remoteConfig?.maintenance?.active === true;
     
@@ -7686,6 +7684,9 @@ class AdminPortal {
 
     const elGraceDays = document.getElementById('settingTrialGracePeriodDays');
     if (elGraceDays) elGraceDays.value = this.settings.trialGracePeriodDays !== undefined ? this.settings.trialGracePeriodDays : 3;
+
+    const elTestAct = document.getElementById('settingAllowTestPlanActivation');
+    if (elTestAct) elTestAct.checked = this.settings.allowTestPlanActivation === true;
   }
 
   async savePlatformSettings() {
@@ -7697,6 +7698,7 @@ class AdminPortal {
     const defaultPlanId = document.getElementById('settingDefaultPlanId')?.value || 'startup';
     const defaultTrialDays = parseInt(document.getElementById('settingDefaultTrialDays')?.value || '14', 10);
     const trialGracePeriodDays = parseInt(document.getElementById('settingTrialGracePeriodDays')?.value || '3', 10);
+    const allowTestPlanActivation = document.getElementById('settingAllowTestPlanActivation')?.checked === true;
 
     this.settings = {
       ...this.settings,
@@ -7708,6 +7710,7 @@ class AdminPortal {
       defaultPlanId,
       defaultTrialDays,
       trialGracePeriodDays,
+      allowTestPlanActivation,
       updatedAt: new Date().toISOString()
     };
 

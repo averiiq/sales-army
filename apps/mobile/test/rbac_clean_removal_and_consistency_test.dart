@@ -31,7 +31,7 @@ void main() {
 
       // Delivery Staff must NOT see Order Taker or GST Bill tabs
       expect(find.text('Order Taker'), findsNothing);
-      expect(find.text('Bill'), findsNothing);
+      expect(find.byKey(const ValueKey('nav_billing')), findsNothing);
 
       // Must see the clean single-tab queue header banner
       expect(find.text('Delivery & Dispatch Route Queue'), findsOneWidget);
@@ -67,7 +67,7 @@ void main() {
       expect(find.text('Orders Management Queue'), findsOneWidget);
 
       // And Field Sales does NOT see the GST Bill tab on OrdersTab
-      expect(find.text('Bill'), findsNothing);
+      expect(find.byKey(const ValueKey('nav_billing')), findsNothing);
 
       // Zero locked badges
       expect(find.text('LOCKED'), findsNothing);

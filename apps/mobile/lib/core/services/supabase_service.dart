@@ -42,6 +42,17 @@ class SupabaseService {
     defaultValue: '',
   );
 
+  /// True when this build was compiled with the Supabase URL and anon key
+  /// (`--dart-define-from-file=dart_defines.json`). Without them nothing can
+  /// sign in, so say so instead of blaming the internet connection.
+  static bool get isBuildConfigured => defaultSupabaseUrl.isNotEmpty && defaultSupabaseAnonKey.isNotEmpty;
+
+  /// User-facing reason the server can't be used right now.
+  static String get unreachableMessage => isBuildConfigured
+      ? 'Cannot reach the SalesArmy server. Please check your internet connection and try again.'
+      : 'This app build is missing its server configuration, so sign-in cannot work. '
+          'Please install a build made with: flutter build apk --release --dart-define-from-file=dart_defines.json';
+
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
@@ -430,6 +441,32 @@ class SupabaseService {
     }
   }
 
+  /// Tenant columns for a brand-new agency's signup trial, from the admin's
+  /// general_settings (defaultPlanId / defaultTrialDays) and the plan catalog.
+  Future<Map<String, dynamic>> signupTrialRow() async {
+    final settings = await fetchPlatformSettings('general_settings') ?? const {};
+    final pricing = await fetchPlatformSettings('pricing_and_plans') ?? const {};
+    var planId = settings['defaultPlanId']?.toString() ?? 'startup';
+    if (planId.isEmpty || planId == 'free') planId = 'startup';
+    final days = (settings['defaultTrialDays'] as num?)?.toInt() ?? 14;
+    final tiers = (pricing['plans'] is Map ? (pricing['plans'] as Map)['tiers'] : pricing['tiers']);
+    Map? tier;
+    if (tiers is List) {
+      for (final t in tiers) {
+        if (t is Map && t['id']?.toString() == planId) tier = t;
+      }
+    }
+    final now = DateTime.now().toUtc();
+    return {
+      'plan_id': planId,
+      'subscription_status': 'trial',
+      'subscription_start_date': now.toIso8601String(),
+      'subscription_end_date': now.add(Duration(days: days > 0 ? days : 14)).toIso8601String(),
+      if (tier != null) 'max_users': (tier['maxStaff'] ?? tier['maxUsers'] ?? 1),
+      if (tier != null) 'max_shops': (tier['maxShops'] ?? 200),
+    };
+  }
+
   Future<Map<String, dynamic>> registerAgencyOwnerAndSeed({
     required String businessName,
     required String representativeName,
@@ -461,10 +498,14 @@ class SupabaseService {
     if (!_isInitialized || supa == null) {
       return {
         'success': false,
-        'error': 'Cannot reach the SalesArmy server. Please check your internet connection and try again.',
+        'error': unreachableMessage,
       };
     }
 
+    // There is no free plan: new agencies start a trial of the plan the
+    // super admin picked (Settings → Signup Trial Plan). The database trigger
+    // apply_signup_trial enforces the same values server-side.
+    final trial = await signupTrialRow();
     final tenantRow = {
       'tenant_id': tenantId,
       'business_name': cleanBusinessName,
@@ -474,9 +515,7 @@ class SupabaseService {
       'city': cleanCity,
       // State is left blank for the user to fill in Profile → Business Details.
       if (gstin != null && gstin.isNotEmpty) 'gstin': gstin,
-      // Free tier by default. Upgrades happen through the Plan screen checkout.
-      'plan_id': 'free',
-      'subscription_status': 'freemium',
+      ...trial,
       'is_active': true,
     };
 
@@ -1776,8 +1815,8 @@ class SupabaseService {
         'stock_quantity': ((productData['stockQuantity'] ?? productData['stock_quantity']) as num?)?.toInt() ?? 0,
         'low_stock_threshold': ((productData['lowStockThreshold'] ?? productData['lowStockAlertQty'] ?? productData['low_stock_threshold']) as num?)?.toInt() ?? 10,
         'unit': (productData['unit'] ?? productData['size'] ?? 'PCS').toString(),
-        if (productData['imageUrl'] != null || productData['image_url'] != null)
-          'image_url': (productData['imageUrl'] ?? productData['image_url']).toString(),
+        if (productData.containsKey('imageUrl') || productData.containsKey('image_url'))
+          'image_url': (productData['imageUrl'] ?? productData['image_url'])?.toString(),
         'is_active': productData['isActive'] ?? productData['is_active'] ?? true,
         'updated_at': DateTime.now().toIso8601String(),
       };

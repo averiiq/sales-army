@@ -497,7 +497,7 @@
             <div class="chart-card-header">
               <div>
                 <div class="chart-card-title">Agency Subscription Distribution</div>
-                <div class="chart-card-subtitle">Distribution across Startup, Grow, Enterprise & Freemium tiers</div>
+                <div class="chart-card-subtitle">Distribution across Startup, Grow, Enterprise & expired agencies</div>
               </div>
               <button class="btn btn-outline btn-sm" onclick="adminApp.switchView('plans')">Manage Plans</button>
             </div>
@@ -530,7 +530,7 @@
               <div class="plan-pill freemium">
                 <div class="plan-pill-left">
                   <span class="plan-pill-dot"></span>
-                  <span class="plan-pill-title">Freemium (Free)</span>
+                  <span class="plan-pill-title">Expired / Read-only</span>
                 </div>
                 <strong class="plan-pill-count" id="pillFreemiumCount">0</strong>
               </div>
@@ -1137,35 +1137,7 @@
               </div>
             </div>
 
-            <!-- 4. Free-User Billing Policy -->
-            <div class="card-inner-box" style="margin-top: 20px;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
-                <div>
-                  <h4 style="font-size: 13.5px; font-weight: 600; color: var(--text-primary);">
-                    Free-User Billing Policy
-                  </h4>
-                  <p style="font-size: 11.5px; color: var(--text-secondary); margin-top: 4px; max-width: 720px;">
-                    Controls whether agencies on the Free tier or with an expired trial / plan can create bills and book orders.
-                    When off, they see your message below with an "Upgrade plan" button. Paid and in-trial agencies are never affected.
-                  </p>
-                </div>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <strong style="font-size: 12px; font-family: var(--font-mono);" id="freeBillingStatusLabel">FREE USERS CAN BILL</strong>
-                  <label class="switch">
-                    <input type="checkbox" id="ctrlFreeBilling" checked onchange="adminApp.onFreeBillingToggleChanged(this.checked)">
-                    <span class="slider"></span>
-                  </label>
-                </div>
-              </div>
-              <div class="form-group" style="margin: 16px 0 0;">
-                <label class="form-label" for="ctrlFreeBillingMessage">Message shown to blocked users (optional)</label>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                  <input type="text" class="form-control" id="ctrlFreeBillingMessage" maxlength="300" style="flex: 1; min-width: 240px;"
-                    placeholder="Default: Your plan or free trial has ended. Please upgrade to continue creating bills.">
-                  <button type="button" class="btn btn-outline" onclick="adminApp.saveFreeBillingMessage()">Save message</button>
-                </div>
-              </div>
-            </div>
+            <!-- Free-user billing policy removed: there is no free plan. Expired agencies are read-only (Settings → Signup Trial Plan). -->
 
           </div>
         </div>
@@ -1947,7 +1919,7 @@
               <svg class="icon icon-lg" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
             </div>
             <div class="tenant-metric-content">
-              <div class="tenant-metric-title">Freemium Guaranteed</div>
+              <div class="tenant-metric-title">Expired (Read-only)</div>
               <div class="tenant-metric-value" id="tenantStatFreemium">0</div>
               <div class="tenant-metric-subtext">
                 <span class="badge badge-delivered">Unrestricted Billing</span>
@@ -2003,8 +1975,8 @@
                   <span>Trial</span>
                   <span class="pill-count" id="countFilterTrial">0</span>
                 </button>
-                <button type="button" class="tenant-pill-btn tenant-filter-btn" data-tenant-filter="freemium">
-                  <span>Freemium</span>
+                <button type="button" class="tenant-pill-btn tenant-filter-btn" data-tenant-filter="expired">
+                  <span>Expired</span>
                   <span class="pill-count" id="countFilterFreemium">0</span>
                 </button>
                 <button type="button" class="tenant-pill-btn tenant-filter-btn" data-tenant-filter="suspended">
@@ -2240,29 +2212,40 @@
             <div style="margin-top: 24px; padding: 18px; background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 12px;">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
                 <span style="font-size: 16px;">🛡️</span>
-                <strong style="color: var(--text-main); font-size: 14px;">SaaS Plan &amp; Signup Membership Governance</strong>
+                <strong style="color: var(--text-main); font-size: 14px;">Signup Trial Plan</strong>
               </div>
               <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
-                Configure the default plan and trial period applied to all newly registered agency distributor accounts.
+                There is no free plan. Every new agency automatically starts a free trial of the plan you choose here, with that plan&#39;s features and limits. When the trial (plus grace days) ends the app becomes read-only until they buy a plan.
               </p>
               <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div class="form-group">
-                  <label class="form-label">Default Plan for New Signups</label>
+                  <label class="form-label">Plan given as free trial on signup</label>
                   <select class="form-control" id="settingDefaultPlanId">
-                    <option value="startup">Startup Plan (14-Day Free Trial - 50 Prod, 1 User, 200 Shops)</option>
-                    <option value="grow">Grow Plan (₹599/mo - 200 Prod, 5 Users, 1000 Shops)</option>
-                    <option value="enterprise">Enterprise Plan (₹899/mo - Unlimited Prod, 50 Users, 10000 Shops)</option>
+                    <!-- Filled from the live plan catalog by adminApp.renderPlatformSettings() -->
+                    <option value="startup">Startup Plan</option>
+                    <option value="grow">Grow Plan</option>
+                    <option value="enterprise">Enterprise Plan</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Default Free Trial Duration (Days)</label>
-                  <input type="number" class="form-control" id="settingDefaultTrialDays" value="14" min="1" max="90">
+                  <label class="form-label">Trial length (days)</label>
+                  <input type="number" class="form-control" id="settingDefaultTrialDays" value="14" min="1" max="365">
                 </div>
               </div>
               <div class="form-group" style="margin-top: 12px;">
-                <label class="form-label">Post-Trial Grace Period (Days)</label>
+                <label class="form-label">Grace period after trial (days)</label>
                 <input type="number" class="form-control" id="settingTrialGracePeriodDays" value="3" min="0" max="30">
-                <span style="font-size: 11px; color: var(--text-muted);">Days after trial ends before advanced cloud features lock (Core invoicing never locks).</span>
+                <span style="font-size: 11px; color: var(--text-muted);">Extra days after the trial ends before the agency becomes read-only (they can still view data, collect dues and renew).</span>
+              </div>
+              <div class="form-group" style="margin-top: 14px; padding: 12px 14px; border: 1px solid rgba(220, 38, 38, 0.35); border-radius: 10px; background: rgba(220, 38, 38, 0.05);">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; color: var(--text-main);">
+                  <input type="checkbox" id="settingAllowTestPlanActivation">
+                  Allow test plan activation (no payment)
+                </label>
+                <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 6px;">
+                  TESTING ONLY. While ON, agency owners can activate any plan from the app without paying (used because online payment is not set up yet).
+                  Turn this OFF before real customers use the app.
+                </span>
               </div>
             </div>
 
@@ -2475,9 +2458,9 @@
             <div class="form-group">
               <label class="form-label">Subscription Status</label>
               <select class="form-control" id="tenantStatusSelect">
-                <option value="trial">14-Day Free Trial Pass</option>
-                <option value="active">Active Pro Subscription</option>
-                <option value="freemium">Permanent Freemium (Free Core)</option>
+                <option value="trial">Free Trial</option>
+                <option value="active">Active (Paid)</option>
+                <option value="expired">Expired (Read-only)</option>
                 <option value="suspended">Suspended / Frozen</option>
               </select>
             </div>
@@ -2487,7 +2470,6 @@
                 <option value="startup">Startup Plan</option>
                 <option value="grow">Grow Plan</option>
                 <option value="enterprise">Enterprise Plan</option>
-                <option value="free">Free Tier (Freemium)</option>
               </select>
             </div>
           </div>
@@ -2542,7 +2524,7 @@
               👑 Enterprise Plan
             </button>
             <button type="button" class="btn btn-sm plan-tab-btn" id="tabBtnTaxes" onclick="adminApp.switchPlanTab('taxes')">
-              ⚙️ Taxes & Free Core
+              ⚙️ Taxes & Expiry Rules
             </button>
           </div>
 
@@ -2580,17 +2562,28 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Max Staff Logins (Users)</label>
-                <input type="number" class="form-control" id="cfgStartupMaxStaff" required value="2" min="1">
+                <input type="number" class="form-control" id="cfgStartupMaxStaff" required min="0" data-limit="1" value="2">
               </div>
               <div class="form-group">
                 <label class="form-label">Monthly Orders Limit</label>
-                <input type="number" class="form-control" id="cfgStartupMaxOrders" required value="200" min="10">
+                <input type="number" class="form-control" id="cfgStartupMaxOrders" required value="200" min="0">
               </div>
               <div class="form-group">
                 <label class="form-label">Max Branch Locations</label>
-                <input type="number" class="form-control" id="cfgStartupMaxBranches" required value="1" min="1">
+                <input type="number" class="form-control" id="cfgStartupMaxBranches" required value="1" min="0">
               </div>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Max Products in Catalog</label>
+                <input type="number" class="form-control" id="cfgStartupMaxProducts" required value="50" min="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Parties / Retail Shops</label>
+                <input type="number" class="form-control" id="cfgStartupMaxShops" required value="200" min="0">
+              </div>
+            </div>
+            <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 10px;">Enter <strong>0</strong> for unlimited. Limits and capabilities apply in the mobile app and are enforced by the server.</p>
             <div class="form-group">
               <label class="form-label">Included Features (What the user gets in this subscription - 1 bullet per line)</label>
               <textarea class="form-control" id="cfgStartupFeatures" rows="5" placeholder="Feature 1&#10;Feature 2&#10;Feature 3"></textarea>
@@ -2632,17 +2625,28 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Max Staff Logins (Users)</label>
-                <input type="number" class="form-control" id="cfgGrowMaxStaff" required value="10" min="1">
+                <input type="number" class="form-control" id="cfgGrowMaxStaff" required min="0" data-limit="1" value="10">
               </div>
               <div class="form-group">
                 <label class="form-label">Monthly Orders Limit</label>
-                <input type="number" class="form-control" id="cfgGrowMaxOrders" required value="1000" min="10">
+                <input type="number" class="form-control" id="cfgGrowMaxOrders" required value="1000" min="0">
               </div>
               <div class="form-group">
                 <label class="form-label">Max Branch Locations</label>
-                <input type="number" class="form-control" id="cfgGrowMaxBranches" required value="3" min="1">
+                <input type="number" class="form-control" id="cfgGrowMaxBranches" required value="3" min="0">
               </div>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Max Products in Catalog</label>
+                <input type="number" class="form-control" id="cfgGrowMaxProducts" required value="200" min="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Parties / Retail Shops</label>
+                <input type="number" class="form-control" id="cfgGrowMaxShops" required value="1000" min="0">
+              </div>
+            </div>
+            <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 10px;">Enter <strong>0</strong> for unlimited. Limits and capabilities apply in the mobile app and are enforced by the server.</p>
             <div class="form-group">
               <label class="form-label">Included Features (What the user gets in this subscription - 1 bullet per line)</label>
               <textarea class="form-control" id="cfgGrowFeatures" rows="5" placeholder="Feature 1&#10;Feature 2&#10;Feature 3"></textarea>
@@ -2684,17 +2688,28 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Max Staff Logins (Enter 999 for Unlimited)</label>
-                <input type="number" class="form-control" id="cfgEnterpriseMaxStaff" required value="999" min="1">
+                <input type="number" class="form-control" id="cfgEnterpriseMaxStaff" required min="0" data-limit="1" value="999">
               </div>
               <div class="form-group">
                 <label class="form-label">Monthly Orders Limit (Enter 999999 for Unlimited)</label>
-                <input type="number" class="form-control" id="cfgEnterpriseMaxOrders" required value="999999" min="10">
+                <input type="number" class="form-control" id="cfgEnterpriseMaxOrders" required value="999999" min="0">
               </div>
               <div class="form-group">
                 <label class="form-label">Max Branch Locations</label>
-                <input type="number" class="form-control" id="cfgEnterpriseMaxBranches" required value="10" min="1">
+                <input type="number" class="form-control" id="cfgEnterpriseMaxBranches" required value="10" min="0">
               </div>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Max Products in Catalog</label>
+                <input type="number" class="form-control" id="cfgEnterpriseMaxProducts" required value="0" min="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Parties / Retail Shops</label>
+                <input type="number" class="form-control" id="cfgEnterpriseMaxShops" required value="10000" min="0">
+              </div>
+            </div>
+            <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 10px;">Enter <strong>0</strong> for unlimited. Limits and capabilities apply in the mobile app and are enforced by the server.</p>
             <div class="form-group">
               <label class="form-label">Included Features (What the user gets in this subscription - 1 bullet per line)</label>
               <textarea class="form-control" id="cfgEnterpriseFeatures" rows="5" placeholder="Feature 1&#10;Feature 2&#10;Feature 3"></textarea>
@@ -2707,7 +2722,7 @@
 
           <!-- 4. TAXES & CORE SETTINGS TAB -->
           <div class="plan-tab-pane" id="paneTaxes" style="display: none;">
-            <strong style="font-size: 14px; color: var(--text-main); margin-bottom: 12px; display: block;">Taxes & Free Freemium Core Rules</strong>
+            <strong style="font-size: 14px; color: var(--text-main); margin-bottom: 12px; display: block;">Taxes & Expiry Rules</strong>
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Subscription Plan GST Tax (%)</label>
@@ -2719,12 +2734,12 @@
               </div>
             </div>
             <div style="border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 10px;">
-              <strong style="font-size: 13px; color: var(--text-main); margin-bottom: 4px; display: block;">Free Core Tier Limits (Unsubscribed Free Users)</strong>
-              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Free tier users can take orders & print kaccha bills forever with basic limits:</p>
+              <strong style="font-size: 13px; color: var(--text-main); margin-bottom: 4px; display: block;">When a trial or plan ends</strong>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">There is no free plan. After the end date (plus trial grace days) the agency is read-only:</p>
               <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
-                • Max 1 Field Executive Login<br>
-                • Up to 50 Retail Outlets<br>
-                • Permanent Core Order Taking & Estimation Enabled
+                • Can sign in, view all data and reports<br>
+                • Can collect pending dues from parties<br>
+                • Cannot create orders, bills, parties, products, staff, purchases or expenses until they renew
               </div>
             </div>
           </div>

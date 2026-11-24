@@ -6,6 +6,7 @@ import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/services/location_service.dart';
 import 'package:salesarmy/core/utils/app_image_helper.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
+import 'package:salesarmy/core/utils/feature_gate.dart';
 
 class CreateShopScreen extends StatefulWidget {
   final ShopModel? initialShop;
@@ -30,7 +31,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
   final _photoUrlCtrl = TextEditingController();
 
   String _selectedType = 'Kirana';
-  String _selectedSellerCategory = 'Retailer'; // 'Retailer', 'Wholesaler', 'Walk-in Customer'
+  String _selectedSellerCategory = 'Retailer'; // 'Retailer', 'Wholesaler', 'Customer'
   String _visitFreq = 'weekly';
 
   double? _currentLat;
@@ -38,16 +39,6 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
   String _gpsStatus = 'No GPS location tagged';
   bool _isCapturingGps = false;
 
-  final Map<String, String> _storefrontPresets = {
-    'Kirana': 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500',
-    'Supermarket': 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=500',
-    'Dairy': 'https://images.unsplash.com/photo-1527153857715-3908f2ae5e81?w=500',
-    'Pharmacy': 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?w=500',
-    'Wholesale': 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500',
-    'Bakery': 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500',
-    'General Store': 'https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=500',
-    'Hardware': 'https://images.unsplash.com/photo-1581783342308-f792dbdd27c5?w=500',
-  };
 
   String? _selectedImageUrl;
   bool _showCustomUrlField = false;
@@ -70,7 +61,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       _photoUrlCtrl.text = s.imageUrl ?? '';
       _selectedImageUrl = s.imageUrl;
       _selectedType = s.businessType ?? 'Kirana';
-      _selectedSellerCategory = s.sellerCategory ?? 'Retailer';
+      _selectedSellerCategory = normalizeSellerCategory(s.sellerCategory);
       _visitFreq = s.visitFrequency.isNotEmpty ? s.visitFrequency : 'weekly';
       _currentLat = s.latitude;
       _currentLng = s.longitude;
@@ -305,7 +296,13 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       createdAt: DateTime.now(),
     );
 
-    await appState.addShop(newShop);
+    if (!FeatureGate.allowWrite(context, limit: 'shops')) return;
+    try {
+      await appState.addShop(newShop);
+    } catch (e) {
+      if (mounted && await FeatureGate.handleError(context, e)) return;
+      rethrow;
+    }
     if (!mounted) return;
     Navigator.pop(context);
 
@@ -532,51 +529,6 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Or Select Category Storefront Preset:',
-                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-                      ),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: _storefrontPresets.keys.map((cat) {
-                            final isSel = _selectedImageUrl == _storefrontPresets[cat];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedImageUrl = _storefrontPresets[cat];
-                                    _selectedType = cat;
-                                    _photoUrlCtrl.text = _storefrontPresets[cat]!;
-                                  });
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: isSel ? const Color(0xFF1E56E2) : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isSel ? const Color(0xFF1E56E2) : (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    cat,
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: isSel ? Colors.white : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -655,7 +607,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Seller Category Selector (Retailer / Wholesaler / Walk-in Customer)
+                      // Seller Category Selector (Retailer / Wholesaler / Customer)
                       Text(
                         'Seller Category *',
                         style: TextStyle(
@@ -671,7 +623,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                           const SizedBox(width: 8),
                           _buildSellerCategoryChip('Wholesaler', 'Wholesaler', Icons.warehouse_rounded, isDark),
                           const SizedBox(width: 8),
-                          _buildSellerCategoryChip('Walk-in Customer', 'Walk-in Customer', Icons.directions_walk_rounded, isDark),
+                          _buildSellerCategoryChip('Customer', 'Customer', Icons.directions_walk_rounded, isDark),
                         ],
                       ),
                       const SizedBox(height: 14),
@@ -814,12 +766,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                                     if (v == '__ADD_CUSTOM__') {
                                       _showAddCustomCategoryDialog();
                                     } else if (v != null) {
-                                      setState(() {
-                                        _selectedType = v;
-                                        if (_storefrontPresets.containsKey(v)) {
-                                          _selectedImageUrl = _storefrontPresets[v];
-                                        }
-                                      });
+                                      setState(() => _selectedType = v);
                                     }
                                   },
                                 );

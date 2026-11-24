@@ -1,0 +1,7 @@
+# Minimal Supabase CLI config (used for deploying Edge Functions).
+project_id = "ivwvqpeivnltshrxjhjx"
+
+[functions.platform]
+# The platform API verifies the user's token itself; the Razorpay webhook and
+# agency signup arrive without a Supabase JWT.
+verify_jwt = false

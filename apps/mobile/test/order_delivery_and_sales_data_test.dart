@@ -96,7 +96,7 @@ void main() {
 
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Parties'), findsOneWidget);
-      expect(find.text('Bill'), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav_billing')), findsOneWidget);
       expect(find.text('Orders'), findsOneWidget);
       expect(find.text('Collection'), findsOneWidget);
 

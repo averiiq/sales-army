@@ -24,6 +24,9 @@ class TenantModel {
   
   final List<String>? authorizedBrandsPortfolio;
   final String? warehouseAddress;
+  final String? city;
+  final String? state;
+  final String? pincode;
   final String? territory;
   final String? beatRoute;
   
@@ -51,7 +54,6 @@ class TenantModel {
 
   String? get phone => mobile;
   String? get address => warehouseAddress;
-  String? get city => territory;
   String get effectiveUpiId =>
       (upiId != null && upiId!.trim().isNotEmpty)
           ? upiId!.trim()
@@ -80,6 +82,9 @@ class TenantModel {
     this.defaultGstRate,
     this.authorizedBrandsPortfolio,
     this.warehouseAddress,
+    this.city,
+    this.state,
+    this.pincode,
     this.territory,
     this.beatRoute,
     this.bankAccount,
@@ -100,16 +105,15 @@ class TenantModel {
   /// A truly blank tenant used as the initial state before any login and as
   /// the baseline after sign-out. Every editable business field (firmName,
   /// GSTIN, bank, UPI, warehouse, hardware, …) is null so Profile / Business
-  /// Details / Payment Preferences all render empty for new signups. Plan is
-  /// Free + Freemium — matches the server-side default.
+  /// Details / Payment Preferences all render empty for new signups. There is
+  /// no free plan: plan, status and dates come from the server (the admin's
+  /// signup trial) once the agency is loaded.
   factory TenantModel.empty({String tenantId = ''}) {
     return TenantModel(
       tenantId: tenantId,
       distributorId: '',
       ownerUid: '',
       accountStatus: 'active',
-      subscriptionStatus: 'freemium',
-      subscriptionPlanId: 'free',
       isGstBillingEnabled: true,
     );
   }
@@ -132,6 +136,9 @@ class TenantModel {
     double? defaultGstRate,
     List<String>? authorizedBrandsPortfolio,
     String? warehouseAddress,
+    String? city,
+    String? state,
+    String? pincode,
     String? territory,
     String? beatRoute,
     Map<String, dynamic>? bankAccount,
@@ -168,6 +175,9 @@ class TenantModel {
       defaultGstRate: defaultGstRate ?? this.defaultGstRate,
       authorizedBrandsPortfolio: authorizedBrandsPortfolio ?? this.authorizedBrandsPortfolio,
       warehouseAddress: warehouseAddress ?? this.warehouseAddress,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      pincode: pincode ?? this.pincode,
       territory: territory ?? this.territory,
       beatRoute: beatRoute ?? this.beatRoute,
       bankAccount: bankAccount ?? this.bankAccount,
@@ -215,6 +225,9 @@ class TenantModel {
               ? (data['authorized_brands'] as List).map((e) => e.toString()).toList()
               : null,
       warehouseAddress: data['warehouseAddress'] ?? data['warehouse_address'] ?? data['address'],
+      city: data['city'] ?? data['territory'],
+      state: data['state'],
+      pincode: (data['pincode'] ?? data['pin_code'])?.toString(),
       territory: data['territory'],
       beatRoute: data['beatRoute'] ?? data['beat_route'],
       bankAccount: (data['bankAccount'] is Map
@@ -287,6 +300,9 @@ class TenantModel {
       'defaultGstRate': defaultGstRate,
       'authorizedBrandsPortfolio': authorizedBrandsPortfolio,
       'warehouseAddress': warehouseAddress,
+      'city': city,
+      'state': state,
+      'pincode': pincode,
       'territory': territory,
       'beatRoute': beatRoute,
       'bankAccount': bankAccount,
@@ -325,6 +341,9 @@ class TenantModel {
       'defaultGstRate': defaultGstRate,
       'authorizedBrandsPortfolio': authorizedBrandsPortfolio,
       'warehouseAddress': warehouseAddress,
+      'city': city,
+      'state': state,
+      'pincode': pincode,
       'territory': territory,
       'beatRoute': beatRoute,
       'bankAccount': bankAccount,
@@ -361,6 +380,9 @@ class TenantModel {
       if (defaultGstRate != null) 'defaultGstRate': defaultGstRate,
       if (authorizedBrandsPortfolio != null) 'authorizedBrandsPortfolio': authorizedBrandsPortfolio,
       if (warehouseAddress != null) 'warehouseAddress': warehouseAddress,
+      if (city != null) 'city': city,
+      if (state != null) 'state': state,
+      if (pincode != null) 'pincode': pincode,
       if (territory != null) 'territory': territory,
       if (beatRoute != null) 'beatRoute': beatRoute,
       if (bankAccount != null) 'bankAccount': bankAccount,

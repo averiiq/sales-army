@@ -85,37 +85,11 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
     }
   }
 
-  final List<Map<String, String>> _categories = [
-    {'name': 'All', 'icon': '🏷️'},
-    {'name': 'Groceries', 'icon': '🌾'},
-    {'name': 'Edible Oils', 'icon': '🌻'},
-    {'name': 'Dairy', 'icon': '🥛'},
-    {'name': 'Bakery', 'icon': '🍪'},
-    {'name': 'Snacks', 'icon': '🥨'},
-    {'name': 'Home Cleaning', 'icon': '🧴'},
-  ];
-
+  /// Category filter on the Bill page: the account's own categories
+  /// (AppState.productCategories) — nothing predefined.
   bool _matchesCategory(ProductModel p, String selected) {
     if (selected == 'All') return true;
-    final cat = (p.categoryId ?? '').toLowerCase();
-    final name = p.name.toLowerCase();
-
-    switch (selected) {
-      case 'Home Cleaning':
-        return cat.contains('clean') || cat.contains('home') || name.contains('cleaner') || name.contains('harpic') || name.contains('lizol') || name.contains('vim');
-      case 'Groceries':
-        return cat.contains('grocer') || cat.contains('atta') || cat.contains('staple') || name.contains('atta') || name.contains('tea') || name.contains('salt') || name.contains('rice') || name.contains('sugar');
-      case 'Edible Oils':
-        return cat.contains('oil') || name.contains('oil') || name.contains('sunlite') || name.contains('saffola');
-      case 'Dairy':
-        return cat.contains('dairy') || cat.contains('milk') || name.contains('milk') || name.contains('butter');
-      case 'Bakery':
-        return cat.contains('bakery') || cat.contains('biscuit') || name.contains('biscuit') || name.contains('parle') || name.contains('good day') || name.contains('oreo');
-      case 'Snacks':
-        return cat.contains('snack') || cat.contains('namkeen') || name.contains('bhujia') || name.contains('silk');
-      default:
-        return cat == selected.toLowerCase();
-    }
+    return (p.categoryId ?? '').trim().toLowerCase() == selected.trim().toLowerCase();
   }
 
   Widget _buildProductThumbnail(ProductModel product, {double size = 52}) {
@@ -1063,9 +1037,7 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: _categories.map((catMap) {
-                  final cat = catMap['name']!;
-                  final icon = catMap['icon']!;
+                children: ['All', ...context.watch<AppState>().productCategories].map((cat) {
                   final isSelected = _selectedCategory == cat;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -1101,8 +1073,6 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(icon, style: const TextStyle(fontSize: 13)),
-                            const SizedBox(width: 6),
                             Text(
                               cat,
                               style: TextStyle(
@@ -1765,7 +1735,8 @@ class _OrderTakerFlowState extends State<OrderTakerFlow> {
                       child: InkWell(
                         onTap: () {
                           HapticFeedback.mediumImpact();
-                          final blockReason = context.read<AppState>().billingBlockReason;
+                          final appStateRef = context.read<AppState>();
+                          final blockReason = appStateRef.billingBlockReason ?? appStateRef.limitReason('orders');
                           if (blockReason != null) {
                             showBillingErrorDialog(context, BillingBlockedException(blockReason));
                             return;

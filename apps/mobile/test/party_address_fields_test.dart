@@ -17,7 +17,7 @@ void main() {
     expect(back.city, 'Pune');
     expect(back.state, 'Maharashtra');
     expect(back.pincode, '411001');
-    expect(back.sellerCategory, 'Walk-in Customer');
+    expect(back.sellerCategory, 'Customer'); // legacy value is renamed
     expect(back.copyWith(city: 'Mumbai').city, 'Mumbai');
 
     // Supabase rows use snake_case / numeric pincode.

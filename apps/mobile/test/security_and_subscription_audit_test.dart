@@ -6,6 +6,8 @@ import 'package:salesarmy/features/shops/data/models/shop_model.dart';
 import 'package:salesarmy/features/billing/data/models/transaction_item_snapshot.dart';
 import 'package:salesarmy/core/navigation/main_shell.dart';
 import 'package:salesarmy/core/services/app_state.dart';
+import 'package:salesarmy/features/collections/data/models/payment_model.dart';
+import 'package:salesarmy/features/admin/data/models/subscription_plan_model.dart';
 
 void main() {
   group('Security & Subscription Enforcement Tests', () {
@@ -47,9 +49,16 @@ void main() {
 
     test('Plan Limit Enforcement: Adding shops beyond maxShops is blocked', () async {
       final appState = AppState();
-      appState.tenant = appState.tenant.copyWith(maxShops: 2);
+      // Limits come from the admin-managed plan (tenants.max_shops is only a mirror).
+      appState.setSubscriptionPlansForTest(const [
+        SubscriptionPlanModel(id: 'mini', name: 'Mini', monthlyPrice: 10, maxShops: 2, allowedFeatures: ['order_taking']),
+      ]);
+      appState.tenant = appState.tenant.copyWith(subscriptionPlanId: 'mini', subscriptionStatus: 'active');
+      appState.testShops = [
+        ShopModel(shopId: 'S1', shopName: 'One', ownerName: 'O', phone: '9000000001'),
+        ShopModel(shopId: 'S2', shopName: 'Two', ownerName: 'O', phone: '9000000002'),
+      ];
 
-      // Currently MockData has 4 initial shops, so adding one more must fail
       final newShop = ShopModel(
         shopId: 'SH-TEST-999',
         shopName: 'Exceeding Shop',
@@ -62,7 +71,7 @@ void main() {
 
       await expectLater(
         appState.addShop(newShop),
-        throwsA(isA<StateError>().having(
+        throwsA(isA<PlanRestrictionException>().having(
           (e) => e.message,
           'message',
           contains('SaaS Plan Limit Exceeded: Your plan allows a maximum of 2 retail shops'),
@@ -104,10 +113,10 @@ void main() {
       expect(appState.subscriptionBadgeText, equals('ACCOUNT PAUSED'));
       await expectLater(
         appState.createOrder(testOrder),
-        throwsA(isA<StateError>().having(
+        throwsA(isA<PlanRestrictionException>().having(
           (e) => e.message,
           'message',
-          contains('Subscription Inactive'),
+          contains('paused or suspended'),
         )),
       );
 
@@ -120,10 +129,10 @@ void main() {
       expect(appState.subscriptionBadgeText, equals('ACCOUNT CANCELLED'));
       await expectLater(
         appState.createOrder(testOrder),
-        throwsA(isA<StateError>().having(
+        throwsA(isA<PlanRestrictionException>().having(
           (e) => e.message,
           'message',
-          contains('Subscription Inactive'),
+          contains('paused or suspended'),
         )),
       );
 
@@ -134,13 +143,14 @@ void main() {
         subscriptionEndDate: DateTime.now().subtract(const Duration(days: 5)),
       );
       expect(appState.isSubscriptionExpired, isTrue);
-      expect(appState.subscriptionBadgeText, equals('SUBSCRIPTION EXPIRED'));
+      expect(appState.isReadOnlyMode, isTrue);
+      expect(appState.subscriptionBadgeText, equals('PLAN EXPIRED · READ-ONLY'));
       await expectLater(
         appState.createOrder(testOrder),
-        throwsA(isA<StateError>().having(
+        throwsA(isA<PlanRestrictionException>().having(
           (e) => e.message,
           'message',
-          contains('Subscription Inactive'),
+          contains('read-only'),
         )),
       );
 
@@ -162,8 +172,16 @@ void main() {
     test('Super Admin Sync: updateTenantStatus, purgeCashHistory, and resetUserAccount mutate state safely', () async {
       final appState = AppState();
 
-      // Initial state
-      expect(appState.tenant.subscriptionStatus, anyOf(equals('trial'), equals('active')));
+      // Initial state: no free plan / freemium status is ever assumed locally.
+      expect(appState.tenant.subscriptionStatus, isNot(anyOf(equals('free'), equals('freemium'))));
+      await appState.recordPayment(PaymentModel(
+        paymentId: 'PAY-SEED-CASH',
+        shopId: 'SH-SEED',
+        createdByUid: 'agent_1',
+        amount: 100,
+        paymentMode: 'Cash',
+        date: DateTime.now(),
+      ));
 
       // 1. Super Admin pauses tenant
       appState.updateTenantStatus('PAUSED');
@@ -268,7 +286,7 @@ void main() {
       // Verify ACCOUNT PAUSED badge and alert banner
       expect(find.text('ACCOUNT PAUSED'), findsOneWidget);
       expect(
-        find.text('Account status: ACCOUNT PAUSED. New order creation and live operations are restricted.'),
+        find.text('Account status: ACCOUNT PAUSED. Please contact SalesArmy support to reactivate your agency.'),
         findsOneWidget,
       );
     });

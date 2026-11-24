@@ -13,7 +13,7 @@
 //   ADMIN    everything under /api/platform/* (profile.role = super_admin)
 import { createDb, HttpError, enc } from './supabase.mjs';
 import {
-  ROLES, STAFF_ROLES, TENANT_STATUSES, ORDER_STATUSES, HARDWARE_STATUSES, canonicalRole, tierFor,
+  ROLES, STAFF_ROLES, TENANT_STATUSES, ORDER_STATUSES, HARDWARE_STATUSES, canonicalRole, tierFor, signupTrial, CAPABILITIES,
   DEFAULT_TIERS, DEFAULT_PRINTERS, DEFAULT_ADDONS, DEFAULT_REMOTE_CONFIG, DEFAULT_BROADCAST,
   normalizePlans, normalizePrinter, normalizeAddon, normalizeCoupon, normalizeCoupons,
   normalizeSettings, normalizeRemoteConfig, normalizeBroadcast,
@@ -138,8 +138,20 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   async function getBroadcast() {
     return { ...DEFAULT_BROADCAST, ...((await getSetting('broadcast')) || {}) };
   }
+  const DEFAULT_GENERAL_SETTINGS = { defaultPlanId: 'startup', defaultTrialDays: 14, trialGracePeriodDays: 3, currency: 'INR' };
   async function getGeneralSettings() {
-    return (await getSetting('general_settings')) || { defaultPlanId: 'startup', defaultTrialDays: 14, trialGracePeriodDays: 3, currency: 'INR' };
+    const saved = (await getSetting('general_settings')) || {};
+    const out = { ...DEFAULT_GENERAL_SETTINGS, ...saved };
+    if (!out.defaultPlanId || out.defaultPlanId === 'free') out.defaultPlanId = 'startup';
+    return out;
+  }
+
+  /** A trial/paid plan whose end date (+ trial grace) has passed counts as expired. */
+  function effectiveStatus(t, graceDays = 0) {
+    const status = t.subscription_status || 'trial';
+    if (!['trial', 'active'].includes(status) || !t.subscription_end_date) return status;
+    const end = new Date(t.subscription_end_date).getTime() + (status === 'trial' ? graceDays * 86400000 : 0);
+    return Date.now() > end ? 'expired' : status;
   }
   async function getCatalog() {
     const [pricing, coupons] = await Promise.all([getPricing(), getCoupons()]);
@@ -187,27 +199,29 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   // ------------------------------------------------------------------
   // Mapping DB rows -> admin UI shapes
   // ------------------------------------------------------------------
-  function mapTenant(t, plans, stats = {}) {
+  function mapTenant(t, plans, stats = {}, graceDays = 0) {
     const s = stats[t.tenant_id] || {};
     const tier = tierFor(plans, t.plan_id);
     const suspended = t.subscription_status === 'suspended' || t.is_active === false;
+    const status = effectiveStatus(t, graceDays);
     return {
       id: t.tenant_id, tenantId: t.tenant_id, userId: t.tenant_id,
       firmName: t.business_name, name: t.business_name, businessName: t.business_name,
       ownerName: t.contact_person || '', ownerUid: t.owner_uid || null,
       phone: t.mobile || '', email: t.email || '', gstin: t.gstin || '', pan: t.pan || '',
       address: t.address || t.warehouse_address || '', city: t.city || '', state: t.state || '',
-      subscriptionStatus: t.subscription_status || 'active',
-      subscriptionPlanId: t.plan_id || 'free',
-      planName: tier ? `${tier.name} Plan` : (t.plan_id === 'free' ? 'Free Tier' : titleCase(t.plan_id || 'free')),
-      expiryDate: dateOnly(t.subscription_end_date) || 'Never (Freemium)',
+      subscriptionStatus: status,
+      storedSubscriptionStatus: t.subscription_status || 'trial',
+      subscriptionPlanId: t.plan_id || '',
+      planName: tier ? `${tier.name} Plan` : (t.plan_id ? `${titleCase(t.plan_id)} (unknown plan)` : 'No plan'),
+      expiryDate: dateOnly(t.subscription_end_date) || 'No end date',
       subscription_end_date: t.subscription_end_date,
       isSuspended: suspended, isActive: !suspended,
       maxUsers: t.max_users ?? null, maxShops: t.max_shops ?? null,
       ordersCount: s.orders || 0, orderValue: Number(s.orderValue || 0), revenue: Number(s.invoiced || 0),
       collected: Number(s.collected || 0), outstanding: Number(s.outstanding || 0),
       shopsCount: s.shops || 0, usersCount: s.users || 0, lastOrderAt: s.lastOrderAt || null,
-      freemiumSelling: true,
+      isReadOnly: status === 'expired',
       createdAt: t.created_at, updatedAt: t.updated_at,
     };
   }
@@ -299,7 +313,8 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     for (const row of couponUse) { const code = row.couponCode; if (code) used[code] = (used[code] || 0) + 1; }
     const tenantNames = Object.fromEntries(tenants.map(t => [t.tenant_id, t.business_name]));
     return {
-      tenants: tenants.map(t => mapTenant(t, pricing.plans, stats || {})),
+      tenants: tenants.map(t => mapTenant(t, pricing.plans, stats || {}, Number(settings.trialGracePeriodDays || 0))),
+      capabilities: CAPABILITIES,
       users: profiles.map(p => mapUser(p, tenantNames)),
       plans: pricing.plans,
       printerOptions: pricing.printerOptions,
@@ -371,7 +386,10 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     if (!businessName) fail(400, 'Agency / business name is required.');
     if (!account.phone) fail(400, 'Mobile number is required.');
     const [settings, pricing] = await Promise.all([getGeneralSettings(), getPricing()]);
-    let planId = settings.defaultPlanId || 'startup';
+    // Every new agency starts on the admin's signup trial plan. Only a super
+    // admin creating the agency may pick a different plan / status.
+    const trial = signupTrial(settings, pricing.plans);
+    let planId = trial.planId;
     let status = 'trial';
     if (byAdmin) {
       if (body.planId) planId = str(body.planId, 50);
@@ -379,9 +397,8 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
       if (!TENANT_STATUSES.includes(status)) fail(400, 'Invalid subscription status');
     }
     const tier = tierFor(pricing.plans, planId);
-    if (!tier && planId !== 'free') fail(400, 'Unknown plan');
-    const trialDays = Number(settings.defaultTrialDays ?? 14);
-    const days = status === 'active' ? 365 : trialDays;
+    if (!tier) fail(400, `Unknown plan "${planId}"`);
+    const days = status === 'active' ? 365 : trial.days;
     const tenantId = slugTenantId(businessName);
     const tenantRow = {
       tenant_id: tenantId, business_name: businessName, contact_person: account.name, mobile: account.phone, email: account.email,
@@ -390,8 +407,8 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
       city: str(body.city || body.territory, 100) || null, state: str(body.state, 100) || null,
       plan_id: planId, subscription_status: status,
       subscription_start_date: nowIso(),
-      subscription_end_date: status === 'freemium' ? null : new Date(Date.now() + days * 86400000).toISOString(),
-      max_users: tier?.maxUsers ?? 1, max_shops: tier?.maxShops ?? 200,
+      subscription_end_date: new Date(Date.now() + days * 86400000).toISOString(),
+      max_users: tier.maxStaff ?? tier.maxUsers ?? 1, max_shops: tier.maxShops ?? 200,
       is_active: status !== 'suspended',
     };
     await db().insert('tenants', tenantRow, { returning: false });
@@ -420,13 +437,41 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
       if (!tenantId) fail(400, 'Agency (tenant) is required for this role.');
       const tenant = await findTenant(tenantId);
       if (!isAdmin) {
+        const [pricing, settings] = await Promise.all([getPricing(), getGeneralSettings()]);
+        const tier = tierFor(pricing.plans, tenant.plan_id);
+        const status = effectiveStatus(tenant, Number(settings.trialGracePeriodDays || 0));
+        if (['suspended', 'cancelled', 'paused'].includes(status) || tenant.is_active === false) fail(403, 'This agency account is suspended.');
+        if (status === 'expired') fail(402, 'Your plan has ended. Renew from Plan & Pricing to add staff.');
+        if (tier && !(tier.allowedFeatures || []).includes('staff_management')) fail(402, 'Staff logins are not included in your plan. Upgrade to add staff.');
+        // Seats come from the plan (0 = unlimited); tenants.max_users is a mirror.
+        const seats = tier ? Number(tier.maxStaff ?? tier.maxUsers ?? 0) : Number(tenant.max_users || 0);
         const members = await db().select('profiles', `tenant_id=eq.${enc(tenantId)}&is_active=eq.true&select=id`);
-        if (tenant.max_users && members.length >= tenant.max_users) fail(409, `Your plan allows ${tenant.max_users} user(s). Upgrade to add more staff.`);
+        if (seats > 0 && members.length >= seats) fail(409, `Your plan allows ${seats} user(s). Upgrade to add more staff.`);
       }
     }
     const uid = await createAuthUser({ ...account, role, tenantId });
     await audit(ctx, 'SECURITY', 'USER_CREATED', `${account.email} created as ${role}${tenantId ? ` in ${tenantId}` : ''}`, { target: uid });
     return { uid, role, tenantId };
+  }
+
+  /** The signup trial plan must be a real, active plan (there is no free plan). */
+  async function assertSignupPlan(planId) {
+    const tier = tierFor((await getPricing()).plans, planId);
+    if (!tier) fail(400, 'Signup trial plan must be one of your plans.');
+    if (tier.isActive === false) fail(400, 'Signup trial plan is not active.');
+  }
+
+  /** Keeps tenants.max_users / max_shops (mirrors used by checkout & RLS) equal to each plan's limits. */
+  async function syncTenantLimits(plans) {
+    for (const tier of plans?.tiers || []) {
+      try {
+        await db().update('tenants', `plan_id=eq.${enc(tier.id)}`, {
+          max_users: tier.maxStaff ?? tier.maxUsers ?? 1, max_shops: tier.maxShops ?? 200, updated_at: nowIso(),
+        });
+      } catch (err) {
+        console.warn('[plans] could not sync tenant limits for', tier.id, err.message);
+      }
+    }
   }
 
   // ------------------------------------------------------------------
@@ -449,7 +494,11 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const [pricing, remoteConfig, broadcast, settings] = await Promise.all([getPricing(), getRemoteConfig(), getBroadcast(), getGeneralSettings()]);
     return json({ success: true, timestamp: nowIso(), data: {
       ...pricing, remoteConfig, broadcast,
-      settings: { supportPhone: settings.supportPhone || '', supportEmail: settings.supportEmail || '', companyName: settings.companyName || '' },
+      settings: {
+        supportPhone: settings.supportPhone || '', supportEmail: settings.supportEmail || '', companyName: settings.companyName || '',
+        defaultPlanId: settings.defaultPlanId, defaultTrialDays: settings.defaultTrialDays, trialGracePeriodDays: settings.trialGracePeriodDays,
+      },
+      capabilities: CAPABILITIES,
     } });
   });
 
@@ -544,7 +593,8 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const [rows, pricing, stats] = await Promise.all([
       db().select('tenants', 'select=*&order=created_at.desc'), getPricing(), db().rpc('admin_platform_stats').catch(() => ({})),
     ]);
-    return json({ success: true, tenants: rows.map(t => mapTenant(t, pricing.plans, stats)) });
+    const settings = await getGeneralSettings();
+    return json({ success: true, tenants: rows.map(t => mapTenant(t, pricing.plans, stats, Number(settings.trialGracePeriodDays || 0))) });
   });
   route('GET', '/api/platform/users', async ctx => {
     await requireAdmin(ctx);
@@ -581,12 +631,12 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     if (planId !== undefined) {
       const p = str(planId, 50);
       const tier = tierFor(pricing.plans, p);
-      if (!tier && p !== 'free') fail(400, `Unknown plan "${p}"`);
+      if (!tier) fail(400, `Unknown plan "${p}"`);
       if (p !== current.plan_id) {
-        // Plan change resets limits to the tier's quota unless overridden below.
+        // Plan change resets the mirrored limits to the tier's quota.
         patch.plan_id = p;
-        patch.max_users = tier?.maxUsers ?? 1;
-        patch.max_shops = tier?.maxShops ?? 200;
+        patch.max_users = tier.maxStaff ?? tier.maxUsers ?? 1;
+        patch.max_shops = tier.maxShops ?? 200;
       }
     }
     const limit = v => { const n = parseInt(v, 10); if (!Number.isInteger(n) || n < 1 || n > 10000000) fail(400, 'Limits must be positive whole numbers'); return n; };
@@ -620,7 +670,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
       if (!Number.isInteger(days) || days < 1 || days > 3650) fail(400, 'extendDays must be 1-3650');
       const base = Math.max(Date.now(), current.subscription_end_date ? new Date(current.subscription_end_date).getTime() : 0);
       patch.subscription_end_date = new Date(base + days * 86400000).toISOString();
-      if (status === undefined && ['expired', 'freemium'].includes(current.subscription_status)) patch.subscription_status = 'trial';
+      if (status === undefined && current.subscription_status === 'expired') patch.subscription_status = 'trial';
       patch.is_active = patch.is_active ?? true;
     }
     if (!Object.keys(patch).length) fail(400, 'Nothing to update');
@@ -628,7 +678,8 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const [row] = await db().update('tenants', `tenant_id=eq.${enc(tid)}`, patch);
     const changed = Object.keys(patch).filter(k => k !== 'updated_at').join(', ');
     await audit(ctx, 'TENANT', 'TENANT_UPDATED', `${current.business_name} (${tid}): ${changed}`, { target: tid });
-    return mapTenant(row, pricing.plans);
+    const settings = await getGeneralSettings();
+    return mapTenant(row, pricing.plans, {}, Number(settings.trialGracePeriodDays || 0));
   }
   for (const p of ['/api/platform/sync-tenant', '/api/platform/tenant']) {
     route('POST', p, async ctx => {
@@ -764,11 +815,16 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
         pricing.subscriptionAddons = body.subscriptionAddons.map(normalizeAddon);
       }
       await savePricing(pricing);
+      if (body.plans) await syncTenantLimits(pricing.plans);
     }
     if (body.coupons) await saveCoupons(normalizeCoupons(body.coupons));
     if (body.remoteConfig) await putSetting('remote_config', normalizeRemoteConfig(body.remoteConfig, await getRemoteConfig()));
     if (body.broadcast) await putSetting('broadcast', normalizeBroadcast(body.broadcast, await getBroadcast()));
-    if (body.settings) await putSetting('general_settings', normalizeSettings(body.settings, await getGeneralSettings()));
+    if (body.settings) {
+      const next = normalizeSettings(body.settings, await getGeneralSettings());
+      await assertSignupPlan(next.defaultPlanId);
+      await putSetting('general_settings', next);
+    }
     await audit(ctx, 'CONFIG', 'PLATFORM_UPDATED', `Updated ${keys.join(', ')}`);
     return json({ success: true, updated: keys });
   });
@@ -832,7 +888,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     await requireAdmin(ctx);
     const body = await readJson(ctx.request);
     const settings = normalizeSettings(body.data && body.id === 'general_settings' ? body.data : body, await getGeneralSettings());
-    if (settings.defaultPlanId && settings.defaultPlanId !== 'free' && !tierFor((await getPricing()).plans, settings.defaultPlanId)) fail(400, 'Default plan does not exist');
+    await assertSignupPlan(settings.defaultPlanId);
     settings.updatedAt = nowIso();
     await putSetting('general_settings', settings);
     await audit(ctx, 'CONFIG', 'SETTINGS_UPDATED', 'General platform settings saved');

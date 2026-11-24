@@ -1,4 +1,25 @@
+/// A subscription plan as configured by the super admin (web admin → Plans).
+///
+/// [allowedFeatures] are capability keys (see FeatureGate.capabilityLabels /
+/// web-admin CAPABILITIES) and are the ONLY source of what a plan unlocks.
+/// Numeric limits use 0 for "unlimited".
 class SubscriptionPlanModel {
+  /// Capability-catalog version. Plans saved before v2 never listed the core
+  /// selling keys because the app did not lock them; they are granted on load
+  /// so existing customers keep what they had.
+  static const int featuresVersion = 2;
+  static const List<String> legacyImplicitFeatures = [
+    'order_taking', 'estimate_bills', 'sales_returns', 'collections', 'purchases',
+    'expenses', 'visits', 'staff_management', 'thermal_printer', 'reports',
+  ];
+  static const List<String> coreFeatures = [
+    'order_taking', 'estimate_bills', 'invoicing', 'sales_returns', 'collections', 'khata_ledger',
+    'purchases', 'expenses', 'visits', 'thermal_printer', 'reports', 'gst_reports', 'offline_sync',
+  ];
+
+  /// True when [limit] means "no limit".
+  static bool isUnlimited(int limit) => limit <= 0;
+
   final String id;
   final String name; // 'Startup', 'Grow', 'Enterprise'
   final double monthlyPrice;
@@ -44,8 +65,8 @@ class SubscriptionPlanModel {
         description = description ?? tagline ?? '',
         yearlyPrice = yearlyPrice ?? ((yearlyMonthlyEquivalent ?? monthlyPrice * 0.8) * 12),
         yearlyMonthlyEquivalent = yearlyMonthlyEquivalent ?? (yearlyPrice != null ? (yearlyPrice / 12) : monthlyPrice * 0.8),
-        features = features ?? allowedFeatures ?? const [],
-        allowedFeatures = allowedFeatures ?? features ?? const [],
+        features = features ?? const [],
+        allowedFeatures = allowedFeatures ?? const [],
         maxStaff = maxStaff ?? maxUsers ?? 1,
         maxUsers = maxUsers ?? maxStaff ?? 1;
 
@@ -67,6 +88,7 @@ class SubscriptionPlanModel {
       'maxBranches': maxBranches,
       'features': features,
       'allowedFeatures': allowedFeatures,
+      'featuresVersion': featuresVersion,
       'isPopular': isPopular,
       'isActive': isActive,
     };
@@ -76,9 +98,14 @@ class SubscriptionPlanModel {
     final mPrice = (map['monthlyPrice'] as num?)?.toDouble() ?? 399.0;
     final yPrice = ((map['yearlyPrice'] ?? map['annualPrice']) as num?)?.toDouble() ?? (mPrice * 12 * 0.8);
     final yEq = (map['yearlyMonthlyEquivalent'] as num?)?.toDouble() ?? (yPrice / 12);
-    final featList = (map['features'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
-        (map['allowedFeatures'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
-        [];
+    // Marketing bullets ("features") and capability keys ("allowedFeatures")
+    // are different things — never fall back from one to the other.
+    final featList = (map['features'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    final allowed = <String>{
+      ...((map['allowedFeatures'] as List?)?.map((e) => e.toString()) ?? const <String>[]),
+    };
+    final version = (map['featuresVersion'] as num?)?.toInt() ?? 1;
+    if (version < featuresVersion) allowed.addAll(legacyImplicitFeatures);
     final staff = (map['maxStaff'] as num?)?.toInt() ?? (map['maxUsers'] as num?)?.toInt() ?? 1;
     final ordersPerMonth = (map['maxOrdersPerMonth'] as num?)?.toInt() ?? 200;
     final branches = (map['maxBranches'] as num?)?.toInt() ?? 1;
@@ -98,7 +125,7 @@ class SubscriptionPlanModel {
       maxBranches: branches,
       maxShops: (map['maxShops'] as num?)?.toInt() ?? 500,
       features: featList,
-      allowedFeatures: (map['allowedFeatures'] as List?)?.map((e) => e.toString()).toList() ?? featList,
+      allowedFeatures: allowed.toList(),
       isPopular: map['isPopular'] ?? map['highlight'] ?? false,
       isActive: map['isActive'] ?? true,
     );
@@ -163,7 +190,7 @@ class SubscriptionPlanModel {
         'Bluetooth Thermal Printer Support',
         'Standard CSV & Excel Exports',
       ],
-      allowedFeatures: ['invoicing', 'gst_reports', 'offline_sync'],
+      allowedFeatures: [...coreFeatures, 'staff_management'],
       isPopular: false,
     ),
     SubscriptionPlanModel(
@@ -186,7 +213,7 @@ class SubscriptionPlanModel {
         'Automated 12 PM & 10 PM Batch Sync',
         'Priority Phone & WhatsApp Support',
       ],
-      allowedFeatures: ['invoicing', 'gst_reports', 'live_tracking', 'van_stock', 'dynamic_upi_qr'],
+      allowedFeatures: [...coreFeatures, 'staff_management', 'dynamic_upi_qr', 'live_tracking', 'van_stock', 'bulk_import', 'multi_branch', 'priority_support'],
       isPopular: true,
     ),
     SubscriptionPlanModel(
@@ -194,9 +221,9 @@ class SubscriptionPlanModel {
       name: 'Enterprise',
       monthlyPrice: 899.0,
       yearlyMonthlyEquivalent: 719.0,
-      maxProducts: 9999, // 200+ unlimited products
+      maxProducts: 0, // unlimited
       maxStaff: 50,
-      maxOrdersPerMonth: 999999,
+      maxOrdersPerMonth: 0, // unlimited
       maxBranches: 10,
       maxShops: 10000,
       tagline: 'For high-volume multi-brand super stockists & teams',
@@ -208,7 +235,11 @@ class SubscriptionPlanModel {
         'Custom Tax Slabs & Full Multi-GST Slabs',
         '24/7 Dedicated Account Manager',
       ],
-      allowedFeatures: ['invoicing', 'gst_reports', 'live_tracking', 'multi_van', 'admin_customization'],
+      allowedFeatures: [
+        ...coreFeatures, 'staff_management', 'dynamic_upi_qr', 'live_tracking', 'van_stock', 'bulk_import',
+        'multi_branch', 'multi_van', 'custom_branding', 'custom_tax_slabs', 'admin_customization', 'audit_vault',
+        'priority_support', 'dedicated_manager',
+      ],
       isPopular: false,
     ),
   ];

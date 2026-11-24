@@ -12,7 +12,8 @@
     "live": "node scripts/start-live.js",
     "tunnel": "npx --yes cloudflared tunnel --url http://127.0.0.1:3000",
     "deploy": "npx wrangler deploy",
-    "test": "node --test \"test/*.test.mjs\""
+    "test": "node --test \"test/*.test.mjs\"",
+    "sync:edge": "node scripts/sync-edge.mjs"
   },
   "license": "UNLICENSED"
 }

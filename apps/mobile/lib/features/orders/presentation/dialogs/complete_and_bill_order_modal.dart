@@ -97,7 +97,10 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
   void initState() {
     super.initState();
     final appState = Provider.of<AppState>(context, listen: false);
-    _isGstCompliance = appState.isGstBillingEnabled && (widget.initialGstCompliance ?? true);
+    // Default to a GST bill only when the plan includes GST invoicing.
+    _isGstCompliance = appState.isGstBillingEnabled &&
+        (widget.initialGstCompliance ?? true) &&
+        (appState.planIncludes('invoicing') || !appState.planIncludes('estimate_bills'));
     // The order taker uses 'auto' for "per-SKU rates"; this modal calls the same
     // option 'sku_default'. Normalise it, and fall back for any slab id that is
     // no longer active, so the dropdown always has exactly one matching item.
@@ -344,6 +347,8 @@ class _CompleteAndBillOrderModalState extends State<CompleteAndBillOrderModal> {
       // 1. Add order & invoice to AppState (policy checked before any write,
       //    so a blocked attempt doesn't confirm the order without a bill).
       appState.ensureCanCreateBills();
+      // GST bills and kaccha estimates are separate plan capabilities.
+      appState.ensureCanWrite(feature: _isGstCompliance ? 'invoicing' : 'estimate_bills');
       if (widget.existingOrder != null) {
         await appState.updateOrderStatus(orderId, 'confirmed');
         await appState.createInvoice(invoice);

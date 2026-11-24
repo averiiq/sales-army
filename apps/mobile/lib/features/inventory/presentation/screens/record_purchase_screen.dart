@@ -6,6 +6,7 @@ import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/utils/formatters.dart';
 import 'package:salesarmy/features/inventory/data/models/product_model.dart';
 import 'package:salesarmy/features/inventory/data/models/purchase_model.dart';
+import 'package:salesarmy/core/utils/feature_gate.dart';
 
 class RecordPurchaseScreen extends StatefulWidget {
   final PurchaseModel? existingPurchase;
@@ -374,6 +375,7 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
       items: _items,
     );
 
+    if (!FeatureGate.allowWrite(context, feature: 'purchases')) return;
     appState.addPurchase(purchase);
 
     HapticFeedback.mediumImpact();

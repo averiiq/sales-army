@@ -49,11 +49,19 @@ void main() {
   });
 
   group('AppState billing policy', () {
-    test('billing is allowed by default and blocked reason is null', () {
+    test('billing is allowed on an active plan and blocked reason is null', () {
       final s = AppState(loadMockData: false);
-      expect(s.allowFreeUserBilling, isTrue);
+      s.tenant = s.tenant.copyWith(
+        subscriptionPlanId: 'startup',
+        subscriptionStatus: 'trial',
+        subscriptionEndDate: DateTime.now().add(const Duration(days: 10)),
+      );
       expect(s.billingBlockReason, isNull);
       expect(s.ensureCanCreateBills, returnsNormally);
+    });
+
+    test('plan restrictions surface their message', () {
+      expect(AppError.message(const PlanRestrictionException('Plan ended.')), 'Plan ended.');
     });
   });
 }

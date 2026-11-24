@@ -6,6 +6,7 @@ import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/theme/app_theme.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
 import 'package:salesarmy/features/visits/data/models/reminder_model.dart';
+import 'package:salesarmy/core/utils/feature_gate.dart';
 
 class RemindersScreen extends StatefulWidget {
   final String? initialFilter;
@@ -528,6 +529,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                               isCompleted: false,
                               createdAt: DateTime.now(),
                             );
+                            if (!FeatureGate.allowWrite(context, feature: 'visits')) return;
                             appState.addReminder(newRem);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(

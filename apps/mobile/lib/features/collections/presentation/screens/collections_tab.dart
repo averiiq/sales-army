@@ -537,7 +537,7 @@ class _CollectionsTabState extends State<CollectionsTab> with SingleTickerProvid
                             children: [
                               const Icon(Icons.storefront_rounded, size: 15),
                               const SizedBox(width: 4),
-                              const Text('Retailer Dues'),
+                              const Text('Dues'),
                               if (allShopsWithDues.isNotEmpty) ...[
                                 const SizedBox(width: 4),
                                 Container(

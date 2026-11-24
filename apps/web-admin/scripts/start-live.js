@@ -58,15 +58,27 @@ function startTunnel() {
   const isWin = process.platform === 'win32';
   const npxCmd = isWin ? 'npx.cmd' : 'npx';
 
+  // Node >= 18.20 / 20.12 refuses to spawn .cmd files without a shell on
+  // Windows (EINVAL), so run npx through the shell there. Arguments are fixed.
   tunnelProcess = spawn(npxCmd, ['--yes', 'cloudflared', 'tunnel', '--url', `http://127.0.0.1:${PORT}`], {
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    shell: isWin,
   });
 
   let urlFound = false;
 
   const handleTunnelOutput = (data) => {
     const text = data.toString();
-    const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
+    // Real quick-tunnel URLs look like https://word-word-word.trycloudflare.com.
+    // "api.trycloudflare.com" is Cloudflare's own service and only appears in
+    // error messages when the tunnel could NOT be created — never report it.
+    const match = [...text.matchAll(/https:\/\/([a-zA-Z0-9-]+)\.trycloudflare\.com/g)]
+      .find(m => m[1].toLowerCase() !== 'api');
+    if (!urlFound && /failed to request quick tunnel|connection reset|i\/o timeout|no such host/i.test(text)) {
+      console.error('\n❌ Could not create the Cloudflare tunnel. Your network is blocking trycloudflare.com.');
+      console.error('   Try a mobile hotspot, or deploy the server (Render / Cloudflare / Hostinger).');
+      console.error('   Details: ' + text.trim().split('\n').slice(-1)[0]);
+    }
     if (match && !urlFound) {
       urlFound = true;
       const publicUrl = match[0];

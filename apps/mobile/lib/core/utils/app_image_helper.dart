@@ -206,11 +206,22 @@ class AppImageHelper {
   }
 
   /// Decodes a data URI into raw Uint8List bytes
+  // Decoded images are cached so lists of products / parties don't re-decode
+  // base64 (and flicker) on every rebuild.
+  static final Map<int, Uint8List> _decodeCache = <int, Uint8List>{};
+  static const int _decodeCacheLimit = 80;
+
   static Uint8List? decodeDataUri(String dataUri) {
+    final key = Object.hash(dataUri.length, dataUri.hashCode);
+    final hit = _decodeCache[key];
+    if (hit != null) return hit;
     try {
       final commaIndex = dataUri.indexOf(',');
       final base64Str = commaIndex != -1 ? dataUri.substring(commaIndex + 1) : dataUri;
-      return base64Decode(base64Str.trim());
+      final bytes = base64Decode(base64Str.trim());
+      if (_decodeCache.length >= _decodeCacheLimit) _decodeCache.remove(_decodeCache.keys.first);
+      _decodeCache[key] = bytes;
+      return bytes;
     } catch (e) {
       debugPrint('[AppImageHelper] Error decoding data URI: $e');
       return null;

@@ -100,13 +100,71 @@ export function createRazorpay({ keyId, keySecret, fetchImpl = fetch }) {
   return call;
 }
 
+// An open payment link is reused for an identical purchase within this window
+// (links themselves expire after 72h).
+const REUSE_WINDOW_MS = 24 * 3600 * 1000;
+const MAX_CHECKOUTS_PER_HOUR = 10;
+
+/** Identifies "the same purchase": plan, duration, price, coupon and hardware. */
+export function purchaseFingerprint(quote) {
+  const hardware = (quote.hardware || []).map(h => h.id || h.title).sort();
+  return JSON.stringify([quote.planId, quote.days, quote.amount, quote.couponCode || null, hardware, quote.shippingAddress || null]);
+}
+
 export function createCheckoutService({ db, gateway, getCatalog }) {
+  async function markClosed(id, linkStatus) {
+    try {
+      await db.update('subscription_checkouts', `id=eq.${id}&status=eq.pending`, { status: linkStatus });
+    } catch (_) { /* bookkeeping only */ }
+  }
+
   async function start(user, input) {
     if (!['owner', 'distributor', 'super_admin'].includes(user.role) || !user.tenant_id) fail('Only a workspace owner can purchase a subscription', 403);
     const quote = quoteCheckout(await getCatalog(), input || {});
     // Refuse paid checkouts before reserving anything (coupon holds, rows)
     // when the gateway is not configured.
     if (quote.amount > 0 && gateway.configured === false) fail('Online payments are not configured yet. Set the Razorpay keys on the server.', 503);
+
+    // Robustness: reuse an open payment link for the SAME purchase (stops
+    // double payments from repeated taps), and cap new links per agency.
+    if (quote.amount > 0) {
+      const since = new Date(Date.now() - REUSE_WINDOW_MS).toISOString();
+      const recent = await db.select('subscription_checkouts',
+        `tenant_id=eq.${encodeURIComponent(user.tenant_id)}&created_at=gte.${encodeURIComponent(since)}` +
+        '&select=id,status,amount,quote,checkout_url,gateway_link_id,created_at&order=created_at.desc&limit=50') || [];
+      const fingerprint = purchaseFingerprint(quote);
+      const open = recent.find(c => c.status === 'pending' && c.checkout_url && c.gateway_link_id &&
+        c.amount === quote.amount && purchaseFingerprint(c.quote || {}) === fingerprint);
+      if (open) {
+        const link = await gateway('GET', `payment_links/${encodeURIComponent(open.gateway_link_id)}`);
+        if (link.status === 'created') {
+          return { id: open.id, status: 'pending', url: open.checkout_url, amount: open.amount, quote: open.quote, reused: true };
+        }
+        if (link.status === 'paid') return status(user, open.id);
+        await markClosed(open.id, link.status);
+      }
+      // Keep ONE open link per agency: activate any older link that was in
+      // fact paid, and cancel the other unpaid ones so an old plan's link
+      // cannot be paid later by mistake.
+      for (const other of recent) {
+        if (other === open || other.status !== 'pending' || !other.gateway_link_id) continue;
+        try {
+          const old = await gateway('GET', `payment_links/${encodeURIComponent(other.gateway_link_id)}`);
+          if (old.status === 'paid') await status(user, other.id);
+          else if (old.status === 'created') {
+            await gateway('POST', `payment_links/${encodeURIComponent(other.gateway_link_id)}/cancel`);
+            await markClosed(other.id, 'cancelled');
+          } else await markClosed(other.id, old.status);
+        } catch (err) {
+          console.warn('[checkout] could not reconcile older link', other.id, err?.message);
+        }
+      }
+      const lastHour = recent.filter(c => Date.parse(c.created_at) > Date.now() - 3600 * 1000);
+      if (lastHour.length >= MAX_CHECKOUTS_PER_HOUR) {
+        fail('Too many payment attempts. Please wait a few minutes and try again.', 429);
+      }
+    }
+
     const id = crypto.randomUUID();
     await db.rpc('reserve_subscription_checkout', { p_id: id, p_tenant: user.tenant_id, p_user: user.id, p_quote: quote });
     if (quote.amount === 0) {
@@ -131,7 +189,10 @@ export function createCheckoutService({ db, gateway, getCatalog }) {
     if (checkout.status === 'paid') return { id, status: 'paid', paymentId: checkout.payment_id, expiresAt: checkout.subscription_end_date };
     if (!checkout.gateway_link_id) return { id, status: 'pending' };
     const link = await gateway('GET', `payment_links/${encodeURIComponent(checkout.gateway_link_id)}`);
-    if (link.status !== 'paid') return { id, status: link.status, url: checkout.checkout_url };
+    if (link.status !== 'paid') {
+      if (link.status === 'expired' || link.status === 'cancelled') await markClosed(id, link.status);
+      return { id, status: link.status, url: checkout.checkout_url, amount: checkout.amount };
+    }
     if (link.currency !== 'INR' || link.amount !== checkout.amount || link.amount_paid !== checkout.amount || link.reference_id !== id) fail('Payment does not match checkout', 409);
     const payment = link.payments?.find(p => p.status === 'captured' && p.amount === checkout.amount);
     if (!payment) fail('Captured payment not found', 409);

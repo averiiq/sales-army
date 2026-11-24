@@ -191,10 +191,18 @@ class _AppEntryWrapperState extends State<AppEntryWrapper> {
                 : (targetRole == 'super_admin' ? 'platform_tenant' : '');
 
             if (targetTenantId.isEmpty) {
-              try {
-                await supaClient.auth.signOut();
-              } catch (e) {
-                debugPrint('Sign-out unassigned profile: $e');
+              // A brand-new Google user who hasn't created their agency yet
+              // (e.g. the app was reopened by the Google redirect). Keep the
+              // session: the login screen picks it up and shows onboarding.
+              // Anyone else without an agency is signed out as before.
+              final isGoogle = supaUser.appMetadata['provider'] == 'google' ||
+                  (supaUser.identities ?? const []).any((i) => i.provider == 'google');
+              if (!isGoogle) {
+                try {
+                  await supaClient.auth.signOut();
+                } catch (e) {
+                  debugPrint('Sign-out unassigned profile: $e');
+                }
               }
               return;
             }

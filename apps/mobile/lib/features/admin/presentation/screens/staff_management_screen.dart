@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/theme/app_theme.dart';
 import 'package:salesarmy/features/admin/data/models/staff_model.dart';
+import 'package:salesarmy/core/utils/feature_gate.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   const StaffManagementScreen({super.key});
@@ -14,6 +15,8 @@ class StaffManagementScreen extends StatefulWidget {
 
 class _StaffManagementScreenState extends State<StaffManagementScreen> {
   void _openAddOrEditStaffDialog({StaffModel? existingStaff}) {
+    // New staff need the plan's staff capability and a free seat.
+    if (existingStaff == null && !FeatureGate.allowWrite(context, feature: 'staff_management', limit: 'staff')) return;
     showDialog(
       context: context,
       builder: (ctx) => _StaffEditDialog(
@@ -23,7 +26,9 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           if (existingStaff != null) {
             appState.updateStaff(staff);
           } else {
-            appState.addStaff(staff);
+            appState.addStaff(staff).catchError((Object e) {
+              if (mounted) FeatureGate.handleError(context, e);
+            });
           }
         },
       ),

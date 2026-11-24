@@ -12,6 +12,7 @@ import 'package:salesarmy/core/utils/formatters.dart';
 import 'package:salesarmy/core/utils/product_image_helper.dart';
 import 'package:salesarmy/core/utils/responsive_helper.dart';
 import 'package:salesarmy/core/widgets/bouncing_widget.dart';
+import 'package:salesarmy/core/utils/feature_gate.dart';
 
 class InventoryTab extends StatefulWidget {
   final bool isStandalone;
@@ -34,72 +35,12 @@ class _InventoryTabState extends State<InventoryTab> {
   bool _onlyLowStock = false;
   bool _isCardView = true;
 
-  final List<String> _categories = [
-    'All',
-    'Home Cleaning',
-    'Groceries',
-    'Edible Oils',
-    'Dairy',
-    'Bakery',
-    'Snacks',
-  ];
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
+  /// Category filter: exact (case-insensitive) match on the product's category.
+  /// Categories are the account's own (AppState.productCategories) — nothing
+  /// is predefined.
   bool _matchesCategory(ProductModel p, String selected) {
     if (selected == 'All') return true;
-    final cat = (p.categoryId ?? '').toLowerCase();
-    final name = p.name.toLowerCase();
-
-    switch (selected) {
-      case 'Home Cleaning':
-        return cat.contains('clean') ||
-            cat.contains('home') ||
-            name.contains('cleaner') ||
-            name.contains('harpic') ||
-            name.contains('lizol') ||
-            name.contains('colin') ||
-            name.contains('vim') ||
-            name.contains('surf') ||
-            name.contains('ariel') ||
-            name.contains('dettol') ||
-            name.contains('comfort');
-      case 'Groceries':
-        return cat.contains('grocer') ||
-            cat.contains('atta') ||
-            cat.contains('staple') ||
-            name.contains('atta') ||
-            name.contains('tea') ||
-            name.contains('coffee') ||
-            name.contains('powder') ||
-            name.contains('salt') ||
-            name.contains('rice') ||
-            name.contains('noodle') ||
-            name.contains('ketchup');
-      case 'Edible Oils':
-        return cat.contains('oil') || name.contains('oil') || name.contains('sunlite') || name.contains('saffola');
-      case 'Dairy':
-        return cat.contains('dairy') || cat.contains('milk') || name.contains('milk') || name.contains('butter');
-      case 'Bakery':
-        return cat.contains('bakery') ||
-            cat.contains('biscuit') ||
-            name.contains('biscuit') ||
-            name.contains('parle') ||
-            name.contains('good day') ||
-            name.contains('oreo');
-      case 'Snacks':
-        return cat.contains('snack') ||
-            cat.contains('namkeen') ||
-            name.contains('bhujia') ||
-            name.contains('silk') ||
-            name.contains('cadbury');
-      default:
-        return cat == selected.toLowerCase();
-    }
+    return (p.categoryId ?? '').trim().toLowerCase() == selected.trim().toLowerCase();
   }
 
   void _showAddEditProductModal(BuildContext context, {ProductModel? existingProduct}) {
@@ -261,7 +202,7 @@ class _InventoryTabState extends State<InventoryTab> {
                             ],
 
                             // Categories
-                            ..._categories.where((c) => c != 'All').map((cat) {
+                            ...appState.productCategories.map((cat) {
                               final isSelected = _selectedCategory == cat && !_onlyLowStock;
                               return Padding(
                                 padding: const EdgeInsets.only(right: 8),
@@ -1142,13 +1083,13 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
   // Custom Size & Unit controllers & variant list
   late TextEditingController _sizeValueCtrl;
   late TextEditingController _customUnitCtrl;
-  String _selectedUnit = 'ml';
+  String _selectedUnit = 'Custom';
   List<ProductVariant> _variants = [];
   bool _showAddVariantForm = false;
 
   // Extra variant controllers (per-variant 3-tier pricing + stock)
   final TextEditingController _extraSizeCtrl = TextEditingController();
-  String _extraUnit = 'ml';
+  String _extraUnit = 'Custom';
   final TextEditingController _extraCustomUnitCtrl = TextEditingController();
   final TextEditingController _extraWsCtrl = TextEditingController();
   final TextEditingController _extraRetCtrl = TextEditingController();
@@ -1162,21 +1103,93 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
   late TextEditingController _customGstCtrl;
   bool _isCustomGst = false;
 
-  final List<String> _availableUnits = [
-    'ml',
-    'L',
-    'g',
-    'kg',
-    'pcs',
-    'pack',
-    'box',
-    'bag',
-    'pouch',
-    'bottle',
-    'tin',
-    'can',
-    'Custom',
-  ];
+  /// The account's saved units (+ the product's own unit when editing) and the
+  /// 'Custom' entry, shown as "+ Add new unit". Nothing is predefined.
+  List<String> get _availableUnits {
+    final units = List<String>.from(context.read<AppState>().productUnits);
+    for (final u in [_selectedUnit, _extraUnit]) {
+      if (u != 'Custom' && u.isNotEmpty && !units.contains(u)) units.add(u);
+    }
+    return [...units, 'Custom'];
+  }
+
+  String _unitLabel(String unit) => unit == 'Custom' ? '+ Add new unit' : unit;
+
+  /// Dropdown entry with a trailing delete icon (category / unit lists).
+  Widget _deletableOption(String label, VoidCallback onDelete, {double fontSize = 13, String? keyPrefix}) {
+    return Builder(
+      builder: (itemCtx) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)),
+            ),
+          ),
+          InkWell(
+            key: keyPrefix == null ? null : ValueKey('$keyPrefix-$label'),
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              Navigator.of(itemCtx).pop(); // close the menu without selecting
+              onDelete();
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteCatalogEntry({required bool isCategory, required String value}) async {
+    final appState = context.read<AppState>();
+    final kind = isCategory ? 'category' : 'unit';
+    final used = isCategory ? appState.productCountForCategory(value) : appState.productCountForUnit(value);
+    if (used > 0) {
+      final noun = used == 1 ? 'product' : 'products';
+      final them = used == 1 ? 'it' : 'them';
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(
+          content: Text('"$value" is used by $used $noun. Change $them to another $kind first.'),
+        ));
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete $kind?'),
+        content: Text('"$value" will be removed from your $kind list.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() {
+      if (isCategory) {
+        appState.removeProductCategory(value);
+        if (_categoryCtrl.text.trim().toLowerCase() == value.toLowerCase()) _categoryCtrl.clear();
+      } else {
+        appState.removeProductUnit(value);
+        final remaining = appState.productUnits;
+        final fallback = remaining.isNotEmpty ? remaining.first : 'Custom';
+        if (_selectedUnit == value) {
+          _selectedUnit = fallback;
+          _updatePrimaryVariantString();
+        }
+        if (_extraUnit == value) _extraUnit = fallback;
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -1204,43 +1217,38 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
       _variants = List.from(p.variants!);
       final first = _variants.first;
       _sizeValueCtrl = TextEditingController(text: first.size);
-      if (_availableUnits.contains(first.unit)) {
+      if (first.unit.trim().isNotEmpty && first.unit != 'Standard') {
         _selectedUnit = first.unit;
         _customUnitCtrl = TextEditingController();
       } else {
         _selectedUnit = 'Custom';
-        _customUnitCtrl = TextEditingController(text: first.unit);
+        _customUnitCtrl = TextEditingController();
       }
     } else if (p != null) {
       final rawVariant = p.variant ?? p.size ?? '';
       final match = RegExp(r'^(\d+(?:\.\d+)?)\s*(.*)$').firstMatch(rawVariant.trim());
       if (match != null) {
         _sizeValueCtrl = TextEditingController(text: match.group(1) ?? '');
-        final unitPart = (match.group(2) ?? 'pcs').trim();
-        final lower = unitPart.toLowerCase();
-        if (_availableUnits.contains(lower)) {
-          _selectedUnit = lower;
-          _customUnitCtrl = TextEditingController();
-        } else if (_availableUnits.contains(unitPart)) {
-          _selectedUnit = unitPart;
-          _customUnitCtrl = TextEditingController();
-        } else if (unitPart.isNotEmpty) {
-          _selectedUnit = 'Custom';
-          _customUnitCtrl = TextEditingController(text: unitPart);
-        } else {
-          _selectedUnit = 'pcs';
-          _customUnitCtrl = TextEditingController();
-        }
+        final unitPart = (match.group(2) ?? '').trim();
+        _selectedUnit = unitPart.isNotEmpty ? unitPart : _firstSavedUnit();
+        _customUnitCtrl = TextEditingController();
       } else {
         _sizeValueCtrl = TextEditingController(text: rawVariant);
-        _selectedUnit = 'pcs';
+        _selectedUnit = _firstSavedUnit();
         _customUnitCtrl = TextEditingController();
       }
     } else {
       _sizeValueCtrl = TextEditingController();
-      _selectedUnit = 'pcs';
+      _selectedUnit = _firstSavedUnit();
       _customUnitCtrl = TextEditingController();
     }
+    _extraUnit = _firstSavedUnit();
+  }
+
+  /// First unit this account has saved, or 'Custom' (type a new one) if none.
+  String _firstSavedUnit() {
+    final units = context.read<AppState>().productUnits;
+    return units.isNotEmpty ? units.first : 'Custom';
   }
 
   @override
@@ -1362,13 +1370,13 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Add Custom Category', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        title: const Text('Add New Category', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
         content: TextField(
           controller: catTextCtrl,
           autofocus: true,
           decoration: const InputDecoration(
             labelText: 'Product Category Name',
-            hintText: 'e.g. Frozen Foods, Ayurvedic, Electronics',
+            hintText: 'Saved to your account, e.g. Snacks, Beverages',
             border: OutlineInputBorder(),
           ),
         ),
@@ -1609,7 +1617,11 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                         categories.add(currentCat);
                       }
                       return DropdownButtonFormField<String>(
-                        initialValue: categories.contains(currentCat) ? currentCat : (categories.isNotEmpty ? categories.first : null),
+                        isExpanded: true,
+                        // Rebuild when the account's list changes (e.g. a category was just added).
+                        key: ValueKey('cat-${categories.join('|')}-$currentCat'),
+                        initialValue: categories.contains(currentCat) ? currentCat : null,
+                        hint: Text(categories.isEmpty ? 'Add your first category' : 'Select category'),
                         decoration: InputDecoration(
                           labelText: 'Category *',
                           labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
@@ -1625,15 +1637,22 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         ),
+                        selectedItemBuilder: (_) => [
+                          ...categories.map((c) => Text(c, overflow: TextOverflow.ellipsis)),
+                          const Text('+ Add New Category'),
+                        ],
                         items: [
-                          ...categories.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                          ...categories.map((c) => DropdownMenuItem(
+                                value: c,
+                                child: _deletableOption(c, () => _deleteCatalogEntry(isCategory: true, value: c), keyPrefix: 'delete-category'),
+                              )),
                           const DropdownMenuItem(
                             value: '__ADD_CUSTOM_CAT__',
                             child: Row(
                               children: [
                                 Icon(Icons.add_circle_outline_rounded, size: 16, color: Color(0xFF1D4ED8)),
                                 SizedBox(width: 6),
-                                Text('+ Add Custom Category', style: TextStyle(color: Color(0xFF1D4ED8), fontWeight: FontWeight.w700)),
+                                Text('+ Add New Category', style: TextStyle(color: Color(0xFF1D4ED8), fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
@@ -1729,17 +1748,25 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                                     value: _availableUnits.contains(_selectedUnit) ? _selectedUnit : 'Custom',
                                     isExpanded: true,
                                     icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1E56E2)),
+                                    selectedItemBuilder: (_) => _availableUnits
+                                        .map((unit) => Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: Text(
+                                                _unitLabel(unit),
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                              ),
+                                            ))
+                                        .toList(),
                                     items: _availableUnits.map((unit) {
                                       return DropdownMenuItem<String>(
                                         value: unit,
-                                        child: Text(
-                                          unit,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFF0F172A),
-                                          ),
-                                        ),
+                                        child: unit == 'Custom'
+                                            ? Text(
+                                                _unitLabel(unit),
+                                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1D4ED8)),
+                                              )
+                                            : _deletableOption(unit, () => _deleteCatalogEntry(isCategory: false, value: unit), keyPrefix: 'delete-unit'),
                                       );
                                     }).toList(),
                                     onChanged: (val) {
@@ -1767,8 +1794,8 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                               setState(() {});
                             },
                             decoration: InputDecoration(
-                              labelText: 'Custom Unit *',
-                              hintText: 'e.g. roll, crate, pouch',
+                              labelText: 'New Unit *',
+                              hintText: 'Type a unit, e.g. kg, pcs, box — saved to your account',
                               labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
                               filled: true,
                               fillColor: Colors.white,
@@ -2018,10 +2045,18 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                                           child: DropdownButton<String>(
                                             value: _availableUnits.contains(_extraUnit) ? _extraUnit : 'Custom',
                                             isExpanded: true,
+                                            selectedItemBuilder: (_) => _availableUnits
+                                                .map((u) => Align(
+                                                      alignment: Alignment.centerLeft,
+                                                      child: Text(_unitLabel(u), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                                    ))
+                                                .toList(),
                                             items: _availableUnits.map((u) {
                                               return DropdownMenuItem<String>(
                                                 value: u,
-                                                child: Text(u, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                                child: u == 'Custom'
+                                                    ? Text(_unitLabel(u), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1D4ED8)))
+                                                    : _deletableOption(u, () => _deleteCatalogEntry(isCategory: false, value: u), fontSize: 12),
                                               );
                                             }).toList(),
                                             onChanged: (val) {
@@ -2038,7 +2073,7 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                                   TextField(
                                     controller: _extraCustomUnitCtrl,
                                     decoration: InputDecoration(
-                                      labelText: 'Custom Unit',
+                                      labelText: 'New Unit (saved to your account)',
                                       labelStyle: const TextStyle(fontSize: 11),
                                       filled: true,
                                       fillColor: const Color(0xFFF8FAFC),
@@ -2110,6 +2145,7 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                                         final s = _extraSizeCtrl.text.trim();
                                         final u = _extraUnit == 'Custom' ? _extraCustomUnitCtrl.text.trim() : _extraUnit;
                                         if (s.isEmpty) return;
+                                        if (u.isNotEmpty) context.read<AppState>().addProductUnit(u);
                                         final ws = double.tryParse(_extraWsCtrl.text.trim()) ??
                                             (double.tryParse(_wholesalePriceCtrl.text.trim()) ?? 0.0);
                                         final ret = double.tryParse(_extraRetCtrl.text.trim()) ??
@@ -2581,7 +2617,7 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                         : () {
                             final name = _nameCtrl.text.trim();
                             final variant = _variantCtrl.text.trim();
-                            final cat = _categoryCtrl.text.trim().isNotEmpty ? _categoryCtrl.text.trim() : 'Home Cleaning';
+                            final cat = _categoryCtrl.text.trim().isNotEmpty ? _categoryCtrl.text.trim() : 'General';
                             final hsn = _hsnCtrl.text.trim();
                             final wsPrice = double.tryParse(_wholesalePriceCtrl.text.trim()) ?? (double.tryParse(_basePriceCtrl.text.trim()) ?? 0.0);
                             final retPrice = double.tryParse(_retailPriceCtrl.text.trim()) ?? wsPrice;
@@ -2592,6 +2628,9 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
 
                             final primaryUnit = _selectedUnit == 'Custom' ? _customUnitCtrl.text.trim() : _selectedUnit;
                             final primarySize = _sizeValueCtrl.text.trim().isNotEmpty ? _sizeValueCtrl.text.trim() : variant;
+                            // Remember the category and unit on this account.
+                            context.read<AppState>().addProductCategory(cat);
+                            if (primaryUnit.isNotEmpty) context.read<AppState>().addProductUnit(primaryUnit);
 
                             final primaryVariant = ProductVariant(
                               size: primarySize,
@@ -2633,6 +2672,7 @@ class _AddEditProductBottomSheetState extends State<_AddEditProductBottomSheet> 
                             }
 
                             if (widget.existingProduct == null) {
+                              if (!FeatureGate.allowWrite(context, limit: 'products')) return;
                               context.read<AppState>().addProduct(newProd);
                             } else {
                               context.read<AppState>().updateProduct(newProd);

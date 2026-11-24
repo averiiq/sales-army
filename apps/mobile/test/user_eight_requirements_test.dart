@@ -139,8 +139,9 @@ void main() {
       expect(find.text('Camera'), findsOneWidget);
       expect(find.text('Gallery'), findsOneWidget);
       expect(find.text('+ Paste Image URL'), findsOneWidget);
-      expect(find.text('Or Select Category Storefront Preset:'), findsOneWidget);
-      expect(find.text('Kirana'), findsWidgets);
+      // Stock storefront presets were removed — photos come only from camera / gallery / URL.
+      expect(find.text('Or Select Category Storefront Preset:'), findsNothing);
+      expect(find.text('Kirana'), findsWidgets); // still in the Category Type dropdown
     });
 
     // 6. Dark theme option

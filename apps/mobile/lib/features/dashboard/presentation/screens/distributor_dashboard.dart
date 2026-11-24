@@ -26,6 +26,7 @@ import 'package:salesarmy/features/shops/presentation/screens/shop_detail_screen
 import 'package:salesarmy/features/billing/presentation/screens/gst_tax_invoice_viewer.dart';
 import 'package:salesarmy/features/orders/presentation/screens/orders_tab.dart';
 import 'package:salesarmy/features/orders/presentation/screens/order_taker_flow.dart';
+import 'package:salesarmy/core/widgets/plan_crown_badge.dart';
 
 class _DashboardReminderItem {
   final String key;
@@ -56,6 +57,8 @@ class _DashboardActionItem {
   final String? badgeText;
   final Color? badgeColor;
   final VoidCallback onTap;
+  /// Plan capability this tile uses (drives the crown badge colour).
+  final String? planFeature;
 
   const _DashboardActionItem({
     required this.icon,
@@ -66,6 +69,7 @@ class _DashboardActionItem {
     required this.onTap,
     this.badgeText,
     this.badgeColor,
+    this.planFeature,
   });
 }
 
@@ -1093,24 +1097,13 @@ class DistributorDashboard extends StatelessWidget {
     final List<_DashboardActionItem> items = [];
 
     if (appState.isOwnerRole) {
-      // 1. Owner: Full Access (6 cards in 2-column grid)
-      items.add(_DashboardActionItem(
-        icon: Icons.storefront_rounded,
-        label: 'New Shop',
-        subtitle: 'Register outlet',
-        bgColor: const Color(0xFFF1F5FD),
-        iconColor: const Color(0xFF1E56E2),
-        badgeText: '+ Add',
-        badgeColor: const Color(0xFF1E56E2),
-        onTap: () {
-          HapticFeedback.lightImpact();
-          showAddShopDialog(context);
-        },
-      ));
+      // 1. Owner: Full Access (6 cards). Order: New Order, New Party, Estimate,
+      //    Collect Dues, Stock / Inventory, Sales Return.
       items.add(_DashboardActionItem(
         icon: Icons.receipt_long_rounded,
-        label: 'Create Bill',
-        subtitle: 'POS Invoicing',
+        label: 'New Order',
+        planFeature: 'order_taking',
+        subtitle: 'Order Invoicing',
         bgColor: const Color(0xFFF1F5FD),
         iconColor: const Color(0xFF1E56E2),
         badgeText: 'Instant',
@@ -1131,8 +1124,34 @@ class DistributorDashboard extends StatelessWidget {
         },
       ));
       items.add(_DashboardActionItem(
+        icon: Icons.storefront_rounded,
+        label: 'New Party',
+        subtitle: 'Register Party',
+        bgColor: const Color(0xFFF1F5FD),
+        iconColor: const Color(0xFF1E56E2),
+        badgeText: '+ Add',
+        badgeColor: const Color(0xFF1E56E2),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          showAddShopDialog(context);
+        },
+      ));
+      items.add(_DashboardActionItem(
+        icon: Icons.request_quote_rounded,
+        label: 'Estimate',
+        planFeature: 'estimate_bills',
+        subtitle: 'Rough quotation',
+        bgColor: const Color(0xFFFFFBEB),
+        iconColor: const Color(0xFFD97706),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          EstimatedBillDialog.show(context);
+        },
+      ));
+      items.add(_DashboardActionItem(
         icon: Icons.payments_outlined,
         label: 'Collect Dues',
+        planFeature: 'collections',
         subtitle: 'Pending accounts',
         bgColor: const Color(0xFFEFFBF4),
         iconColor: const Color(0xFF059669),
@@ -1159,19 +1178,9 @@ class DistributorDashboard extends StatelessWidget {
         },
       ));
       items.add(_DashboardActionItem(
-        icon: Icons.request_quote_rounded,
-        label: 'Estimate',
-        subtitle: 'Rough quotation',
-        bgColor: const Color(0xFFFFFBEB),
-        iconColor: const Color(0xFFD97706),
-        onTap: () {
-          HapticFeedback.lightImpact();
-          EstimatedBillDialog.show(context);
-        },
-      ));
-      items.add(_DashboardActionItem(
         icon: Icons.assignment_return_rounded,
         label: 'Sales Return',
+        planFeature: 'sales_returns',
         subtitle: 'Restock & credit',
         bgColor: const Color(0xFFFEF2F2),
         iconColor: const Color(0xFFDC2626),
@@ -1184,8 +1193,9 @@ class DistributorDashboard extends StatelessWidget {
       // 2. Accountant: Billing, Collections, Quotations, Expenses
       items.add(_DashboardActionItem(
         icon: Icons.receipt_long_rounded,
-        label: 'Create Bill',
-        subtitle: 'POS Invoicing',
+        label: 'New Order',
+        planFeature: 'order_taking',
+        subtitle: 'Order Invoicing',
         bgColor: const Color(0xFFF1F5FD),
         iconColor: const Color(0xFF1E56E2),
         badgeText: 'Instant',
@@ -1208,6 +1218,7 @@ class DistributorDashboard extends StatelessWidget {
       items.add(_DashboardActionItem(
         icon: Icons.payments_outlined,
         label: 'Collect Dues',
+        planFeature: 'collections',
         subtitle: 'Khata & Receipts',
         bgColor: const Color(0xFFEFFBF4),
         iconColor: const Color(0xFF059669),
@@ -1220,6 +1231,7 @@ class DistributorDashboard extends StatelessWidget {
       items.add(_DashboardActionItem(
         icon: Icons.request_quote_rounded,
         label: 'Estimate',
+        planFeature: 'estimate_bills',
         subtitle: 'Rough quotation',
         bgColor: const Color(0xFFFFFBEB),
         iconColor: const Color(0xFFD97706),
@@ -1231,6 +1243,7 @@ class DistributorDashboard extends StatelessWidget {
       items.add(_DashboardActionItem(
         icon: Icons.receipt_rounded,
         label: 'Expenses',
+        planFeature: 'expenses',
         subtitle: 'Petty Cash & Logs',
         bgColor: const Color(0xFFF5F3FF),
         iconColor: const Color(0xFF7C3AED),
@@ -1246,8 +1259,8 @@ class DistributorDashboard extends StatelessWidget {
       // 3. Field Sales: New Shop, Take Order, Visits, Stock
       items.add(_DashboardActionItem(
         icon: Icons.storefront_rounded,
-        label: 'New Shop',
-        subtitle: 'Register outlet',
+        label: 'New Party',
+        subtitle: 'Register Party',
         bgColor: const Color(0xFFF1F5FD),
         iconColor: const Color(0xFF1E56E2),
         badgeText: '+ Add',
@@ -1260,6 +1273,7 @@ class DistributorDashboard extends StatelessWidget {
       items.add(_DashboardActionItem(
         icon: Icons.shopping_bag_outlined,
         label: 'Take Order',
+        planFeature: 'order_taking',
         subtitle: 'Book shop order',
         bgColor: const Color(0xFFF1F5FD),
         iconColor: const Color(0xFF1E56E2),
@@ -1283,6 +1297,7 @@ class DistributorDashboard extends StatelessWidget {
       items.add(_DashboardActionItem(
         icon: Icons.location_on_outlined,
         label: 'My Visits',
+        planFeature: 'visits',
         subtitle: 'Route & Beat Outlets',
         bgColor: const Color(0xFFEFFBF4),
         iconColor: const Color(0xFF059669),
@@ -1347,6 +1362,7 @@ class DistributorDashboard extends StatelessWidget {
       items.add(_DashboardActionItem(
         icon: Icons.assignment_return_rounded,
         label: 'Sales Return',
+        planFeature: 'sales_returns',
         subtitle: 'RTO & return parcel',
         bgColor: const Color(0xFFFEF2F2),
         iconColor: const Color(0xFFDC2626),
@@ -1388,6 +1404,7 @@ class DistributorDashboard extends StatelessWidget {
       items.add(_DashboardActionItem(
         icon: Icons.assignment_return_rounded,
         label: 'Sales Return',
+        planFeature: 'sales_returns',
         subtitle: 'Restock returned items',
         bgColor: const Color(0xFFFEF2F2),
         iconColor: const Color(0xFFDC2626),
@@ -1429,6 +1446,7 @@ class DistributorDashboard extends StatelessWidget {
                     iconColor: it.iconColor,
                     badgeText: it.badgeText,
                     badgeColor: it.badgeColor,
+                    planFeature: it.planFeature,
                     onTap: it.onTap,
                     isDark: isDark,
                   ),
@@ -1462,6 +1480,7 @@ class DistributorDashboard extends StatelessWidget {
     required VoidCallback onTap,
     String? badgeText,
     Color? badgeColor,
+    String? planFeature,
     bool isDark = false,
   }) {
     return Container(
@@ -1532,6 +1551,12 @@ class DistributorDashboard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (planFeature != null)
+                  Positioned(
+                    top: -8,
+                    left: 0,
+                    child: PlanCrownBadge(feature: planFeature, size: 13),
+                  ),
                 if (badgeText != null)
                   Positioned(
                     top: -8,
@@ -2185,7 +2210,9 @@ class DistributorDashboard extends StatelessWidget {
             borderColor: const Color(0xFFFECACA),
             title: 'Account Alert: ${appState.subscriptionBadgeText}',
             titleColor: const Color(0xFF991B1B),
-            subtitle: 'New order creation and live operations restricted',
+            subtitle: appState.isAccountPausedOrCancelled
+                ? 'Account paused — contact SalesArmy support'
+                : 'Read-only: view data & collect dues. Renew to create orders and bills',
             subtitleColor: const Color(0xFFB91C1C),
             actionLabel: 'Renew',
             actionColor: const Color(0xFFDC2626),
@@ -2204,6 +2231,37 @@ class DistributorDashboard extends StatelessWidget {
           ),
         );
       }
+    }
+
+    // 1a. Trial ended but grace days remain (admin: Settings → grace period)
+    else if (appState.isInTrialGracePeriod && !appState.isDailyNoticeDismissed('sub_grace')) {
+      final left = appState.trialGraceDaysLeft;
+      alertWidgets.add(
+        _buildAlertCard(
+          context: context,
+          alertId: 'sub_grace',
+          icon: Icons.hourglass_bottom_rounded,
+          iconColor: const Color(0xFFD97706),
+          iconBg: const Color(0xFFFEF3C7),
+          cardBg: const Color(0xFFFFFBEB),
+          borderColor: const Color(0xFFFDE68A),
+          title: 'Free trial ended — $left day${left == 1 ? '' : 's'} of grace left',
+          titleColor: const Color(0xFF92400E),
+          subtitle: 'Choose a plan now; after the grace period the app becomes read-only',
+          subtitleColor: const Color(0xFFB45309),
+          actionLabel: 'View plans',
+          actionColor: const Color(0xFFD97706),
+          actionBorderColor: const Color(0xFFFDE68A),
+          onAction: () {
+            HapticFeedback.lightImpact();
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const PlanAndPricingScreen()));
+          },
+          onDismiss: () {
+            appState.dismissDailyNotice('sub_grace');
+            _showUndoSnackBar(context, 'Reminder dismissed for today', () => appState.restoreDailyNotice('sub_grace'));
+          },
+        ),
+      );
     }
 
     // 1b. Subscription Expiring Soon Alert (≤5 days left on active plan or trial)

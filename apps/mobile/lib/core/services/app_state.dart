@@ -40,6 +40,7 @@ import 'package:salesarmy/features/admin/data/models/subscription_addon_model.da
 import 'package:salesarmy/features/admin/data/models/printer_option_model.dart';
 import 'package:salesarmy/features/billing/data/models/gst_slab_model.dart';
 import 'package:salesarmy/core/services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'package:salesarmy/core/services/notification_service.dart';
 import 'package:salesarmy/core/services/platform_api.dart';
 
@@ -207,79 +208,202 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // 2. Freemium Core Selling Architecture (Unsubscribed users can take orders, make estimated bills, make bills)
-  bool _isFreeTier = false;
-  bool get isFreeTier =>
-      _isFreeTier ||
-      _tenant.subscriptionStatus == 'free' ||
-      _tenant.subscriptionStatus == 'freemium' ||
-      // When a paid plan or trial has lapsed, drop the tenant back to the
-      // free tier so premium capabilities disable cleanly instead of leaving
-      // them in an "expired but still unlocked" limbo. Core selling (orders,
-      // estimated bills) remains available per the Freemium guarantee —
-      // see canAccessFeatureBySubscription below.
-      _isSubscriptionEndDatePassed;
-  bool get hasActiveSubscription => !isFreeTier && (_tenant.subscriptionStatus == 'active' || _tenant.subscriptionStatus == 'trial');
+  // 2. Plans & entitlements: there is NO free plan. Every agency is on a real
+  //    plan (trial or paid). When it ends (+ trial grace days) the app is
+  //    read-only — see isReadOnlyMode / writeBlockReason below.
 
-  bool get _isSubscriptionEndDatePassed =>
-      _tenant.subscriptionEndDate != null &&
-      _tenant.subscriptionEndDate!.isBefore(DateTime.now());
+  // ---------------------------------------------------------------------------
+  // Razorpay checkout bookkeeping (server = Supabase Edge Function "platform")
+  // ---------------------------------------------------------------------------
 
-  void setFreeTier(bool val) {
-    _isFreeTier = val;
-    notifyListeners();
+  static String pendingCheckoutKey(String tenantId) => 'pending_checkout_$tenantId';
+
+  /// Remembers the open Razorpay checkout so a payment made while the app was
+  /// closed (or before tapping "Verify") still activates the plan later.
+  Future<void> savePendingCheckout({required String id, required String planId}) async {
+    final tid = currentTenantId ?? _tenant.tenantId;
+    if (tid.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(pendingCheckoutKey(tid), jsonEncode({
+      'id': id,
+      'planId': planId,
+      'savedAt': DateTime.now().toIso8601String(),
+    }));
   }
 
+  Future<Map<String, String>?> readPendingCheckout() async {
+    final tid = currentTenantId ?? _tenant.tenantId;
+    if (tid.isEmpty) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(pendingCheckoutKey(tid));
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      final id = map['id']?.toString() ?? '';
+      if (id.isEmpty) return null;
+      return {'id': id, 'planId': map['planId']?.toString() ?? ''};
+    } catch (_) {
+      // Older builds stored only the checkout id.
+      return {'id': raw, 'planId': ''};
+    }
+  }
+
+  Future<void> clearPendingCheckout() async {
+    final tid = currentTenantId ?? _tenant.tenantId;
+    if (tid.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(pendingCheckoutKey(tid));
+  }
+
+  /// Applies a SERVER-confirmed activation on this phone right away (so bills
+  /// unlock even if the follow-up cloud sync is slow), then re-syncs.
+  Future<void> applyServerPlanActivation({
+    required String planId,
+    required DateTime expiresAt,
+    String status = 'active',
+  }) async {
+    final plan = planById(planId);
+    if (planId.isNotEmpty) {
+      _tenant = _tenant.copyWith(
+        subscriptionPlanId: plan?.id ?? planId,
+        subscriptionStatus: status,
+        subscriptionEndDate: expiresAt,
+        accountStatus: 'active',
+        maxUsers: plan?.maxStaff,
+        maxShops: plan?.maxShops,
+      );
+      await _persistTenantLocally(_tenant);
+      notifyListeners();
+    }
+    try {
+      await syncAllFromCloud();
+    } catch (e) {
+      debugPrint('Post-activation sync failed (will retry on next sync): $e');
+    }
+  }
+
+  bool _reconcilingCheckout = false;
+
+  /// Checks a saved checkout with the server. Returns the server result when
+  /// it was PAID (plan already activated server-side), otherwise null.
+  /// Expired / cancelled / unknown checkouts are forgotten.
+  Future<Map<String, dynamic>?> reconcilePendingCheckout() async {
+    if (_reconcilingCheckout || !PlatformApi.isConfigured) return null;
+    final pending = await readPendingCheckout();
+    if (pending == null) return null;
+    _reconcilingCheckout = true;
+    try {
+      final result = await PlatformApi.request(
+        '/api/checkout?id=${Uri.encodeQueryComponent(pending['id']!)}',
+      );
+      final status = result['status']?.toString();
+      if (status == 'paid') {
+        await clearPendingCheckout();
+        final expires = DateTime.tryParse(result['expiresAt']?.toString() ?? '');
+        if (expires != null) {
+          await applyServerPlanActivation(planId: pending['planId'] ?? '', expiresAt: expires);
+        } else {
+          await syncAllFromCloud();
+        }
+        return result;
+      }
+      if (status == 'expired' || status == 'cancelled') await clearPendingCheckout();
+      return null;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('checkout not found') || msg.contains('invalid checkout id')) {
+        await clearPendingCheckout();
+      }
+      debugPrint('Pending checkout check failed: $e');
+      return null;
+    } finally {
+      _reconcilingCheckout = false;
+    }
+  }
+
+  /// TESTING ONLY: activates [planId] for this agency without payment through
+  /// the server RPC `activate_plan_for_testing` (allowed only while the super
+  /// admin has "Allow test plan activation" ON). The plan is changed in the
+  /// database — never just on this phone — then applied here. Returns the new
+  /// end date; throws a readable [StateError] on failure.
+  Future<DateTime> activatePlanForTesting(String planId, {bool yearly = false}) async {
+    final supa = SupabaseService.instance;
+    if (!await supa.ensureInitialized() || supa.client == null) {
+      throw StateError(SupabaseService.unreachableMessage);
+    }
+    final dynamic result;
+    try {
+      result = await supa.client!.rpc('activate_plan_for_testing', params: {
+        'p_plan': planId,
+        'p_yearly': yearly,
+      });
+    } on PostgrestException catch (e) {
+      final msg = e.message;
+      if (e.code == 'PGRST202' || msg.contains('activate_plan_for_testing')) {
+        throw StateError('Plan activation is not set up on the server yet (database update pending). Please contact SalesArmy.');
+      }
+      throw StateError(msg.replaceFirst(RegExp(r'^[A-Z_]+:\s*'), ''));
+    }
+    final map = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
+    final expires = DateTime.tryParse(map['expiresAt']?.toString() ?? '') ??
+        DateTime.now().add(Duration(days: yearly ? 365 : 30));
+    final plan = planById(planId);
+    _tenant = _tenant.copyWith(
+      subscriptionPlanId: plan?.id ?? planId,
+      subscriptionStatus: 'active',
+      subscriptionEndDate: expires,
+      accountStatus: 'active',
+      maxUsers: plan?.maxStaff,
+      maxShops: plan?.maxShops,
+    );
+    await _persistTenantLocally(_tenant);
+    notifyListeners();
+    return expires;
+  }
+
+  /// Applies a plan locally. Plan changes are server-managed (checkout or the
+  /// super admin); the database rejects plan writes from agency users, so
+  /// only a super admin session writes them through.
   Future<void> setSubscriptionPlan({
     required String planId,
     String status = 'active',
     DateTime? endDate,
   }) async {
-    final effectiveEndDate = endDate ?? (status == 'trial'
-        ? DateTime.now().add(const Duration(days: 14))
-        : (status == 'free' || status == 'freemium' ? null : DateTime.now().add(const Duration(days: 365))));
-
-    final cleanId = (planId.toLowerCase().contains('enterprise') || planId.toLowerCase().contains('platinum'))
-        ? 'enterprise'
-        : ((planId.toLowerCase().contains('grow') || planId.toLowerCase().contains('gold')) ? 'grow' : 'startup');
-    final pUsers = cleanId == 'enterprise' ? 50 : (cleanId == 'grow' ? 5 : 1);
-    final pShops = cleanId == 'enterprise' ? 10000 : (cleanId == 'grow' ? 1000 : 200);
+    final plan = planById(planId);
+    final effectiveEndDate = endDate ??
+        (status == 'trial'
+            ? DateTime.now().add(Duration(days: _signupTrialDays))
+            : DateTime.now().add(const Duration(days: 365)));
 
     _tenant = _tenant.copyWith(
-      subscriptionPlanId: planId,
+      subscriptionPlanId: plan?.id ?? planId,
       subscriptionStatus: status,
       subscriptionEndDate: effectiveEndDate,
-      maxUsers: pUsers,
-      maxShops: pShops,
+      maxUsers: plan?.maxStaff,
+      maxShops: plan?.maxShops,
     );
-    if (status == 'free' || status == 'freemium' || planId.toLowerCase() == 'free') {
-      _isFreeTier = true;
-    } else {
-      _isFreeTier = false;
-    }
     await _persistTenantLocally(_tenant);
     notifyListeners();
 
     final tid = currentTenantId ?? _tenant.tenantId;
-    if (tid.isNotEmpty) {
-      try {
-        final supa = SupabaseService.instance;
-        if (supa.client != null) {
-          await supa.client!.from('tenants').update({
-            'plan_id': planId,
-            'subscription_status': status,
-            'subscription_end_date': effectiveEndDate?.toIso8601String(),
-            'is_active': status != 'suspended',
-            'updated_at': DateTime.now().toIso8601String(),
-          }).eq('tenant_id', tid);
-          debugPrint('⚡ Supabase: Updated tenant $tid subscription to $planId ($status)');
-        }
-      } catch (e) {
-        debugPrint('Supabase subscription update notice: $e');
+    if (tid.isEmpty || !(isSuperAdminUser || isSuperAdminMode)) return;
+    try {
+      final supa = SupabaseService.instance;
+      if (supa.client != null) {
+        await supa.client!.from('tenants').update({
+          'plan_id': plan?.id ?? planId,
+          'subscription_status': status,
+          'subscription_end_date': effectiveEndDate.toIso8601String(),
+          if (plan != null) 'max_users': plan.maxStaff,
+          if (plan != null) 'max_shops': plan.maxShops,
+          'is_active': status != 'suspended',
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('tenant_id', tid);
       }
-
-      await syncTenantToServerBridge();
+    } catch (e) {
+      debugPrint('Supabase subscription update notice: $e');
     }
+    await syncTenantToServerBridge();
   }
 
   // RBAC Role Helper Getters
@@ -289,73 +413,42 @@ class AppState extends ChangeNotifier {
   bool get isDeliveryRole => activeRole.toLowerCase().contains('deliver');
   bool get isStoreManagerRole => activeRole.toLowerCase().contains('store') || activeRole.toLowerCase().contains('warehouse');
 
-  // Subscription Feature Gating
-  bool canAccessFeatureBySubscription(String featureKey) {
-    if (isSuperAdminUser || isSuperAdminMode) return true;
-    // Paused / cancelled accounts are hard-locked for everything.
-    if (isAccountPausedOrCancelled) return false;
+  /// Legacy / alternate names used around the app for capability keys.
+  static const Map<String, String> _featureAliases = {
+    'gst_invoicing': 'invoicing',
+    'gst_invoice': 'invoicing',
+    'tax_invoice': 'invoicing',
+    'rough_bills': 'estimate_bills',
+    'estimated_bill': 'estimate_bills',
+    'kaccha_bill': 'estimate_bills',
+    'orders': 'order_taking',
+    'sell': 'order_taking',
+    'thermal_printing': 'thermal_printer',
+    'printer': 'thermal_printer',
+    'offline_outbox': 'offline_sync',
+    'cloud_sync': 'offline_sync',
+    'instant_sync': 'offline_sync',
+    'gps_tracking': 'live_tracking',
+    'multi_van_fleet': 'multi_van',
+    'fleet_multi_van': 'multi_van',
+    'dedicated_account_manager': 'dedicated_manager',
+    'staff': 'staff_management',
+    'purchase': 'purchases',
+    'expense': 'expenses',
+    'reminders': 'visits',
+    'returns': 'sales_returns',
+    'khataLedger': 'khata_ledger',
+  };
 
-    final lowerKey = featureKey.toLowerCase();
+  static String canonicalFeature(String key) => _featureAliases[key] ?? _featureAliases[key.toLowerCase()] ?? key.toLowerCase();
 
-    // Features allowed on Freemium / Free tier — also used as the fallback
-    // allowlist when a paid plan or trial has expired (Freemium Core Selling
-    // Guarantee: users keep order taking + kaccha bills forever).
-    const freeAllowed = {
-      'orders',
-      'order_taking',
-      'rough_bills',
-      'estimated_bill',
-      'shops',
-      'parties',
-      'products',
-      'local_storage',
-    };
-
-    if (isFreeTier || isSubscriptionExpired) {
-      return freeAllowed.contains(lowerKey);
-    }
-
-    final planId = (_tenant.subscriptionPlanId ?? 'startup').toLowerCase();
-
-    // Enterprise, Annual Pro: All features unlocked
-    if (planId.contains('enterprise') || planId.contains('annual_pro') || planId.contains('platinum')) {
-      return true;
-    }
-
-    // Grow Plan: All except enterprise-exclusive fleet & audit vault
-    if (planId.contains('grow') || planId.contains('gold')) {
-      const growRestricted = {'multi_van_fleet', 'multi_van', 'fleet_multi_van', 'dedicated_account_manager', 'audit_vault'};
-      return !growRestricted.contains(lowerKey);
-    }
-
-    // Startup Plan / Free Trial: Core invoicing, 1 staff seat, 58mm thermal printing, CSV reports
-    const startupRestricted = {
-      'live_tracking',
-      'gps_tracking',
-      'van_stock',
-      'multi_van_fleet',
-      'multi_van',
-      'fleet_multi_van',
-      'dedicated_account_manager',
-      'audit_vault',
-    };
-    return !startupRestricted.contains(lowerKey);
-  }
+  /// Back-compat name for [hasFeature].
+  bool canAccessFeatureBySubscription(String featureKey) => hasFeature(featureKey);
 
   String getFeaturePlanBadge(String featureKey) {
-    final lowerKey = featureKey.toLowerCase();
-    if (isFreeTier) {
-      if (lowerKey == 'staff' || lowerKey == 'staff_management') return 'GROW+';
-      if (lowerKey == 'reports' || lowerKey == 'export_reports') return 'PRO';
-      if (lowerKey == 'cloud_sync' || lowerKey == 'backup') return 'PRO';
-      if (lowerKey == 'printer' || lowerKey == 'thermal_printer') return 'ADDON';
-      if (lowerKey == 'bank_accounts' || lowerKey == 'multi_bank') return 'PRO';
-      return 'PRO';
-    }
-    final planId = (_tenant.subscriptionPlanId ?? 'startup').toLowerCase();
-    if (planId.contains('enterprise')) return 'ENTERPRISE';
-    if (planId.contains('grow')) return 'GROW';
-    return 'ACTIVE';
+    if (isReadOnlyMode) return 'RENEW';
+    if (!planIncludes(featureKey)) return 'UPGRADE';
+    return currentPlan.name.toUpperCase();
   }
 
   // 2.5 Remote App Governance & Feature Kill Switches (Super Admin Web Control)
@@ -412,23 +505,142 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 3. Dynamic Dropdown Categories Across Entire App
-  final List<String> _productCategories = [
-    'All',
-    'Home Cleaning',
-    'Groceries',
-    'Edible Oils',
-    'Dairy',
-    'Bakery',
-    'Snacks',
-  ];
-  List<String> get productCategories => List.unmodifiable(_productCategories);
+  // 3. Product categories & packaging units — per account, nothing predefined.
+  //    Saved on the phone (per tenant) and in the cloud (platform_settings row
+  //    tenant_catalog_<tenantId>). Categories / units already used by the
+  //    account's products are always included so old data keeps showing.
+  final List<String> _productCategories = [];
+  final List<String> _productUnits = [];
+
+  static List<String> _mergeUnique(Iterable<String> a, Iterable<String> b) {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final v in [...a, ...b]) {
+      final t = v.trim();
+      if (t.isEmpty || t == 'All' || t == 'Custom') continue;
+      if (seen.add(t.toLowerCase())) out.add(t);
+    }
+    return out;
+  }
+
+  /// Categories for this account (saved + used by products). Never contains 'All'.
+  List<String> get productCategories => List.unmodifiable(
+        _mergeUnique(_productCategories, _products.map((p) => p.categoryId ?? '')),
+      );
+
+  /// Packaging units for this account (saved + used by product variants).
+  List<String> get productUnits => List.unmodifiable(
+        _mergeUnique(_productUnits, _products.expand((p) => (p.variants ?? const []).map((v) => v.unit))),
+      );
+
+  String get _catalogPrefKey => 'salesarmy_catalog_lists_${currentTenantId ?? _tenant.tenantId}';
 
   void addProductCategory(String category) {
     final trimmed = category.trim();
-    if (trimmed.isNotEmpty && !_productCategories.contains(trimmed)) {
-      _productCategories.add(trimmed);
+    if (trimmed.isEmpty || trimmed == 'All') return;
+    if (_productCategories.any((c) => c.toLowerCase() == trimmed.toLowerCase())) return;
+    _productCategories.add(trimmed);
+    notifyListeners();
+    _persistCatalogLists();
+  }
+
+  /// How many products use [category] / [unit]. Entries in use cannot be
+  /// deleted (they would re-appear from the products and leave them orphaned).
+  int productCountForCategory(String category) {
+    final key = category.trim().toLowerCase();
+    return _products.where((p) => (p.categoryId ?? '').trim().toLowerCase() == key).length;
+  }
+
+  int productCountForUnit(String unit) {
+    final key = unit.trim().toLowerCase();
+    return _products
+        .where((p) => (p.variants ?? const []).any((v) => v.unit.trim().toLowerCase() == key))
+        .length;
+  }
+
+  void removeProductCategory(String category) {
+    _productCategories.removeWhere((c) => c.toLowerCase() == category.trim().toLowerCase());
+    notifyListeners();
+    _persistCatalogLists();
+  }
+
+  void addProductUnit(String unit) {
+    final trimmed = unit.trim();
+    if (trimmed.isEmpty || trimmed == 'Custom') return;
+    if (_productUnits.any((u) => u.toLowerCase() == trimmed.toLowerCase())) return;
+    _productUnits.add(trimmed);
+    notifyListeners();
+    _persistCatalogLists();
+  }
+
+  void removeProductUnit(String unit) {
+    _productUnits.removeWhere((u) => u.toLowerCase() == unit.trim().toLowerCase());
+    notifyListeners();
+    _persistCatalogLists();
+  }
+
+  Future<void> _persistCatalogLists() async {
+    final data = {'categories': _productCategories, 'units': _productUnits, 'updatedAt': DateTime.now().toIso8601String()};
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_catalogPrefKey, jsonEncode(data));
+    } catch (e) {
+      debugPrint('Persist catalog lists: $e');
+    }
+    final tid = currentTenantId ?? _tenant.tenantId;
+    if (tid.isNotEmpty && SupabaseService.instance.client != null) {
+      try {
+        await SupabaseService.instance.savePlatformSettings('tenant_catalog_$tid', data);
+      } catch (e) {
+        debugPrint('Cloud catalog lists sync: $e');
+      }
+    }
+  }
+
+  /// Loads this account's categories / units (phone first, then cloud).
+  Future<void> _loadCatalogLists() async {
+    void apply(Map data) {
+      final cats = (data['categories'] as List?)?.map((e) => e.toString()) ?? const <String>[];
+      final units = (data['units'] as List?)?.map((e) => e.toString()) ?? const <String>[];
+      _productCategories
+        ..clear()
+        ..addAll(_mergeUnique(cats, const []));
+      _productUnits
+        ..clear()
+        ..addAll(_mergeUnique(units, const []));
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_catalogPrefKey);
+      if (raw != null && raw.isNotEmpty) apply(jsonDecode(raw) as Map);
       notifyListeners();
+    } catch (e) {
+      debugPrint('Load catalog lists: $e');
+    }
+    final tid = currentTenantId ?? _tenant.tenantId;
+    if (tid.isEmpty || SupabaseService.instance.client == null) return;
+    try {
+      final cloud = await SupabaseService.instance.fetchPlatformSettings('tenant_catalog_$tid');
+      if (cloud != null) {
+        // Union with anything added offline on this phone, then re-save.
+        final localCats = List<String>.from(_productCategories);
+        final localUnits = List<String>.from(_productUnits);
+        apply(cloud);
+        final mergedCats = _mergeUnique(_productCategories, localCats);
+        final mergedUnits = _mergeUnique(_productUnits, localUnits);
+        final changed = mergedCats.length != _productCategories.length || mergedUnits.length != _productUnits.length;
+        _productCategories
+          ..clear()
+          ..addAll(mergedCats);
+        _productUnits
+          ..clear()
+          ..addAll(mergedUnits);
+        notifyListeners();
+        if (changed) _persistCatalogLists();
+      }
+    } catch (e) {
+      debugPrint('Cloud catalog lists load: $e');
     }
   }
 
@@ -450,18 +662,9 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  final List<String> _packagingUnits = [
-    'kg', 'g', 'L', 'ml', 'pcs', 'box', 'packet', 'bag', 'carton', 'Custom'
-  ];
-  List<String> get packagingUnits => List.unmodifiable(_packagingUnits);
-
-  void addPackagingUnit(String unit) {
-    final trimmed = unit.trim();
-    if (trimmed.isNotEmpty && !_packagingUnits.contains(trimmed)) {
-      _packagingUnits.insert(_packagingUnits.length - 1, trimmed);
-      notifyListeners();
-    }
-  }
+  /// Back-compat names for [productUnits] / [addProductUnit].
+  List<String> get packagingUnits => productUnits;
+  void addPackagingUnit(String unit) => addProductUnit(unit);
 
   // 4. Coupons Management (Trial & Flat Discount Coupons)
   final List<CouponModel> _coupons = List.from(CouponModel.defaultCoupons);
@@ -2134,6 +2337,7 @@ class AppState extends ChangeNotifier {
       _otpDigits = (data['otpDigits'] as num?)?.toInt() ?? _otpDigits;
       _maintenanceMode = data['maintenanceMode'] as bool? ?? _maintenanceMode;
       _minAppVersion = data['minAppVersion'] as String? ?? _minAppVersion;
+      _applyPlanSettings(data);
       debugPrint('Real-Time Platform Settings Synced: EnforceOTP=$_enforceMobileOtp, Maintenance=$_maintenanceMode');
       notifyListeners();
     }
@@ -2168,7 +2372,6 @@ class AppState extends ChangeNotifier {
       if (data['enforceOtp'] is bool) {
         _enforceMobileOtp = data['enforceOtp'] as bool;
       }
-      _applyFreeBillingPolicy(data);
       debugPrint('⚡ Real-Time Remote Config Synced from Admin Panel.');
       notifyListeners();
     }
@@ -2389,7 +2592,9 @@ class AppState extends ChangeNotifier {
       if (rc['enforceOtp'] is bool) _enforceMobileOtp = rc['enforceOtp'] as bool;
       if (rc['smsMode'] != null) _smsGatewayMode = rc['smsMode'].toString();
       if (rc['otpDigits'] is num) _otpDigits = (rc['otpDigits'] as num).toInt();
-      _applyFreeBillingPolicy(rc);
+    }
+    if (data['settings'] is Map) {
+      _applyPlanSettings(Map<String, dynamic>.from(data['settings'] as Map));
     }
 
     if (data['remoteFeatureFlags'] is Map) {
@@ -2414,7 +2619,8 @@ class AppState extends ChangeNotifier {
             .toLowerCase();
         final planMatches = targetPlan == 'all' ||
             currentPlan.contains(targetPlan) ||
-            (targetPlan == 'freemium' && (currentPlan.contains('free') || currentPlan.contains('trial')));
+            ((targetPlan == 'expired' || targetPlan == 'freemium') && isSubscriptionExpired) ||
+            (targetPlan == 'trial' && isTrial);
 
         if (tenantMatches && planMatches) {
           setEmergencyBroadcast(b);
@@ -2485,8 +2691,9 @@ class AppState extends ChangeNotifier {
       'ownerName': _tenant.representativeName,
       'phone': _tenant.mobile,
       'email': _tenant.email,
-      'city': _tenant.territory ?? 'Delhi',
-      'state': _tenant.territory ?? 'Delhi',
+      'city': _tenant.city ?? _tenant.territory ?? '',
+      'state': _tenant.state ?? '',
+      'pincode': _tenant.pincode ?? '',
       'gstin': _tenant.gstin,
       'pan': _tenant.pan,
       'warehouseAddress': _tenant.warehouseAddress,
@@ -2752,6 +2959,8 @@ class AppState extends ChangeNotifier {
   /// Enterprise Session Management: Cleans up listeners, resets active role & staff,
   /// and restores a sanitized baseline upon user logout.
   void signOutSession() {
+    _productCategories.clear();
+    _productUnits.clear();
     _tenantSubscription?.cancel();
     _tenantSubscription = null;
     try {
@@ -2901,6 +3110,9 @@ class AppState extends ChangeNotifier {
     _listenToTenant(tenantId);
     _listenToTenantSubcollections(tenantId);
     _listenToPrinterHardwareOrders(tenantId);
+    _loadCatalogLists();
+    // A Razorpay payment finished while the app was closed still activates.
+    reconcilePendingCheckout();
     // Anti-Data-Loss Multi-Device Hydration: Immediately trigger full fetch from central cloud database
     syncAllFromCloud();
     notifyListeners();
@@ -2973,9 +3185,6 @@ class AppState extends ChangeNotifier {
             );
 
             _isGstBillingEnabled = _tenant.isGstBillingEnabled ?? true;
-            final status = (_tenant.subscriptionStatus ?? '').toLowerCase();
-            final plan = (_tenant.subscriptionPlanId ?? '').toLowerCase();
-            _isFreeTier = status == 'free' || status == 'freemium' || plan == 'free' || plan == 'starter';
             await _persistTenantLocally(_tenant);
             if (kDebugMode) {
               debugPrint('AppState: tenant hydrated from Supabase.');
@@ -3214,44 +3423,114 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // Subscription & Plan Status Checkers
-  SubscriptionPlanModel get currentPlan {
-    final rawPlanId = (_tenant.subscriptionPlanId ?? 'startup').toLowerCase();
-    final cleanId = (rawPlanId.contains('enterprise') || rawPlanId.contains('platinum'))
-        ? 'enterprise'
-        : ((rawPlanId.contains('grow') || rawPlanId.contains('gold')) ? 'grow' : 'startup');
-    return _subscriptionPlans.firstWhere(
-      (p) => p.id.toLowerCase() == cleanId,
-      orElse: () => _subscriptionPlans.firstWhere(
-        (p) => p.id == 'startup',
-        orElse: () => SubscriptionPlanModel.defaultPlans.first,
-      ),
-    );
+  // ==========================================================================
+  // PLANS & ENTITLEMENTS — single source of truth
+  //
+  //   plan (admin catalog)  -> which capabilities + limits
+  //   tenant status / dates -> trial, active, expired (read-only), suspended
+  //   remote kill switches  -> platform-wide off switch (isModuleRemotelyDisabled)
+  //   staff permissions     -> per-user RBAC (canAccessModule)
+  //
+  // The database enforces the same rules (enforce_plan_entitlements trigger),
+  // so a modified client cannot bypass them.
+  // ==========================================================================
+
+  // Signup trial rules from Web Admin → Settings (general_settings).
+  String _signupPlanId = 'startup';
+  int _signupTrialDays = 14;
+  int _trialGraceDays = 3;
+  String get signupPlanId => _signupPlanId;
+  int get signupTrialDays => _signupTrialDays;
+  int get trialGraceDays => _trialGraceDays;
+
+  void _applyPlanSettings(Map<String, dynamic> data) {
+    final plan = data['defaultPlanId']?.toString();
+    if (plan != null && plan.isNotEmpty && plan != 'free') _signupPlanId = plan;
+    final days = (data['defaultTrialDays'] as num?)?.toInt();
+    if (days != null && days > 0) _signupTrialDays = days;
+    final grace = (data['trialGracePeriodDays'] as num?)?.toInt();
+    if (grace != null && grace >= 0) _trialGraceDays = grace;
   }
 
-  /// Returns true if the tenant's current plan unlocks [featureKey]. Keys match
-  /// the canonical CAPABILITY_CATALOG defined in the admin panel (app.js).
-  /// Expired / free-tier tenants only get `invoicing` and `offline_sync`.
-  /// During trial all plan capabilities apply.
+  @visibleForTesting
+  void applyPlanSettingsForTest(Map<String, dynamic> data) {
+    _applyPlanSettings(data);
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void setSubscriptionPlansForTest(List<SubscriptionPlanModel> plans) {
+    _subscriptionPlans
+      ..clear()
+      ..addAll(plans);
+    notifyListeners();
+  }
+
+  static const Map<String, String> _legacyPlanIds = {
+    'silver': 'startup', 'starter': 'startup', 'basic': 'startup',
+    'gold': 'grow', 'growth': 'grow', 'pro': 'grow',
+    'platinum': 'enterprise', 'annual_pro': 'enterprise',
+  };
+
+  /// Plan with this id from the admin catalog (case-insensitive, legacy aliases).
+  SubscriptionPlanModel? planById(String? planId) {
+    final raw = (planId ?? '').trim().toLowerCase();
+    if (raw.isEmpty) return null;
+    for (final id in [raw, _legacyPlanIds[raw]]) {
+      if (id == null) continue;
+      for (final p in _subscriptionPlans) {
+        if (p.id.toLowerCase() == id) return p;
+      }
+    }
+    return null;
+  }
+
+  /// The plan this agency is on. Falls back to the signup trial plan, then the
+  /// first plan, if the tenant row names a plan the admin has removed.
+  SubscriptionPlanModel get currentPlan =>
+      planById(_tenant.subscriptionPlanId) ??
+      planById(_signupPlanId) ??
+      (_subscriptionPlans.isNotEmpty ? _subscriptionPlans.first : SubscriptionPlanModel.defaultPlans.first);
+
+  bool get _isPlatformAdmin => isSuperAdminUser || isSuperAdminMode;
+
+  /// True if the current plan includes [featureKey] (ignores expiry). Use this
+  /// to decide what to SHOW; use [hasFeature] / [writeBlockReason] to decide
+  /// what may be DONE.
+  bool planIncludes(String featureKey) {
+    if (_isPlatformAdmin) return true;
+    final key = canonicalFeature(featureKey);
+    return currentPlan.allowedFeatures.contains(key);
+  }
+
+  /// Capabilities that stay usable while the agency is read-only (expired):
+  /// viewing / exporting data and collecting money already owed.
+  static const Set<String> readOnlyFeatures = {
+    'collections', 'khata_ledger', 'reports', 'gst_reports', 'thermal_printer', 'offline_sync', 'dynamic_upi_qr',
+  };
+
+  /// True if the agency may use [featureKey] right now (plan + status).
   bool hasFeature(String featureKey) {
+    if (_isPlatformAdmin) return true;
     if (isAccountPausedOrCancelled) return false;
-    // Expired paid plans / expired trials degrade to the free-tier allowlist
-    // via `isFreeTier`, which now folds in `_isSubscriptionEndDatePassed`.
-    if (isFreeTier) {
-      return const {'invoicing', 'offline_sync'}.contains(featureKey);
-    }
-    final plan = currentPlan;
-    if (!plan.isActive) return false;
-    if (plan.allowedFeatures.isEmpty) {
-      return const {'invoicing', 'offline_sync', 'gst_reports', 'khata_ledger'}.contains(featureKey);
-    }
-    return plan.allowedFeatures.contains(featureKey);
+    final key = canonicalFeature(featureKey);
+    if (!currentPlan.isActive && !isReadOnlyMode) return false;
+    if (!currentPlan.allowedFeatures.contains(key)) return false;
+    if (isReadOnlyMode) return readOnlyFeatures.contains(key);
+    return true;
   }
 
   /// List of all capability keys the current plan unlocks (for display).
   List<String> get currentAllowedFeatures => List.unmodifiable(currentPlan.allowedFeatures);
 
   bool get isTrial => (_tenant.subscriptionStatus ?? '').toLowerCase() == 'trial';
+
+  /// When access actually stops: the end date, plus grace days for trials.
+  DateTime? get accessEndsAt {
+    final end = _tenant.subscriptionEndDate;
+    if (end == null) return null;
+    return isTrial ? end.add(Duration(days: _trialGraceDays)) : end;
+  }
 
   int get remainingTrialDays {
     if (_tenant.subscriptionEndDate == null) return 0;
@@ -3260,10 +3539,26 @@ class AppState extends ChangeNotifier {
   }
 
   /// Days until the active subscription or trial ends. Negative if already
-  /// expired; `null` if there's no end date on file (free / forever).
+  /// expired; `null` if there's no end date on file.
   int? get daysUntilSubscriptionEnds {
     if (_tenant.subscriptionEndDate == null) return null;
     return _tenant.subscriptionEndDate!.difference(DateTime.now()).inDays;
+  }
+
+  /// Trial end date has passed but the grace period is still running.
+  bool get isInTrialGracePeriod {
+    final end = _tenant.subscriptionEndDate;
+    final access = accessEndsAt;
+    if (!isTrial || end == null || access == null) return false;
+    final now = DateTime.now();
+    return now.isAfter(end) && !now.isAfter(access);
+  }
+
+  /// Days of grace left (0 when not in grace).
+  int get trialGraceDaysLeft {
+    if (!isInTrialGracePeriod) return 0;
+    final left = accessEndsAt!.difference(DateTime.now()).inDays;
+    return left < 0 ? 0 : left;
   }
 
   /// True when the current trial OR paid plan will lapse within 5 days.
@@ -3282,45 +3577,41 @@ class AppState extends ChangeNotifier {
   /// want to pester trial users (not paying customers nearing renewal).
   bool get isTrialExpiringSoon => isTrial && isSubscriptionExpiringSoon;
 
+  // Plan limits. 0 = unlimited (see SubscriptionPlanModel.isUnlimited).
   int get maxAllowedProducts => currentPlan.maxProducts;
-  int get maxAllowedUsers {
-    if (_tenant.maxUsers != null) {
-      final planId = (_tenant.subscriptionPlanId ?? '').toLowerCase();
-      if (planId.contains('grow')) return currentPlan.maxUsers;
-      if (planId.contains('enterprise') || planId.contains('platinum')) return currentPlan.maxUsers;
-      return _tenant.maxUsers!;
-    }
-    return currentPlan.maxUsers;
-  }
-  int get maxAllowedShops {
-    if (_tenant.maxShops != null) {
-      final planId = (_tenant.subscriptionPlanId ?? '').toLowerCase();
-      if (planId.contains('grow')) return currentPlan.maxShops;
-      if (planId.contains('enterprise') || planId.contains('platinum')) return currentPlan.maxShops;
-      return _tenant.maxShops!;
-    }
-    return currentPlan.maxShops;
+  int get maxAllowedUsers => currentPlan.maxStaff;
+  int get maxAllowedShops => currentPlan.maxShops;
+  int get maxAllowedOrdersPerMonth => currentPlan.maxOrdersPerMonth;
+
+  int get ordersThisMonth {
+    final now = DateTime.now();
+    final monthStart = DateTime(now.year, now.month);
+    return _orders.where((o) {
+      final at = o.placedAt ?? o.createdAt;
+      return at != null && !at.isBefore(monthStart) && o.status.toLowerCase() != 'cancelled';
+    }).length;
   }
 
   bool get isSubscriptionActive {
-    final status = _tenant.subscriptionStatus?.toLowerCase() ?? 'active';
     final accStatus = _tenant.accountStatus?.toLowerCase() ?? 'active';
     if (accStatus != 'active') return false;
-    if (status != 'active' && status != 'trial') return false;
-    if (_tenant.subscriptionEndDate != null && _tenant.subscriptionEndDate!.isBefore(DateTime.now())) {
-      return false;
-    }
-    return true;
+    if (isAccountPausedOrCancelled || isSubscriptionExpired) return false;
+    final status = _tenant.subscriptionStatus?.toLowerCase() ?? 'trial';
+    return status == 'active' || status == 'trial';
   }
 
+  /// The plan / trial has ended (after any trial grace days).
   bool get isSubscriptionExpired {
-    final status = _tenant.subscriptionStatus?.toLowerCase();
-    if (status == 'expired') return true;
-    if (_tenant.subscriptionEndDate != null && _tenant.subscriptionEndDate!.isBefore(DateTime.now())) {
-      return true;
-    }
-    return false;
+    final status = (_tenant.subscriptionStatus ?? '').toLowerCase();
+    // 'free' / 'freemium' only exist on stale local data: treat as ended.
+    if (status == 'expired' || status == 'free' || status == 'freemium') return true;
+    final access = accessEndsAt;
+    return access != null && DateTime.now().isAfter(access);
   }
+
+  /// Expired agencies can sign in, view data, collect dues and renew — but
+  /// cannot create anything new.
+  bool get isReadOnlyMode => !_isPlatformAdmin && !isAccountPausedOrCancelled && isSubscriptionExpired;
 
   bool get isAccountPausedOrCancelled {
     final accStatus = _tenant.accountStatus?.toLowerCase();
@@ -3330,14 +3621,104 @@ class AppState extends ChangeNotifier {
   }
 
   String get subscriptionBadgeText {
-    if (isSubscriptionExpired) return 'SUBSCRIPTION EXPIRED';
-    if (_tenant.accountStatus?.toUpperCase() == 'PAUSED') return 'ACCOUNT PAUSED';
-    if (_tenant.accountStatus?.toUpperCase() == 'CANCELLED') return 'ACCOUNT CANCELLED';
-    if (_tenant.accountStatus?.toUpperCase() == 'PENDING') return 'ACCOUNT PENDING';
-    if (_tenant.subscriptionStatus?.toUpperCase() == 'TRIAL') {
-      return remainingTrialDays > 0 ? 'TRIAL ACTIVE (${remainingTrialDays}d)' : 'TRIAL EXPIRED';
+    if (isAccountPausedOrCancelled) {
+      final acc = (_tenant.accountStatus ?? '').toUpperCase();
+      if (acc == 'CANCELLED' || (_tenant.subscriptionStatus ?? '').toUpperCase() == 'CANCELLED') return 'ACCOUNT CANCELLED';
+      return 'ACCOUNT PAUSED';
     }
+    if (_tenant.accountStatus?.toUpperCase() == 'PENDING') return 'ACCOUNT PENDING';
+    if (isSubscriptionExpired) return isTrial ? 'TRIAL ENDED · READ-ONLY' : 'PLAN EXPIRED · READ-ONLY';
+    if (isInTrialGracePeriod) return 'TRIAL ENDED (${trialGraceDaysLeft}d GRACE)';
+    if (isTrial) return 'TRIAL ACTIVE (${remainingTrialDays}d)';
     return 'ACCOUNT ACTIVE';
+  }
+
+  /// Why creating something is blocked right now, or null if it is allowed.
+  /// [feature] is a capability key (see FeatureGate.capabilityLabels).
+  String? writeBlockReason({String? feature}) {
+    if (_isPlatformAdmin) return null;
+    if (isAccountPausedOrCancelled) {
+      return 'Your agency account is paused or suspended. Please contact SalesArmy support to reactivate it.';
+    }
+    if (isReadOnlyMode) {
+      return isTrial
+          ? 'Your free trial has ended. The app is read-only — choose a plan in Plan & Pricing to continue.'
+          : 'Your ${currentPlan.name} plan has expired. The app is read-only — renew in Plan & Pricing to continue.';
+    }
+    if (feature != null && !planIncludes(feature)) {
+      return '${planFeatureLabel(feature)} is not included in your ${currentPlan.name} plan. Upgrade in Plan & Pricing to use it.';
+    }
+    return null;
+  }
+
+  /// Throws [PlanRestrictionException] when [feature] may not be used now.
+  void ensureCanWrite({String? feature}) {
+    final reason = writeBlockReason(feature: feature);
+    if (reason != null) throw PlanRestrictionException(reason, feature: feature, readOnly: isReadOnlyMode);
+  }
+
+  /// Human label for a capability key (kept in sync with FeatureGate).
+  static String planFeatureLabel(String key) {
+    const labels = {
+      'order_taking': 'Order taking',
+      'estimate_bills': 'Kaccha / estimate billing',
+      'invoicing': 'GST tax invoicing',
+      'sales_returns': 'Sales returns',
+      'collections': 'Payment collection',
+      'khata_ledger': 'Khata ledger',
+      'dynamic_upi_qr': 'Dynamic UPI QR',
+      'purchases': 'Purchases',
+      'expenses': 'Expense tracking',
+      'visits': 'Visits & reminders',
+      'staff_management': 'Staff logins',
+      'thermal_printer': 'Thermal printing',
+      'reports': 'Reports',
+      'gst_reports': 'GST reports',
+      'custom_tax_slabs': 'Custom tax slabs',
+      'bulk_import': 'Bulk import',
+    };
+    final k = canonicalFeature(key);
+    return labels[k] ?? k.replaceAll('_', ' ');
+  }
+
+  /// Why adding one more [resource] ('shops' | 'products' | 'staff' |
+  /// 'orders') would exceed the plan, or null if there is room.
+  String? limitReason(String resource) {
+    if (_isPlatformAdmin) return null;
+    late final int used;
+    late final int limit;
+    late final String what;
+    switch (resource) {
+      case 'shops':
+        used = _shops.length;
+        limit = maxAllowedShops;
+        what = 'parties';
+        break;
+      case 'products':
+        used = _products.length;
+        limit = maxAllowedProducts;
+        what = 'products';
+        break;
+      case 'staff':
+        used = _staffList.length;
+        limit = maxAllowedUsers;
+        what = 'staff logins';
+        break;
+      case 'orders':
+        used = ordersThisMonth;
+        limit = maxAllowedOrdersPerMonth;
+        what = 'orders this month';
+        break;
+      default:
+        return null;
+    }
+    if (SubscriptionPlanModel.isUnlimited(limit) || used < limit) return null;
+    return 'Your ${currentPlan.name} plan allows $limit $what and you have reached it. Upgrade in Plan & Pricing to add more.';
+  }
+
+  void _ensureUnderLimit({required int used, required int limit, required String message}) {
+    if (_isPlatformAdmin || SubscriptionPlanModel.isUnlimited(limit)) return;
+    if (used >= limit) throw PlanRestrictionException(message, limitReached: true);
   }
 
   // Getters
@@ -3469,6 +3850,10 @@ class AppState extends ChangeNotifier {
     // Check Remote Platform Kill Switches (Managed by Super Admin Web Panel)
     if (isModuleRemotelyDisabled(moduleKey)) return false;
 
+    // Plan capabilities (admin-managed). Read-only agencies still SEE modules
+    // their plan includes; creating inside them is blocked by writeBlockReason.
+    if (!_planAllowsModule(moduleKey)) return false;
+
     final perms = activePermissions;
     switch (moduleKey.toLowerCase()) {
       case 'billing':
@@ -3506,6 +3891,36 @@ class AppState extends ChangeNotifier {
       case 'visits':
       case 'reminders':
         return perms.orders || perms.billing;
+      default:
+        return true;
+    }
+  }
+
+  bool _planAllowsModule(String moduleKey) {
+    switch (moduleKey.toLowerCase()) {
+      case 'billing':
+        return planIncludes('order_taking') || planIncludes('invoicing') || planIncludes('estimate_bills');
+      case 'orders':
+      case 'sell':
+        return planIncludes('order_taking');
+      case 'accounts':
+      case 'collections':
+      case 'collection':
+        return planIncludes('collections');
+      case 'staff':
+      case 'utilities':
+        return planIncludes('staff_management');
+      case 'purchase':
+      case 'purchases':
+        return planIncludes('purchases');
+      case 'expense':
+      case 'expenses':
+        return planIncludes('expenses');
+      case 'reports':
+        return planIncludes('reports');
+      case 'visits':
+      case 'reminders':
+        return planIncludes('visits');
       default:
         return true;
     }
@@ -3644,11 +4059,14 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addStaff(StaffModel staff) async {
-    final maxAllowed = maxAllowedUsers;
-    if (_staffList.length >= maxAllowed && !_staffList.any((s) => s.id == staff.id)) {
-      throw StateError(
-        'Staff Seats Limit Reached: Your current ${currentPlan.name} plan permits up to $maxAllowed staff seat(s). '
-        'Please upgrade your subscription plan in Super Admin or Settings to add additional staff.',
+    final isNew = !_staffList.any((s) => s.id == staff.id);
+    if (isNew) {
+      ensureCanWrite(feature: 'staff_management');
+      _ensureUnderLimit(
+        used: _staffList.length,
+        limit: maxAllowedUsers,
+        message: 'Staff Seats Limit Reached: Your current ${currentPlan.name} plan permits up to $maxAllowedUsers staff seat(s). '
+            'Upgrade your plan in Plan & Pricing to add additional staff.',
       );
     }
     _staffList.removeWhere((s) => s.id == staff.id);
@@ -3777,6 +4195,7 @@ class AppState extends ChangeNotifier {
   }
 
   void addPurchase(PurchaseModel purchase) {
+    if (!_purchases.any((p) => p.id == purchase.id)) ensureCanWrite(feature: 'purchases');
     _purchases.insert(0, purchase);
 
     // 1. Add purchased goods to inventory stock
@@ -4000,6 +4419,7 @@ class AppState extends ChangeNotifier {
   }
 
   void addExpense(ExpenseModel expense) {
+    if (!_expenses.any((e) => e.id == expense.id)) ensureCanWrite(feature: 'expenses');
     _expenses.insert(0, expense);
 
     // Price deduction: deduct from In-Hand Cash or In-Account balance
@@ -4254,11 +4674,13 @@ class AppState extends ChangeNotifier {
 
   // Actions: Shops
   Future<void> addShop(ShopModel shop) async {
-    final maxAllowed = maxAllowedShops;
-    if (_shops.length >= maxAllowed && !_shops.any((s) => s.shopId == shop.shopId)) {
-      throw StateError(
-        'SaaS Plan Limit Exceeded: Your plan allows a maximum of $maxAllowed retail shops. '
-        'Please upgrade your subscription plan in Super Admin or Settings.',
+    if (!_shops.any((s) => s.shopId == shop.shopId)) {
+      ensureCanWrite();
+      _ensureUnderLimit(
+        used: _shops.length,
+        limit: maxAllowedShops,
+        message: 'SaaS Plan Limit Exceeded: Your plan allows a maximum of $maxAllowedShops retail shops. '
+            'Upgrade your plan in Plan & Pricing to add more parties.',
       );
     }
 
@@ -4365,11 +4787,13 @@ class AppState extends ChangeNotifier {
 
   // Actions: Products
   Future<void> addProduct(ProductModel product) async {
-    final maxAllowed = maxAllowedProducts;
-    if (_products.length >= maxAllowed && !_products.any((p) => p.productId == product.productId)) {
-      throw StateError(
-        'Catalog Product Limit Exceeded: Your ${currentPlan.name} plan permits up to $maxAllowed products. '
-        'Please upgrade your subscription plan in Super Admin or Settings.',
+    if (!_products.any((p) => p.productId == product.productId)) {
+      ensureCanWrite();
+      _ensureUnderLimit(
+        used: _products.length,
+        limit: maxAllowedProducts,
+        message: 'Catalog Product Limit Exceeded: Your ${currentPlan.name} plan permits up to $maxAllowedProducts products. '
+            'Upgrade your plan in Plan & Pricing to add more products.',
       );
     }
 
@@ -4477,9 +4901,15 @@ class AppState extends ChangeNotifier {
 
   // Actions: Orders & Invoices
   Future<void> createOrder(OrderModel order) async {
-    // Free / expired-trial users may sell unless the super admin disabled it
-    // (Remote Config → allowFreeUserBilling). Paused accounts are always blocked.
-    ensureCanCreateBills();
+    if (!_orders.any((o) => o.orderId == order.orderId)) {
+      ensureCanWrite(feature: 'order_taking');
+      _ensureUnderLimit(
+        used: ordersThisMonth,
+        limit: maxAllowedOrdersPerMonth,
+        message: 'Monthly Order Limit Reached: Your ${currentPlan.name} plan allows $maxAllowedOrdersPerMonth orders per month. '
+            'Upgrade your plan in Plan & Pricing to take more orders.',
+      );
+    }
 
     if (SupabaseService.instance.client != null) {
       await SupabaseService.instance.insertOrder(tenantId: currentTenantId ?? _tenant.tenantId,
@@ -4706,7 +5136,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> createInvoice(InvoiceModel invoice) async {
-    ensureCanCreateBills();
+    if (!_invoices.any((i) => i.invoiceId == invoice.invoiceId)) {
+      ensureCanWrite(feature: isEstimateInvoiceType(invoice.invoiceType) ? 'estimate_bills' : 'invoicing');
+    }
     if (SupabaseService.instance.client != null) {
       await SupabaseService.instance.insertInvoice(tenantId: currentTenantId ?? _tenant.tenantId, invoiceData: invoice.toMap());
     }
@@ -4777,6 +5209,7 @@ class AppState extends ChangeNotifier {
   /// Process a Sales Return: automatically restocks items in inventory and credits the shop balance
   Future<void> processSalesReturn(SalesReturnModel salesReturn) async {
     if (_salesReturns.any((r) => r.returnId == salesReturn.returnId)) return;
+    ensureCanWrite(feature: 'sales_returns');
     _salesReturns.insert(0, salesReturn);
 
     // 1. Automatically restore returned item quantities back into inventory stock
@@ -4952,7 +5385,18 @@ class AppState extends ChangeNotifier {
 
   Future<void> addOrder(OrderModel order, [InvoiceModel? invoice]) async {
     // Check up front so a blocked attempt never saves the bill without its order.
-    ensureCanCreateBills();
+    if (!_orders.any((o) => o.orderId == order.orderId)) {
+      ensureCanWrite(feature: 'order_taking');
+      _ensureUnderLimit(
+        used: ordersThisMonth,
+        limit: maxAllowedOrdersPerMonth,
+        message: 'Monthly Order Limit Reached: Your ${currentPlan.name} plan allows $maxAllowedOrdersPerMonth orders per month. '
+            'Upgrade your plan in Plan & Pricing to take more orders.',
+      );
+    }
+    if (invoice != null) {
+      ensureCanWrite(feature: isEstimateInvoiceType(invoice.invoiceType) ? 'estimate_bills' : 'invoicing');
+    }
     if (invoice != null) {
       await createInvoice(invoice);
       await createOrder(order);
@@ -5355,6 +5799,7 @@ class AppState extends ChangeNotifier {
 
   // Actions: Visits
   Future<void> addVisit(VisitModel visit) async {
+    ensureCanWrite(feature: 'visits');
     _visits.insert(0, visit);
     notifyListeners();
     _persistVisitsLocally();
@@ -5423,6 +5868,7 @@ class AppState extends ChangeNotifier {
 
   // Actions: Reminders
   Future<void> addReminder(ReminderModel reminder) async {
+    ensureCanWrite(feature: 'visits');
     _reminders.insert(0, reminder);
     notifyListeners();
     _persistRemindersLocally();
@@ -5486,7 +5932,12 @@ class AppState extends ChangeNotifier {
   }
 
   // Actions: Tenant Update
+  /// Set when the last profile / business-details save reached this phone
+  /// but not the cloud (shown to the user; cleared on the next good save).
+  String? lastTenantSyncError;
+
   Future<void> updateTenant(TenantModel updated, {bool clearProfileImage = false, bool clearLogo = false}) async {
+    lastTenantSyncError = null;
     final resolvedProfileImage = (updated.profileImageUrl != null && updated.profileImageUrl!.trim().isNotEmpty)
         ? updated.profileImageUrl
         : (clearProfileImage ? null : _tenant.profileImageUrl);
@@ -5512,14 +5963,6 @@ class AppState extends ChangeNotifier {
     if (mergedWithExisting.isGstBillingEnabled != null) {
       _isGstBillingEnabled = mergedWithExisting.isGstBillingEnabled!;
     }
-    final status = (mergedWithExisting.subscriptionStatus ?? '').toLowerCase();
-    final plan = (mergedWithExisting.subscriptionPlanId ?? '').toLowerCase();
-    if (status == 'free' || status == 'freemium' || plan == 'free' || plan == 'starter') {
-      _isFreeTier = true;
-    } else if (status == 'active' || status == 'trial') {
-      _isFreeTier = false;
-    }
-
     if (clearProfileImage) {
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -5554,16 +5997,22 @@ class AppState extends ChangeNotifier {
             if (updated.fssaiLicenseNo != null) 'fssai': updated.fssaiLicenseNo,
             if (updated.warehouseAddress != null) 'warehouse_address': updated.warehouseAddress,
             if (updated.warehouseAddress != null) 'address': updated.warehouseAddress,
+            if (updated.city != null) 'city': updated.city,
+            if (updated.state != null) 'state': updated.state,
+            if (updated.pincode != null) 'pincode': updated.pincode,
             if (updated.territory != null) 'territory': updated.territory,
-            if (updated.subscriptionPlanId != null) 'plan_id': updated.subscriptionPlanId,
-            if (updated.subscriptionStatus != null) 'subscription_status': updated.subscriptionStatus,
-            if (updated.subscriptionEndDate != null) 'subscription_end_date': updated.subscriptionEndDate!.toIso8601String(),
-            'is_active': updated.subscriptionStatus != 'suspended',
+            // Plan / status / dates / is_active are server-managed (checkout or
+            // super admin). Only a super admin session may write them.
+            if ((isSuperAdminUser || isSuperAdminMode) && updated.subscriptionPlanId != null) 'plan_id': updated.subscriptionPlanId,
+            if ((isSuperAdminUser || isSuperAdminMode) && updated.subscriptionStatus != null) 'subscription_status': updated.subscriptionStatus,
+            if ((isSuperAdminUser || isSuperAdminMode) && updated.subscriptionEndDate != null) 'subscription_end_date': updated.subscriptionEndDate!.toIso8601String(),
+            if (isSuperAdminUser || isSuperAdminMode) 'is_active': updated.subscriptionStatus != 'suspended',
             'logo_url': updated.logoUrl,
             'updated_at': DateTime.now().toIso8601String(),
           }).eq('tenant_id', tid);
         } catch (e) {
           debugPrint('Supabase tenants update notice: $e');
+          lastTenantSyncError = 'Saved on this phone, but the cloud update failed. It will retry when you save again.';
         }
 
         // Sync durable JSON config to platform_settings
@@ -5735,30 +6184,20 @@ class AppState extends ChangeNotifier {
 
   }
 
-  // ── Free-user billing policy (controlled from Web Admin → Remote Config) ──
-  // When the super admin turns this off, agencies on the free tier or with an
-  // expired trial/plan cannot create bills or orders until they subscribe.
-  bool _allowFreeUserBilling = true;
-  bool get allowFreeUserBilling => _allowFreeUserBilling;
-  String _freeBillingBlockedMessage = '';
+  /// Kaccha / estimate bill types (vs GST tax invoices).
+  static bool isEstimateInvoiceType(String? type) {
+    final t = (type ?? '').toLowerCase();
+    return t == 'non_gst' || t == 'estimate' || t == 'estimated' || t == 'kaccha';
+  }
 
-  /// True when this agency is not on an active paid plan or running trial.
-  bool get isOnFreeOrLapsedPlan => isFreeTier || isSubscriptionExpired;
-
-  /// Human-readable reason why bills/orders are blocked right now, or null
-  /// when billing is allowed. Checked BEFORE anything is saved so a blocked
-  /// attempt never leaves half-created bills behind.
+  /// Why bills / orders cannot be created right now (null = allowed). Checked
+  /// BEFORE anything is saved so a blocked attempt never leaves half-created
+  /// bills behind.
   String? get billingBlockReason {
-    if (isSuperAdminUser || isSuperAdminMode) return null;
-    if (isAccountPausedOrCancelled) {
-      return 'Your agency account is paused or suspended. Please contact SalesArmy support to reactivate it.';
-    }
-    if (!_allowFreeUserBilling && isOnFreeOrLapsedPlan) {
-      return _freeBillingBlockedMessage.trim().isNotEmpty
-          ? _freeBillingBlockedMessage.trim()
-          : (isSubscriptionExpired
-              ? 'Your plan or free trial has ended. Billing is available on paid plans — please upgrade from Plan & Pricing to continue creating bills.'
-              : 'Bill creation is available on paid plans. Please upgrade from Plan & Pricing to continue.');
+    final reason = writeBlockReason();
+    if (reason != null) return reason;
+    if (!planIncludes('order_taking') && !planIncludes('invoicing') && !planIncludes('estimate_bills')) {
+      return 'Billing is not included in your ${currentPlan.name} plan. Upgrade in Plan & Pricing to create bills.';
     }
     return null;
   }
@@ -5766,16 +6205,7 @@ class AppState extends ChangeNotifier {
   /// Throws [BillingBlockedException] when billing is not allowed.
   void ensureCanCreateBills() {
     final reason = billingBlockReason;
-    if (reason != null) throw BillingBlockedException(reason);
-  }
-
-  void _applyFreeBillingPolicy(Map<String, dynamic> rc) {
-    if (rc['allowFreeUserBilling'] is bool) {
-      _allowFreeUserBilling = rc['allowFreeUserBilling'] as bool;
-    }
-    if (rc['freeBillingBlockedMessage'] != null) {
-      _freeBillingBlockedMessage = rc['freeBillingBlockedMessage'].toString();
-    }
+    if (reason != null) throw PlanRestrictionException(reason, readOnly: isReadOnlyMode);
   }
 
   // Platform Security & SMS Gateway Configuration (FR-AUTH-3, FR-AUTH-4)
@@ -6224,6 +6654,15 @@ class AppState extends ChangeNotifier {
 /// Thrown when the agency is not allowed to create bills/orders right now
 /// (account paused, or free/expired plan while the admin has disabled
 /// free-user billing). [message] is safe to show to the user as-is.
+/// Raised when the plan / subscription status does not allow an action.
+/// Extends [BillingBlockedException] so existing billing dialogs show it.
+class PlanRestrictionException extends BillingBlockedException {
+  final String? feature;
+  final bool readOnly;
+  final bool limitReached;
+  const PlanRestrictionException(super.message, {this.feature, this.readOnly = false, this.limitReached = false});
+}
+
 class BillingBlockedException implements Exception {
   final String message;
   const BillingBlockedException(this.message);

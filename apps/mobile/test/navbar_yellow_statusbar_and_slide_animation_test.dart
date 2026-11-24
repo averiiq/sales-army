@@ -53,7 +53,7 @@ void main() {
       // Bottom navbar is fully visible on Home
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Parties'), findsOneWidget);
-      expect(find.text('Bill'), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav_billing')), findsOneWidget);
       expect(find.text('Orders'), findsOneWidget);
       expect(find.text('Collection'), findsOneWidget);
 
@@ -86,7 +86,7 @@ void main() {
       expect(find.byType(AppBar), findsOneWidget);
 
       // Navigate to Bill (tab 2)
-      await tester.tap(find.text('Bill'));
+      await tester.tap(find.byKey(const ValueKey('nav_billing')));
       await tester.pumpAndSettle();
 
       // Bill page: NO top yellow navbar
@@ -94,7 +94,7 @@ void main() {
       expect(find.byType(OrderTakerFlow), findsOneWidget);
 
       // Bottom navbar is still present on Bill page
-      expect(find.text('Bill'), findsWidgets);
+      expect(find.byKey(const ValueKey('nav_billing')), findsWidgets);
       expect(find.text('Home'), findsOneWidget);
 
       // Return to Home via back arrow button
@@ -159,7 +159,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Navigate to Bill tab
-      await tester.tap(find.text('Bill'));
+      await tester.tap(find.byKey(const ValueKey('nav_billing')));
       await tester.pumpAndSettle();
 
       expect(find.byType(OrderTakerFlow), findsOneWidget);

@@ -53,8 +53,60 @@ class _LoginScreenState extends State<LoginScreen> {
   int _resendCountdown = 0;
   Timer? _countdownTimer;
 
+  // Google sign-in started by the button (vs. a redirect that reopened the app).
+  bool _googleFlowInProgress = false;
+  bool _handlingGoogleSession = false;
+  StreamSubscription<dynamic>? _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // If Android reopened the app from the Google redirect, Supabase finishes
+    // the sign-in on its own. Pick that session up here instead of leaving
+    // the user on the login screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resumeGoogleSession());
+    _authSub = SupabaseService.instance.authStateChanges?.listen(
+      (state) {
+        // Ignore sign-ins this screen started itself (email / OTP / button).
+        if (!_googleFlowInProgress && !_isLoading && state.session?.user != null && state.event.name == 'signedIn') {
+          _resumeGoogleSession();
+        }
+      },
+      onError: (Object e) {
+        if (!mounted || _googleFlowInProgress) return;
+        setState(() => _errorMessage = 'Google sign-in could not be completed. Please try again.');
+      },
+    );
+  }
+
+  bool _isGoogleUser(dynamic user) {
+    if (user == null) return false;
+    if (user.appMetadata['provider'] == 'google') return true;
+    final ids = user.identities as List?;
+    return ids != null && ids.any((i) => i.provider == 'google');
+  }
+
+  Future<void> _resumeGoogleSession() async {
+    if (_handlingGoogleSession || _googleFlowInProgress || !mounted) return;
+    final user = SupabaseService.instance.currentUser;
+    if (!_isGoogleUser(user)) return;
+    _handlingGoogleSession = true;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final result = await _authService.completeGoogleSignIn(user!);
+      await _applyGoogleResult(result);
+    } finally {
+      _handlingGoogleSession = false;
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   void dispose() {
+    _authSub?.cancel();
     _countdownTimer?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
@@ -396,7 +448,26 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      _googleFlowInProgress = true;
       final result = await _authService.signInWithGoogle();
+      _googleFlowInProgress = false;
+      await _applyGoogleResult(result);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Google sign-in is unavailable. Please sign in with your email.';
+        });
+      }
+    } finally {
+      _googleFlowInProgress = false;
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Routes a finished Google sign-in: error message, agency onboarding for
+  /// new users, or straight into the workspace for returning users.
+  Future<void> _applyGoogleResult(GoogleAuthResult? result) async {
+    {
       if (result == null || !result.isSuccess) {
         if (mounted) {
           setState(() {
@@ -434,14 +505,6 @@ class _LoginScreenState extends State<LoginScreen> {
           uid: result.uid,
         );
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Google sign-in is unavailable. Please sign in with your email.';
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 

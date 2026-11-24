@@ -212,7 +212,7 @@ void main() {
 
       // Verify Pending Orders is removed and exactly 2 tabs are present
       expect(find.widgetWithText(Tab, 'Pending Orders'), findsNothing);
-      expect(find.widgetWithText(Tab, 'Retailer Dues'), findsOneWidget);
+      expect(find.widgetWithText(Tab, 'Dues'), findsOneWidget);
       expect(find.widgetWithText(Tab, 'Ledger'), findsOneWidget);
 
       // Verify Ambika Traders appears in retailer dues with action buttons

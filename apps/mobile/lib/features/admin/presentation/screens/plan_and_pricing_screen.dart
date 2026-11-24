@@ -42,13 +42,11 @@ class _PlanAndPricingScreenState extends State<PlanAndPricingScreen> {
         ? (isTrial
             ? '${AppFormatters.date(tenant.subscriptionEndDate!)} (${appState.remainingTrialDays} days remaining)'
             : AppFormatters.date(tenant.subscriptionEndDate!))
-        : 'Active (Renewal: 31 Dec 2026)';
+        : 'No end date on file';
 
-    final currentPlanTitle = isTrial
-        ? '${currentPlan.name} (14-Day Free Trial)'
-        : (appState.isFreeTier
-            ? 'Starter Free Tier'
-            : '${currentPlan.name} Plan');
+    final currentPlanTitle = appState.isReadOnlyMode
+        ? '${currentPlan.name} — ${isTrial ? "Trial ended" : "Expired"} (read-only)'
+        : (isTrial ? '${currentPlan.name} (Free Trial)' : '${currentPlan.name} Plan');
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,

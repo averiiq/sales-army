@@ -7,6 +7,7 @@ import 'package:salesarmy/features/visits/data/models/reminder_model.dart';
 import 'package:salesarmy/features/shops/data/models/shop_model.dart';
 import 'package:salesarmy/core/theme/app_theme.dart';
 import 'package:salesarmy/core/utils/formatters.dart';
+import 'package:salesarmy/core/utils/feature_gate.dart';
 
 class VisitsTab extends StatefulWidget {
   final VoidCallback? onBack;
@@ -1007,6 +1008,7 @@ class _VisitsTabState extends State<VisitsTab> with SingleTickerProviderStateMix
                                     description: '[$selectedPurpose] $title',
                                     isCompleted: false,
                                   );
+                                  if (!FeatureGate.allowWrite(context, feature: 'visits')) return;
                                   appState.addReminder(reminder);
                                   Navigator.pop(ctx);
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1137,6 +1139,7 @@ class _VisitsTabState extends State<VisitsTab> with SingleTickerProviderStateMix
                             checkInTime: selectedDate,
                             notes: noteCtrl.text.trim(),
                           );
+                          if (!FeatureGate.allowWrite(context, feature: 'visits')) return;
                           appState.addVisit(visit);
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(

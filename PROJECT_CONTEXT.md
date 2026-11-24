@@ -317,7 +317,7 @@ A dedicated, standalone Web Super Admin Portal decoupled from Flutter, providing
    - Assigns courier names (BlueDart, DTDC, Delhivery) and tracking AWB numbers.
 4. **Tenant & User Directory**:
    - Unique User IDs (`SA-USR-XXXX`), firm names, subscription status (`active`, `trial`, `freemium`, `suspended`).
-   - **Freemium Core Selling Guarantee**: Explicitly verifies that non-subscribed tenants retain full access to order creation and billing.
+   - **No free plan**: every agency is on a real plan (trial or paid). Expired agencies are read-only (see Plans & Entitlements).
 5. **Remote App Governance & Emergency Broadcasts**:
    - Maintenance mode switch with custom message and ETA.
    - Remote feature kill-switches (`order_taking`, `gst_invoicing`, `collections`, `gps_tracking`, `thermal_printer`, `soundbox_audio`, `staff_management`, `van_stock`, `customer_portal`, `instant_sync`, `purchases`, `expenses`, `reports`).
@@ -375,8 +375,12 @@ The platform supports a production-grade PostgreSQL 15+ backend architecture:
   - `expense`: Access to field expense logs.
   - `staff`: Access to staff directory and permission configuration.
   - `settings`: Access to hardware, printer, and payment setup.
-- **Freemium Core Selling Policy**:
-  - Non-subscribed or expired accounts are never blocked from core distribution tasks (order taking, estimated bills, retail visits, and cash collections).
+- **Plans & Entitlements (2026-11-23 — replaces the old Freemium policy)**:
+  - There is no free plan. A new agency automatically gets a trial of the admin's **Signup Trial Plan** (`general_settings.defaultPlanId`, `defaultTrialDays`).
+  - After the trial end date + `trialGracePeriodDays` (trials only) or a paid plan's end date, the agency is **read-only**: it can sign in, view data/reports and collect dues, but cannot create orders, bills, parties, products, staff, purchases, expenses, returns or visits until it renews.
+  - Every lockable feature is a capability key (`CAPABILITIES` in `apps/web-admin/api/catalog.mjs`, mirrored in `app.js` and `FeatureGate.capabilityLabels`). The admin ticks them per plan; limits (`maxStaff`, `maxShops`, `maxProducts`, `maxOrdersPerMonth`) use 0 = unlimited.
+  - Enforced in three layers: mobile UI (`FeatureGate.allowWrite/requireFeature`), `AppState` (`writeBlockReason`, `ensureCanWrite`, `limitReason`, `canAccessModule` hides modules not in the plan) and the database (`supabase/migrations/20261124000000_plan_entitlements.sql`: `apply_signup_trial` + `enforce_plan_entitlements` triggers).
+  - Paused / suspended / cancelled accounts are hard-locked (support only).
 
 ---
 
@@ -707,7 +711,7 @@ Cross-referencing the 27 operational requirements defined in `docs/CLIENT_MEETIN
 - **Plan ID**: `startup` (Startup Plan)
 - **Status**: `trial`
 - **Duration**: 14 Days Free Trial (`defaultTrialDays` remotely configurable via Super Admin Panel)
-- **Freemium Guarantee**: Order taking, kaccha estimate bills, full GST tax invoicing, thermal printing, and offline outbox are 100% UNRESTRICTED across all tiers and after trial expiry.
+- **Superseded (2026-11-23)**: the old Freemium guarantee was removed. Features and limits now come only from the admin-managed plan; expired agencies are read-only. See Authentication & Authorization → Plans & Entitlements.
 
 #### 2. Plan Tier Hierarchy & Enforced Limits
 | Plan Tier | Monthly Price | Yearly Equivalent | Catalog Products | Staff Seats | Retail Shops | Key Feature Unlocks |
@@ -721,3 +725,4 @@ Cross-referencing the 27 operational requirements defined in `docs/CLIENT_MEETIN
 - **Tenant Inspector**: Super Admins can one-click assign or upgrade/downgrade any agency to `Startup`, `Grow`, or `Enterprise`, or grant `+7d`, `+14d`, `+30d` trial extensions with live cloud propagation.
 
 
+claude --resume 4f8be6c4-7306-4c0f-a82f-06efaab439d4

@@ -219,7 +219,7 @@ void main() {
       // 4. Verify both personal and company fields are unified in the single modal
       expect(find.text('Representative / Owner Name'), findsOneWidget);
       expect(find.text('Company / Firm Name'), findsOneWidget);
-      expect(find.text('GSTIN (Tax ID)'), findsOneWidget);
+      expect(find.text('GSTIN (Optional)'), findsOneWidget);
       expect(find.text('Save Profile & Business Details'), findsOneWidget);
     });
 

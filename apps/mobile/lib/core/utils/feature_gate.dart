@@ -1,21 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:salesarmy/core/services/app_state.dart';
-import 'package:salesarmy/features/admin/data/models/tenant_model.dart';
 import 'package:salesarmy/features/admin/data/models/subscription_plan_model.dart';
 import 'package:salesarmy/features/admin/presentation/screens/plan_and_pricing_screen.dart';
 
-/// Gates premium features on the mobile client. Capability keys match the
-/// CAPABILITY_CATALOG defined in the admin panel so what you tick there
-/// becomes the source of truth for what unlocks here.
+/// Gates plan capabilities on the mobile client.
+///
+/// Capability keys match `CAPABILITIES` in apps/web-admin/api/catalog.mjs
+/// (and CAPABILITY_CATALOG in app.js): what the super admin ticks for a plan
+/// is the source of truth for what unlocks here. The database enforces the
+/// same rules, so this is the friendly front door, not the only lock.
 class FeatureGate {
-  /// Human-readable labels for capability keys. Keep in sync with the admin
-  /// panel's CAPABILITY_CATALOG in apps/web-admin/app.js.
+  /// Human-readable labels for capability keys.
   static const Map<String, String> capabilityLabels = {
+    'order_taking': 'Order Taking & Bill Page',
+    'estimate_bills': 'Kaccha / Estimate Bills',
     'invoicing': 'GST Tax Invoicing',
-    'gst_reports': 'GST Reports & Export',
+    'sales_returns': 'Sales Returns',
+    'collections': 'Payment Collection',
     'khata_ledger': 'Khata Ledgers & PDF Export',
     'dynamic_upi_qr': 'Dynamic UPI QR on Bills',
+    'purchases': 'Purchases / Stock Inward',
+    'expenses': 'Expense Tracking',
+    'visits': 'Visits & Reminders',
+    'staff_management': 'Staff Logins & Permissions',
+    'thermal_printer': 'Bluetooth Thermal Printing',
+    'reports': 'Reports Hub',
+    'gst_reports': 'GST Reports & Export',
     'offline_sync': 'Offline Outbox & Cloud Sync',
     'bulk_import': 'Bulk CSV Import',
     'live_tracking': 'Live Beat Tracking (GPS)',
@@ -30,41 +41,92 @@ class FeatureGate {
     'dedicated_manager': 'Dedicated Account Manager',
   };
 
-  /// Determines if the tenant is allowed to add another shop based on their limits.
-  static bool canAddShop(TenantModel? tenant, int currentShopCount) {
-    if (tenant == null) return false;
-    if (tenant.accountStatus != 'active') return false;
-    final maxShops = tenant.maxShops ?? 50;
-    return currentShopCount < maxShops;
-  }
-
-  /// Determines if the tenant is allowed to add another user.
-  static bool canAddUser(TenantModel? tenant, int currentUserCount) {
-    if (tenant == null) return false;
-    if (tenant.accountStatus != 'active') return false;
-    final maxUsers = tenant.maxUsers ?? 1;
-    return currentUserCount < maxUsers;
-  }
-
-  /// Pure check — true if plan unlocks [featureName].
+  /// Pure check — true if [plan] unlocks [featureName] (ignores expiry).
   static bool hasFeature(SubscriptionPlanModel? plan, String featureName) {
     if (plan == null) return false;
     if (!plan.isActive) return false;
-    return plan.allowedFeatures.contains(featureName);
+    return plan.allowedFeatures.contains(AppState.canonicalFeature(featureName));
   }
 
-  /// Checks a feature against the current AppState and, when gated, shows an
-  /// upgrade sheet pointing to the Plans screen. Returns true if the user may
-  /// proceed, false if blocked.
+  /// Use before USING a capability (opening a gated tool, exporting, …).
+  /// Returns true if allowed; otherwise explains why (upgrade / renew) and
+  /// returns false. Read-only (expired) agencies may still use view / collect
+  /// capabilities — see [AppState.readOnlyFeatures].
   static Future<bool> requireFeature(BuildContext context, String featureKey) async {
     final appState = context.read<AppState>();
     if (appState.hasFeature(featureKey)) return true;
-    await _showUpgradeSheet(context, featureKey);
+    final reason = appState.isAccountPausedOrCancelled || appState.isReadOnlyMode
+        ? appState.writeBlockReason(feature: featureKey)
+        : null;
+    await _showPlanSheet(
+      context,
+      title: reason != null ? (appState.isReadOnlyMode ? 'Plan ended' : 'Account paused') : 'Upgrade required',
+      message: reason ??
+          '${capabilityLabels[AppState.canonicalFeature(featureKey)] ?? featureKey} is not included in your '
+              '${appState.currentPlan.name} plan. Upgrade to unlock it for your team.',
+      showPlans: !appState.isAccountPausedOrCancelled,
+    );
     return false;
   }
 
-  static Future<void> _showUpgradeSheet(BuildContext context, String featureKey) {
-    final label = capabilityLabels[featureKey] ?? featureKey;
+  /// Use before CREATING something (order, bill, party, product, staff,
+  /// purchase, expense, return, visit). Checks account status, read-only
+  /// mode and — when [feature] is given — that the plan includes it.
+  static Future<bool> ensureCanWrite(BuildContext context, {String? feature}) async {
+    final appState = context.read<AppState>();
+    final reason = appState.writeBlockReason(feature: feature);
+    if (reason == null) return true;
+    await _showPlanSheet(
+      context,
+      title: appState.isAccountPausedOrCancelled
+          ? 'Account paused'
+          : (appState.isReadOnlyMode ? 'Plan ended — read-only' : 'Upgrade required'),
+      message: reason,
+      showPlans: !appState.isAccountPausedOrCancelled,
+    );
+    return false;
+  }
+
+  /// Synchronous guard for button handlers. Returns true if the write may go
+  /// ahead; otherwise shows the upgrade / renew sheet and returns false.
+  /// [limit] is a plan-limited resource: 'shops', 'products', 'staff', 'orders'.
+  static bool allowWrite(BuildContext context, {String? feature, String? limit}) {
+    final appState = context.read<AppState>();
+    final reason = appState.writeBlockReason(feature: feature);
+    if (reason != null) {
+      ensureCanWrite(context, feature: feature);
+      return false;
+    }
+    final limitMsg = limit == null ? null : appState.limitReason(limit);
+    if (limitMsg != null) {
+      _showPlanSheet(context, title: 'Plan limit reached', message: limitMsg);
+      return false;
+    }
+    return true;
+  }
+
+  /// Shows the right sheet for an error thrown by AppState (plan limit,
+  /// read-only, feature lock). Returns true if [error] was a plan restriction.
+  static Future<bool> handleError(BuildContext context, Object error) async {
+    if (error is! PlanRestrictionException) return false;
+    final appState = context.read<AppState>();
+    await _showPlanSheet(
+      context,
+      title: error.limitReached
+          ? 'Plan limit reached'
+          : (error.readOnly ? 'Plan ended — read-only' : 'Upgrade required'),
+      message: error.message,
+      showPlans: !appState.isAccountPausedOrCancelled,
+    );
+    return true;
+  }
+
+  static Future<void> _showPlanSheet(
+    BuildContext context, {
+    required String title,
+    required String message,
+    bool showPlans = true,
+  }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -91,48 +153,42 @@ class FeatureGate {
                     color: const Color(0xFFEEF4FF),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.lock_outline_rounded,
-                      color: Color(0xFF2563EB), size: 22),
+                  child: const Icon(Icons.lock_outline_rounded, color: Color(0xFF2563EB), size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Upgrade required',
-                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                    title,
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 14),
-            Text(
-              '$label is not included in your current plan. Upgrade to unlock this capability for your team.',
-              style: Theme.of(ctx).textTheme.bodyMedium,
-            ),
+            Text(message, style: Theme.of(ctx).textTheme.bodyMedium),
             const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Not now'),
+                    child: Text(showPlans ? 'Not now' : 'OK'),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const PlanAndPricingScreen(),
-                        ),
-                      );
-                    },
-                    child: const Text('View plans'),
+                if (showPlans) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const PlanAndPricingScreen()),
+                        );
+                      },
+                      child: const Text('View plans'),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ],

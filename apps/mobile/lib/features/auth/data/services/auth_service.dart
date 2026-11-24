@@ -204,7 +204,7 @@ class AuthService {
     // 1. Supabase Cloud Authentication (with auto-heal + auto-provision)
     if (!await SupabaseService.instance.ensureInitialized()) {
       return AppAuthResult.failure(
-        'Cannot reach the SalesArmy server. Please check your internet connection and try again.',
+        SupabaseService.unreachableMessage,
       );
     }
     supa.AuthResponse? res;
@@ -307,7 +307,7 @@ class AuthService {
     }
 
     if (!await SupabaseService.instance.ensureInitialized()) {
-      return {'success': false, 'message': 'Cannot reach the SalesArmy server. Please check your internet connection and try again.'};
+      return {'success': false, 'message': SupabaseService.unreachableMessage};
     }
     try {
       await SupabaseService.instance.sendEmailOtp(email: cleanEmail);
@@ -335,7 +335,7 @@ class AuthService {
 
     // Verify OTP strictly through Supabase — no bypass codes in production.
     if (!await SupabaseService.instance.ensureInitialized()) {
-      return AppAuthResult.failure('Cannot reach the SalesArmy server. Please check your internet connection and try again.');
+      return AppAuthResult.failure(SupabaseService.unreachableMessage);
     }
     try {
       final authRes = await SupabaseService.instance.verifyEmailOtp(
@@ -393,11 +393,26 @@ class AuthService {
       // (triggered when the deep-link redirect hits the app).
       final completer = Completer<supa.User?>();
       late final StreamSubscription<supa.AuthState> sub;
-      sub = client.auth.onAuthStateChange.listen((state) {
-        if (state.event == supa.AuthChangeEvent.signedIn && state.session?.user != null) {
-          if (!completer.isCompleted) completer.complete(state.session!.user);
-        }
-      });
+      sub = client.auth.onAuthStateChange.listen(
+        (state) {
+          if (state.event == supa.AuthChangeEvent.signedIn && state.session?.user != null) {
+            if (!completer.isCompleted) completer.complete(state.session!.user);
+          }
+        },
+        // The SDK reports a failed code exchange (expired link, no network,
+        // blocked redirect) as a stream error — surface it instead of hanging.
+        onError: (Object e) {
+          if (!completer.isCompleted) completer.completeError(e);
+        },
+      );
+
+      // Already signed in (e.g. the redirect was processed before we
+      // subscribed): use that session straight away.
+      final existing = client.auth.currentSession?.user;
+      if (existing != null && existing.appMetadata['provider'] == 'google') {
+        await sub.cancel();
+        return completeGoogleSignIn(existing);
+      }
 
       final launched = await supabase.signInWithGoogleOAuth();
       if (!launched) {
@@ -418,7 +433,33 @@ class AuthService {
           'Google sign-in was cancelled or timed out. Please try again.',
         );
       }
+      return completeGoogleSignIn(user);
+    } on supa.AuthException catch (e) {
+      debugPrint('Google Sign-In auth error: ${e.message}');
+      return GoogleAuthResult.failure(_googleErrorMessage(e.message));
+    } catch (e) {
+      debugPrint('Google Sign-In error: $e');
+      return GoogleAuthResult.failure(_googleErrorMessage(e.toString()));
+    }
+  }
 
+  static String _googleErrorMessage(String raw) {
+    final m = raw.toLowerCase();
+    if (m.contains('socket') || m.contains('network') || m.contains('failed host lookup') || m.contains('timed out')) {
+      return 'Google sign-in could not reach the server. Check your internet connection and try again.';
+    }
+    if (m.contains('code verifier') || m.contains('flow state') || m.contains('expired') || m.contains('invalid')) {
+      return 'The Google sign-in link expired. Please tap "Continue with Google" again.';
+    }
+    return 'Google sign-in could not be completed ($raw). Please try again.';
+  }
+
+  /// Finishes a Google sign-in once Supabase has a session for [user]:
+  /// returning users get their workspace, new users go to agency onboarding.
+  /// Also used when the app is (re)opened by the Google redirect.
+  Future<GoogleAuthResult> completeGoogleSignIn(supa.User user) async {
+    final supabase = SupabaseService.instance;
+    try {
       final email = (user.email ?? '').trim().toLowerCase();
       final meta = user.userMetadata ?? const <String, dynamic>{};
       final displayName = (meta['name'] ?? meta['full_name'] ?? '').toString().trim();
@@ -458,10 +499,8 @@ class AuthService {
         isNewUser: true,
       );
     } catch (e) {
-      debugPrint('Google Sign-In error: $e');
-      return GoogleAuthResult.failure(
-        'Google sign-in failed. Please sign in with your email instead.',
-      );
+      debugPrint('Google Sign-In profile lookup error: $e');
+      return GoogleAuthResult.failure(_googleErrorMessage(e.toString()));
     }
   }
 }

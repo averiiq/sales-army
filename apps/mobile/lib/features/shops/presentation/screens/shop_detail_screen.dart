@@ -12,6 +12,7 @@ import 'package:salesarmy/features/orders/presentation/screens/order_taker_flow.
 import 'package:salesarmy/features/collections/presentation/dialogs/collect_payment_dialog.dart';
 import 'package:salesarmy/features/shops/presentation/screens/create_shop_screen.dart';
 import 'package:salesarmy/features/collections/data/models/payment_model.dart';
+import 'package:salesarmy/core/utils/feature_gate.dart';
 
 class ShopDetailScreen extends StatefulWidget {
   final ShopModel shop;
@@ -182,6 +183,7 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> with TickerProvider
                           dueDate: selectedDate,
                           description: 'Visit ${shop.shopName}: ${noteCtrl.text.trim()}',
                         );
+                        if (!FeatureGate.allowWrite(context, feature: 'visits')) return;
                         context.read<AppState>().addReminder(rem);
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(

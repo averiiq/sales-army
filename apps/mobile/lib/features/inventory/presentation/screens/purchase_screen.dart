@@ -401,8 +401,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         backgroundColor: const Color(0xFF1D4ED8),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded, size: 20, color: Colors.white),
+        tooltip: 'Record Purchase',
         label: const Text(
-          'Record Purchase',
+          'Add',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white),
         ),
       ),

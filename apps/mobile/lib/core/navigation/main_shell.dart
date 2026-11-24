@@ -409,15 +409,15 @@ class _MainShellState extends State<MainShell> {
                         ),
                         alignment: Alignment.center,
                         child: ClipOval(
-                          child: ((appState.tenant.profileImageUrl?.trim().isNotEmpty == true)
+                          child: ((appState.tenant.logoUrl?.trim().isNotEmpty == true)
                               ? AppImageHelper.buildImage(
-                                  appState.tenant.profileImageUrl!,
+                                  appState.tenant.logoUrl!,
                                   width: 40,
                                   height: 40,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => (appState.tenant.logoUrl?.trim().isNotEmpty == true)
+                                  errorBuilder: (_, __, ___) => (appState.tenant.profileImageUrl?.trim().isNotEmpty == true)
                                       ? AppImageHelper.buildImage(
-                                          appState.tenant.logoUrl!,
+                                          appState.tenant.profileImageUrl!,
                                           width: 40,
                                           height: 40,
                                           fit: BoxFit.cover,
@@ -425,9 +425,9 @@ class _MainShellState extends State<MainShell> {
                                         )
                                       : _buildFallbackInitials(displayFirmName),
                                 )
-                              : (appState.tenant.logoUrl?.trim().isNotEmpty == true)
+                              : (appState.tenant.profileImageUrl?.trim().isNotEmpty == true)
                                   ? AppImageHelper.buildImage(
-                                      appState.tenant.logoUrl!,
+                                      appState.tenant.profileImageUrl!,
                                       width: 40,
                                       height: 40,
                                       fit: BoxFit.cover,
@@ -678,9 +678,9 @@ class _MainShellState extends State<MainShell> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            appState.billingBlockReason != null
-                                ? 'Account status: ${appState.subscriptionBadgeText}. Creating bills and orders is paused until you upgrade.'
-                                : 'Account status: ${appState.subscriptionBadgeText}. Premium features are locked — upgrade from Plan & Pricing to unlock them.',
+                            appState.isAccountPausedOrCancelled
+                                ? 'Account status: ${appState.subscriptionBadgeText}. Please contact SalesArmy support to reactivate your agency.'
+                                : 'Account status: ${appState.subscriptionBadgeText}. You can view data and collect dues, but new orders, bills and records need a plan — renew in Plan & Pricing.',
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
                           ),
                         ),
@@ -764,45 +764,39 @@ class _MainShellState extends State<MainShell> {
           bottomNavigationBar: Container(
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF0F172A) : Colors.white,
-              border: Border(
-                top: BorderSide(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9), width: 1.0),
-              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(
-                  color: isDark ? Colors.black.withValues(alpha: 0.25) : const Color(0xFF0F172A).withValues(alpha: 0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, -3),
+                  color: isDark ? Colors.black.withValues(alpha: 0.35) : const Color(0xFF0F172A).withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, -6),
                 ),
               ],
             ),
             child: SafeArea(
               top: false,
               child: SizedBox(
-                height: 60,
+                height: 66,
                 child: Align(
                   alignment: Alignment.center,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 680),
                     child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: context.isCompact ? 4 : 8,
-                        vertical: 4,
-                      ),
+                      padding: EdgeInsets.symmetric(horizontal: context.isCompact ? 6 : 12),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: List.generate(availableTabs.length, (idx) {
                           final tab = availableTabs[idx];
-                          return _buildNavItem(
-                            context,
-                            idx,
-                            tab.icon,
-                            tab.label,
-                            isDark,
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              setState(() => _currentIndex = idx);
-                            },
-                          );
+                          void select() {
+                            HapticFeedback.selectionClick();
+                            setState(() => _currentIndex = idx);
+                          }
+
+                          // The Bill tab is the raised round "+" action button.
+                          if (tab.id == 'billing') {
+                            return _buildCenterActionButton(idx, tab.label, isDark, onTap: select);
+                          }
+                          return _buildNavItem(context, idx, tab.icon, tab.label, isDark, onTap: select);
                         }),
                       ),
                     ),
@@ -827,51 +821,95 @@ class _MainShellState extends State<MainShell> {
     final isSelected = _currentIndex == index;
     final activeColor = isDark ? const Color(0xFF60A5FA) : const Color(0xFF1E56E2);
     final inactiveColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final color = isSelected ? activeColor : inactiveColor;
 
     return Expanded(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        decoration: BoxDecoration(
-          color: isSelected ? (isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.35) : const Color(0xFFEFF6FF)) : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          border: isSelected ? Border.all(color: isDark ? const Color(0xFF2563EB).withValues(alpha: 0.5) : const Color(0xFFDBEAFE), width: 1.0) : null,
+      child: Semantics(
+        selected: isSelected,
+        button: true,
+        label: label,
+        child: InkResponse(
+          onTap: onTap ?? () => _navigateToTab(index),
+          radius: 32,
+          highlightShape: BoxShape.circle,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedScale(
+                scale: isSelected ? 1.1 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutBack,
+                child: Icon(icon, size: context.isCompact ? 22 : 24, color: color),
+              ),
+              const SizedBox(height: 4),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  fontSize: context.isCompact ? 10 : 11,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: color,
+                ),
+                child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(height: 3),
+              // Small active dot under the selected tab.
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isSelected ? 5 : 0,
+                height: 5,
+                decoration: BoxDecoration(color: activeColor, shape: BoxShape.circle),
+              ),
+            ],
+          ),
         ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            onTap: onTap ?? () => _navigateToTab(index),
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedScale(
-                    scale: isSelected ? 1.08 : 1.0,
-                    duration: const Duration(milliseconds: 180),
-                    child: Icon(
-                      icon,
-                      size: context.isCompact ? 19 : 21,
-                      color: isSelected ? activeColor : inactiveColor,
-                    ),
+      ),
+    );
+  }
+
+  /// Raised round "+" button used for the Bill tab (create a bill / order).
+  Widget _buildCenterActionButton(int index, String label, bool isDark, {required VoidCallback onTap}) {
+    final isSelected = _currentIndex == index;
+    const blue = Color(0xFF1E56E2);
+    const blueDeep = Color(0xFF173BBF);
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        label: label,
+        child: Center(
+          child: Transform.translate(
+            offset: const Offset(0, -14),
+            child: GestureDetector(
+              key: const ValueKey('nav_billing'),
+              onTap: onTap,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [blue, blueDeep],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  const SizedBox(height: 2.5),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: context.isCompact ? 9.5 : 10.5,
-                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                      color: isSelected ? activeColor : inactiveColor,
-                      letterSpacing: isSelected ? -0.2 : 0.0,
+                  // White ring separates the button from the bar like the reference.
+                  border: Border.all(color: isDark ? const Color(0xFF0F172A) : Colors.white, width: 4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: blue.withValues(alpha: isSelected ? 0.55 : 0.38),
+                      blurRadius: isSelected ? 18 : 14,
+                      offset: const Offset(0, 6),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
+                child: AnimatedRotation(
+                  turns: isSelected ? 0.125 : 0,
+                  duration: const Duration(milliseconds: 220),
+                  child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+                ),
               ),
             ),
           ),

@@ -7,7 +7,9 @@ import { HttpError } from './supabase.mjs';
 export const ROLES = ['super_admin', 'owner', 'distributor', 'sales_person', 'accountant', 'delivery_agent', 'manager'];
 export const STAFF_ROLES = ['sales_person', 'accountant', 'delivery_agent', 'manager'];
 const ROLE_ALIASES = { salesman: 'sales_person', delivery: 'delivery_agent', store_manager: 'manager', warehouse: 'manager', accounts: 'accountant' };
-export const TENANT_STATUSES = ['trial', 'active', 'freemium', 'expired', 'suspended', 'cancelled'];
+// There is no free plan: every agency is on a real plan, either as a trial
+// or paid. When it lapses it becomes 'expired' (read-only in the app).
+export const TENANT_STATUSES = ['trial', 'active', 'expired', 'suspended', 'cancelled'];
 export const ORDER_STATUSES = ['pending', 'confirmed', 'processing', 'dispatched', 'delivered', 'completed', 'cancelled', 'draft'];
 export const HARDWARE_STATUSES = ['processing', 'packed', 'shipped', 'in_transit', 'delivered', 'cancelled'];
 
@@ -16,12 +18,67 @@ export function canonicalRole(role) {
   return ROLE_ALIASES[r] || r;
 }
 
+// ---------------------------------------------------------------------------
+// Plan capabilities - the ONE list of lockable features. The admin ticks these
+// per plan; the mobile app (FeatureGate / AppState.hasFeature) and the
+// database entitlement trigger read the same keys. Keep in sync with
+// CAPABILITY_CATALOG in app.js and FeatureGate.capabilityLabels (Flutter).
+// ---------------------------------------------------------------------------
+export const CAPABILITIES = [
+  { key: 'order_taking',      label: 'Order Taking & Bill Page',     group: 'Selling' },
+  { key: 'estimate_bills',    label: 'Kaccha / Estimate Bills',      group: 'Selling' },
+  { key: 'invoicing',         label: 'GST Tax Invoicing',            group: 'Selling' },
+  { key: 'sales_returns',     label: 'Sales Returns',                group: 'Selling' },
+  { key: 'collections',       label: 'Payment Collection',           group: 'Money' },
+  { key: 'khata_ledger',      label: 'Khata Ledgers & PDF Export',   group: 'Money' },
+  { key: 'dynamic_upi_qr',    label: 'Dynamic UPI QR on Bills',      group: 'Money' },
+  { key: 'purchases',         label: 'Purchases / Stock Inward',     group: 'Operations' },
+  { key: 'expenses',          label: 'Expense Tracking',             group: 'Operations' },
+  { key: 'visits',            label: 'Visits & Reminders',           group: 'Operations' },
+  { key: 'staff_management',  label: 'Staff Logins & Permissions',   group: 'Operations' },
+  { key: 'thermal_printer',   label: 'Bluetooth Thermal Printing',   group: 'Operations' },
+  { key: 'reports',           label: 'Reports Hub',                  group: 'Reports' },
+  { key: 'gst_reports',       label: 'GST Reports & Export',         group: 'Reports' },
+  { key: 'offline_sync',      label: 'Offline Outbox & Cloud Sync',  group: 'Core' },
+  { key: 'bulk_import',       label: 'Bulk CSV Import',              group: 'Core' },
+  { key: 'live_tracking',     label: 'Live Beat Tracking (GPS)',     group: 'Advanced' },
+  { key: 'van_stock',         label: 'Van Stock & Reconciliation',   group: 'Advanced' },
+  { key: 'multi_van',         label: 'Multi-Van Fleet Management',   group: 'Advanced' },
+  { key: 'multi_branch',      label: 'Multi-Branch Locations',       group: 'Advanced' },
+  { key: 'custom_branding',   label: 'Logo & Brand Customization',   group: 'Customization' },
+  { key: 'custom_tax_slabs',  label: 'Custom Tax Slabs',             group: 'Customization' },
+  { key: 'admin_customization', label: 'Admin Panel Customization',  group: 'Customization' },
+  { key: 'audit_vault',       label: 'Audit Vault & Compliance',     group: 'Enterprise' },
+  { key: 'priority_support',  label: 'Priority Phone / WhatsApp',    group: 'Support' },
+  { key: 'dedicated_manager', label: 'Dedicated Account Manager',    group: 'Support' },
+];
+export const CAPABILITY_KEYS = CAPABILITIES.map(c => c.key);
+
+// Plans saved before capabilities v2 did not list these keys because the app
+// never locked them. They are granted once on upgrade so existing customers
+// keep what they had; after that the admin's ticks are authoritative.
+export const FEATURES_VERSION = 2;
+export const LEGACY_IMPLICIT_FEATURES = [
+  'order_taking', 'estimate_bills', 'sales_returns', 'collections', 'purchases',
+  'expenses', 'visits', 'staff_management', 'thermal_printer', 'reports',
+];
+
+const ALL_CORE = ['order_taking', 'estimate_bills', 'invoicing', 'sales_returns', 'collections', 'khata_ledger',
+  'purchases', 'expenses', 'visits', 'thermal_printer', 'reports', 'gst_reports', 'offline_sync'];
+
 export const DEFAULT_TIERS = [
-  { id: 'startup', name: 'Startup', badge: 'Starter Pass', monthlyPrice: 399, yearlyPrice: 3828, yearlyMonthlyEquivalent: 319, maxUsers: 1, maxShops: 200, maxProducts: 50, isActive: true,
-    features: ['1 Proprietor seat', 'Up to 200 Retail Shops', 'GST & Estimate Invoicing', '58mm Thermal Printing'] },
-  { id: 'grow', name: 'Grow', badge: 'Most Popular', monthlyPrice: 599, yearlyPrice: 5748, yearlyMonthlyEquivalent: 479, maxUsers: 5, maxShops: 1000, maxProducts: 200, highlight: true, isActive: true,
+  { id: 'startup', name: 'Startup', badge: 'Starter Pass', monthlyPrice: 399, yearlyPrice: 3828, yearlyMonthlyEquivalent: 319,
+    maxStaff: 2, maxUsers: 2, maxShops: 200, maxProducts: 50, maxOrdersPerMonth: 200, maxBranches: 1, isActive: true,
+    featuresVersion: FEATURES_VERSION, allowedFeatures: [...ALL_CORE, 'staff_management'],
+    features: ['2 Staff Logins', 'Up to 200 Retail Shops', 'GST & Estimate Invoicing', '58mm Thermal Printing'] },
+  { id: 'grow', name: 'Grow', badge: 'Most Popular', monthlyPrice: 599, yearlyPrice: 5748, yearlyMonthlyEquivalent: 479,
+    maxStaff: 5, maxUsers: 5, maxShops: 1000, maxProducts: 200, maxOrdersPerMonth: 1000, maxBranches: 3, highlight: true, isActive: true,
+    featuresVersion: FEATURES_VERSION,
+    allowedFeatures: [...ALL_CORE, 'staff_management', 'dynamic_upi_qr', 'live_tracking', 'van_stock', 'bulk_import', 'multi_branch', 'priority_support'],
     features: ['Up to 5 Staff Users', 'Up to 1,000 Retail Shops', 'Dynamic UPI QR on Bills', 'Van Stock & Batch Sync'] },
-  { id: 'enterprise', name: 'Enterprise', badge: 'Regional Giant', monthlyPrice: 899, yearlyPrice: 8628, yearlyMonthlyEquivalent: 719, maxUsers: 50, maxShops: 10000, maxProducts: 9999, isActive: true,
+  { id: 'enterprise', name: 'Enterprise', badge: 'Regional Giant', monthlyPrice: 899, yearlyPrice: 8628, yearlyMonthlyEquivalent: 719,
+    maxStaff: 50, maxUsers: 50, maxShops: 10000, maxProducts: 0, maxOrdersPerMonth: 0, maxBranches: 10, isActive: true,
+    featuresVersion: FEATURES_VERSION, allowedFeatures: [...CAPABILITY_KEYS],
     features: ['Up to 50 Staff Seats', 'Up to 10,000 Shops', 'Custom Tax Slabs & Audit Vault', 'Dedicated Account Manager'] },
 ];
 
@@ -43,13 +100,11 @@ export const DEFAULT_REMOTE_CONFIG = {
   },
   maintenance: { active: false, message: 'Platform undergoing scheduled maintenance.', eta: '30 minutes' },
   minAppVersion: '1.0.0',
-  allowFreeUserBilling: true,
-  freeBillingBlockedMessage: '',
 };
 
 export const DEFAULT_BROADCAST = { active: false, title: '', message: '', severity: 'info', dismissible: true };
 
-export const SETTINGS_KEYS = ['supportPhone', 'supportEmail', 'companyName', 'cin', 'gstin', 'upiVpa', 'currency', 'defaultPlanId', 'defaultTrialDays', 'trialGracePeriodDays'];
+export const SETTINGS_KEYS = ['supportPhone', 'supportEmail', 'companyName', 'cin', 'gstin', 'upiVpa', 'currency', 'defaultPlanId', 'defaultTrialDays', 'trialGracePeriodDays', 'allowTestPlanActivation'];
 
 const fail = message => { throw new HttpError(400, message); };
 const str = (v, max = 500) => (v === undefined || v === null ? '' : String(v).trim().slice(0, max));
@@ -68,22 +123,43 @@ const id = (v, prefix) => {
   return s;
 };
 
+/** Normalises a plan's allowed capabilities (unknown keys dropped). */
+export function normalizeAllowedFeatures(t) {
+  const raw = Array.isArray(t.allowedFeatures) ? t.allowedFeatures : (Array.isArray(t.capabilities) ? t.capabilities : []);
+  const set = new Set(raw.map(k => String(k).trim()).filter(k => CAPABILITY_KEYS.includes(k)));
+  if (Number(t.featuresVersion || 1) < FEATURES_VERSION) LEGACY_IMPLICIT_FEATURES.forEach(k => set.add(k));
+  return CAPABILITY_KEYS.filter(k => set.has(k)); // stable catalog order
+}
+
+// Limits: 0 means unlimited.
+const limit = (v, field, dflt) => num(v ?? dflt, field, { min: 0, max: 10000000, integer: true });
+
 export function normalizeTier(t) {
   if (!t || typeof t !== 'object') fail('Invalid plan tier');
   const tierId = id(t.id || t.planId, 'plan');
+  if (tierId === 'free') fail('A plan cannot use the id "free"');
   const name = str(t.name, 80) || fail('Plan name is required');
   const monthlyPrice = num(t.monthlyPrice ?? 0, 'monthlyPrice');
   const yearlyPrice = num(t.yearlyPrice ?? t.annualPrice ?? Math.round(monthlyPrice * 12 * 0.8), 'yearlyPrice');
+  // The admin UI edits "staff seats" (maxStaff); maxUsers is the legacy name
+  // used by checkout / tenants.max_users. Both always carry the same value.
+  const staff = limit(t.maxStaff ?? t.maxUsers, 'maxStaff', 1);
   return {
     ...t,
     id: tierId, name, badge: str(t.badge, 40),
     monthlyPrice, yearlyPrice,
     yearlyMonthlyEquivalent: Math.round(yearlyPrice / 12),
-    maxUsers: num(t.maxUsers ?? 1, 'maxUsers', { min: 1, max: 100000, integer: true }),
-    maxShops: num(t.maxShops ?? 200, 'maxShops', { min: 1, max: 10000000, integer: true }),
-    maxProducts: num(t.maxProducts ?? 50, 'maxProducts', { min: 1, max: 10000000, integer: true }),
+    maxStaff: staff,
+    maxUsers: staff,
+    maxShops: limit(t.maxShops, 'maxShops', 200),
+    maxProducts: limit(t.maxProducts, 'maxProducts', 50),
+    maxOrdersPerMonth: limit(t.maxOrdersPerMonth, 'maxOrdersPerMonth', 200),
+    maxBranches: limit(t.maxBranches, 'maxBranches', 1),
+    allowedFeatures: normalizeAllowedFeatures(t),
+    featuresVersion: FEATURES_VERSION,
     features: list(t.features),
     highlight: bool(t.highlight ?? t.isPopular, false),
+    isPopular: bool(t.isPopular ?? t.highlight, false),
     isActive: bool(t.isActive, true),
   };
 }
@@ -170,8 +246,10 @@ export function normalizeSettings(input, current = {}) {
   const out = { ...current };
   for (const key of SETTINGS_KEYS) {
     if (input[key] === undefined) continue;
-    if (key === 'defaultTrialDays') out[key] = num(input[key], key, { min: 0, max: 365, integer: true });
+    if (key === 'defaultTrialDays') out[key] = num(input[key], key, { min: 1, max: 365, integer: true });
     else if (key === 'trialGracePeriodDays') out[key] = num(input[key], key, { min: 0, max: 90, integer: true });
+    // TESTING ONLY: owners may activate paid plans without payment (RPC activate_plan_for_testing).
+    else if (key === 'allowTestPlanActivation') out[key] = input[key] === true || input[key] === 'true';
     else out[key] = str(input[key], 200);
   }
   return out;
@@ -205,8 +283,10 @@ export function normalizeRemoteConfig(updates, current = DEFAULT_REMOTE_CONFIG) 
   for (const k of ['smsProvider', 'smsMode']) if (updates[k] !== undefined) next[k] = str(updates[k], 40);
   if (updates.otpDigits !== undefined) next.otpDigits = num(updates.otpDigits, 'otpDigits', { min: 4, max: 8, integer: true });
   if (updates.enforceOtp !== undefined) next.enforceOtp = Boolean(updates.enforceOtp);
-  if (updates.allowFreeUserBilling !== undefined) next.allowFreeUserBilling = Boolean(updates.allowFreeUserBilling);
-  if (updates.freeBillingBlockedMessage !== undefined) next.freeBillingBlockedMessage = str(updates.freeBillingBlockedMessage, 300);
+  // allowFreeUserBilling / freeBillingBlockedMessage were removed with the
+  // free plan: expired agencies are always read-only.
+  delete next.allowFreeUserBilling;
+  delete next.freeBillingBlockedMessage;
   return next;
 }
 
@@ -232,4 +312,24 @@ export function normalizeBroadcast(b, current = DEFAULT_BROADCAST) {
 
 export function tierFor(plans, planId) {
   return (plans?.tiers || DEFAULT_TIERS).find(t => t.id === planId) || null;
+}
+
+/**
+ * Plan + dates a brand-new agency starts on: the admin's "signup trial plan"
+ * (general_settings.defaultPlanId) for defaultTrialDays days.
+ */
+export function signupTrial(settings, plans, now = Date.now()) {
+  const tiers = (plans?.tiers || DEFAULT_TIERS).filter(t => t.isActive !== false);
+  const tier = tierFor({ tiers }, settings?.defaultPlanId) || tiers[0] || DEFAULT_TIERS[0];
+  const days = Math.max(1, Number(settings?.defaultTrialDays ?? 14) || 14);
+  return {
+    tier,
+    planId: tier.id,
+    status: 'trial',
+    days,
+    startDate: new Date(now).toISOString(),
+    endDate: new Date(now + days * 86400000).toISOString(),
+    maxUsers: tier.maxStaff ?? tier.maxUsers ?? 1,
+    maxShops: tier.maxShops ?? 200,
+  };
 }

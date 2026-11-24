@@ -3,35 +3,27 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:salesarmy/core/services/supabase_service.dart';
 
-/// Thin HTTP client that calls the SalesArmy platform server
-/// (`apps/web-admin/server.js`). Used for Razorpay-backed subscription
-/// checkout, super-admin signup, admin backups and password resets.
+/// Thin HTTP client for the SalesArmy platform API (`apps/web-admin/api`).
+/// Used for Razorpay subscription checkout, agency signup, staff
+/// provisioning, backups and password resets.
 ///
 /// ## Where the base URL comes from
 ///
-/// 1. **Build-time `--dart-define=PLATFORM_API_URL=...`** (highest priority).
-///    Set this to your deployed server URL in production builds.
-/// 2. **Debug fallback** when no `--dart-define` is given:
-///    - Android (device + emulator)  → `http://10.0.2.2:3000`
-///      (the magic alias the Android emulator uses for the host's loopback)
-///    - iOS simulator / desktop debug → `http://127.0.0.1:3000`
-///    These point at a locally-running `node server.js` on port 3000 — the
-///    same server the admin portal uses.
-/// 3. **Release mode without `--dart-define`** → the getter throws, because
-///    shipping a build that silently falls back to localhost would be
-///    dangerous. Set `PLATFORM_API_URL` or deploy without this feature.
+/// 1. **`--dart-define=PLATFORM_API_URL=...`** (highest priority) — e.g. a
+///    local `node server.js` or a self-hosted copy of the admin server.
+/// 2. **Default: the Supabase Edge Function `platform`** of the app's own
+///    Supabase project: `<SUPABASE_URL>/functions/v1/platform`. Deploy it
+///    with `npx supabase functions deploy platform --no-verify-jwt`.
+///    No separate server (Render, PC tunnel...) is needed.
 class PlatformApi {
   static const String _envUrl = String.fromEnvironment('PLATFORM_API_URL');
 
-  /// Resolved base URL. Returns an empty string only in release builds that
-  /// did not define `PLATFORM_API_URL`; [request] turns that into a clear
-  /// "server not configured" error.
+  /// Resolved base URL (no trailing slash).
   static String get baseUrl {
-    if (_envUrl.isNotEmpty) return _envUrl;
-    if (kReleaseMode) return '';
-    // Debug default — assumes `node server.js` is running on the dev host.
-    if (!kIsWeb && Platform.isAndroid) return 'http://10.0.2.2:3000';
-    return 'http://127.0.0.1:3000';
+    if (_envUrl.isNotEmpty) return _envUrl.replaceFirst(RegExp(r'/+$'), '');
+    final supabaseUrl = SupabaseService.defaultSupabaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    if (supabaseUrl.isEmpty) return '';
+    return '$supabaseUrl/functions/v1/platform';
   }
 
   static bool get isConfigured => baseUrl.isNotEmpty;
@@ -76,6 +68,8 @@ class PlatformApi {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw StateError(
           data['error']?.toString() ??
+              // Supabase gateway errors, e.g. "Requested function was not found"
+              data['message']?.toString() ??
               'Server request failed (${response.statusCode}).',
         );
       }

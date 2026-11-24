@@ -1491,7 +1491,7 @@ class _OrdersTabState extends State<OrdersTab> with TickerProviderStateMixin {
                                 Icon(Icons.payments_outlined, size: 15, color: isDark ? const Color(0xFF34D399) : const Color(0xFF047857)),
                                 const SizedBox(width: 5),
                                 Text(
-                                  'Collect Payment',
+                                  'Payment',
                                   style: TextStyle(
                                     color: isDark ? const Color(0xFF34D399) : const Color(0xFF047857),
                                     fontWeight: FontWeight.w700,

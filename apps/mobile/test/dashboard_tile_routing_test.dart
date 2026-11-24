@@ -79,9 +79,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(capturedRoute, equals('orders'));
 
-      // Test 5: Tap 'Create Bill' quick action tile redirects to billing
-      expect(find.text('Create Bill'), findsOneWidget);
-      await tester.tap(find.text('Create Bill'), warnIfMissed: false);
+      // Test 5: Tap 'New Order' quick action tile redirects to billing
+      expect(find.text('New Order'), findsOneWidget);
+      await tester.tap(find.text('New Order'), warnIfMissed: false);
       await tester.pumpAndSettle();
       expect(capturedRoute, equals('billing'));
 
@@ -119,14 +119,14 @@ void main() {
       // Verify bottom nav items exist and navbar is fully visible on Home
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Parties'), findsOneWidget);
-      expect(find.text('Bill'), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav_billing')), findsOneWidget);
       expect(find.text('Orders'), findsOneWidget);
       expect(find.text('Collection'), findsOneWidget);
 
       // Bottom navbar is persistent across all pages
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Parties'), findsOneWidget);
-      expect(find.text('Bill'), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav_billing')), findsOneWidget);
       expect(find.text('Orders'), findsOneWidget);
       expect(find.text('Collection'), findsOneWidget);
 
@@ -205,7 +205,7 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Parties'), findsOneWidget);
       expect(find.text('Orders'), findsOneWidget);
-      expect(find.text('Bill'), findsNothing);
+      expect(find.byKey(const ValueKey('nav_billing')), findsNothing);
       expect(find.text('Collection'), findsNothing);
 
       // Tap 'Trip Route' action pill on Delivery hero card
