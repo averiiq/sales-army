@@ -8744,10 +8744,24 @@ class AdminPortal {
         badge.textContent = cfg.keyId ? `● Razorpay ${isLive ? 'Live' : 'Sandbox'}` : '● Razorpay not configured';
       }
       setVal('gatewayKeyId', cfg.keyId);
+      setVal('gatewayKeySecret', '');
+      setVal('gatewayWebhookSecret', '');
       setVal('gatewayMerchantName', cfg.merchantName);
       setVal('gatewayUpiVpa', cfg.upiVpa);
+      const secretPh = document.getElementById('gatewayKeySecret');
+      if (secretPh) secretPh.placeholder = cfg.hasSecret ? `Saved ${cfg.secretHint || ''} — leave empty to keep it` : 'Paste the Key Secret';
+      const hookPh = document.getElementById('gatewayWebhookSecret');
+      if (hookPh) hookPh.placeholder = cfg.hasWebhookSecret ? `Saved ${cfg.webhookSecretHint || ''} — leave empty to keep it` : 'Optional';
       show('gatewaySecretConfiguredBadge', cfg.hasSecret); show('gatewaySecretMissingBadge', !cfg.hasSecret);
       show('gatewayWebhookConfiguredBadge', cfg.hasWebhookSecret); show('gatewayWebhookMissingBadge', !cfg.hasWebhookSecret);
+      const src = document.getElementById('gatewayKeysSourceBadge');
+      if (src) {
+        src.style.display = cfg.managedBy && cfg.managedBy !== 'none' ? 'inline-block' : 'none';
+        src.textContent = cfg.managedBy === 'admin'
+          ? `Keys saved in admin panel${cfg.keysUpdatedAt ? ` • ${new Date(cfg.keysUpdatedAt).toLocaleDateString('en-IN')}` : ''}`
+          : 'Using server environment keys';
+      }
+      show('btnClearGatewayKeys', cfg.managedBy === 'admin');
       const autoCap = document.getElementById('gatewayAutoCapture');
       if (autoCap) autoCap.checked = cfg.autoCapture !== false;
 
@@ -8774,13 +8788,34 @@ class AdminPortal {
   }
 
   async saveGatewaySettings() {
-    const ok = await this.apiMutate('/api/platform/gateway/config', {
+    const keyId = document.getElementById('gatewayKeyId')?.value.trim() || '';
+    const keySecret = document.getElementById('gatewayKeySecret')?.value.trim() || '';
+    const webhookSecret = document.getElementById('gatewayWebhookSecret')?.value.trim() || '';
+    const payload = {
       autoCapture: document.getElementById('gatewayAutoCapture')?.checked !== false,
       merchantName: document.getElementById('gatewayMerchantName')?.value.trim() || '',
       upiVpa: document.getElementById('gatewayUpiVpa')?.value.trim() || '',
-    });
+    };
+    // Only send keys that were entered / changed; secrets are never pre-filled.
+    const keyChanged = keyId && keyId !== (this.gatewayConfig?.keyId || '');
+    if (keyChanged) payload.keyId = keyId;
+    if (keySecret) payload.keySecret = keySecret;
+    if (webhookSecret) payload.webhookSecret = webhookSecret;
+    if (keyChanged && !keySecret) {
+      this.showToast('Enter the Key Secret for the new Key ID.', '⚠️', 'warning');
+      return;
+    }
+    const ok = await this.apiMutate('/api/platform/gateway/config', payload);
     if (!ok) return;
-    this.showToast('Gateway settings saved.', '💾');
+    this.showToast(keyChanged || keySecret ? 'Razorpay keys verified and saved.' : 'Gateway settings saved.', '💾');
+    await this.renderGatewaySettings();
+  }
+
+  async clearGatewayKeys() {
+    if (!confirm('Remove the Razorpay keys saved in the admin panel? Payments will use the server environment keys (if any) instead.')) return;
+    const ok = await this.apiMutate('/api/platform/gateway/config', { clearKeys: true });
+    if (!ok) return;
+    this.showToast('Saved Razorpay keys removed.', '🗑️');
     await this.renderGatewaySettings();
   }
 

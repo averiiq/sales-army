@@ -4,3 +4,6 @@
 
 # Old local state files (never commit: contain personal data / secrets)
 data/
+
+# Vercel build output (generated)
+.vercel/

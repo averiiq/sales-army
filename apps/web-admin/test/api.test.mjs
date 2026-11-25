@@ -189,12 +189,12 @@ test('manual settlement requires a payment reference and uses the admin RPC', as
   assert.ok(fake.calls.some(c => c.path === '/rest/v1/rpc/admin_settle_checkout_manual' && c.body.p_reference === 'UTR123'));
 });
 
-test('gateway secrets cannot be written through the API', async () => {
+test('gateway: an incomplete key is refused and secrets are never returned', async () => {
   const { call, admin } = setup();
   const r = await call('POST', '/api/platform/gateway/config', { token: admin.token, body: { keySecret: 'leak' } });
   assert.equal(r.status, 400);
   const view = await call('GET', '/api/platform/gateway/config', { token: admin.token });
-  assert.equal(view.json.config.managedBy, 'environment');
+  assert.notEqual(view.json.config.managedBy, 'admin');
   assert.equal(JSON.stringify(view.json).includes('whsec_test'), false);
 });
 

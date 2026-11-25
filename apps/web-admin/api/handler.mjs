@@ -95,7 +95,30 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   };
   let dbInstance = null;
   const db = () => (dbInstance ||= createDb({ url: cfg.url, anonKey: cfg.anonKey, serviceKey: cfg.serviceKey, fetchImpl }));
-  const gateway = createRazorpay({ keyId: cfg.razorpayKeyId, keySecret: cfg.razorpayKeySecret, fetchImpl });
+  // Razorpay keys: set from the admin panel (platform_settings row
+  // 'gateway_secrets', readable only by the service role / super admins and
+  // never returned to a browser), falling back to environment variables.
+  const GATEWAY_CACHE_MS = 30000;
+  let gatewayCache = null;
+  async function gatewayCreds() {
+    if (gatewayCache && Date.now() - gatewayCache.at < GATEWAY_CACHE_MS) return gatewayCache.creds;
+    let stored = {};
+    try { stored = (await getSetting('gateway_secrets')) || {}; } catch (err) { console.warn('[gateway] could not read keys:', err.message); }
+    const fromDb = Boolean(stored.keyId && stored.keySecret);
+    const creds = {
+      keyId: fromDb ? stored.keyId : cfg.razorpayKeyId,
+      keySecret: fromDb ? stored.keySecret : cfg.razorpayKeySecret,
+      webhookSecret: stored.webhookSecret || cfg.razorpayWebhookSecret,
+      source: fromDb ? 'admin' : (cfg.razorpayKeyId && cfg.razorpayKeySecret ? 'environment' : 'none'),
+      updatedAt: stored.updatedAt || null,
+    };
+    gatewayCache = { at: Date.now(), creds };
+    return creds;
+  }
+  async function gatewayClient(creds) {
+    const c = creds || await gatewayCreds();
+    return createRazorpay({ keyId: c.keyId, keySecret: c.keySecret, fetchImpl });
+  }
 
   // ------------------------------------------------------------------
   // Settings & catalog
@@ -158,7 +181,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     return { ...pricing, coupons };
   }
 
-  const checkout = () => createCheckoutService({ db: db(), gateway, getCatalog });
+  const checkout = async () => createCheckoutService({ db: db(), gateway: await gatewayClient(), getCatalog });
 
   // ------------------------------------------------------------------
   // Auth & audit
@@ -599,11 +622,11 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   // ---- Checkout (owners) ---------------------------------------------
   route('POST', '/api/checkout', async ctx => {
     const user = await requireUser(ctx);
-    return json(await checkout().start(user, await readJson(ctx.request)));
+    return json(await (await checkout()).start(user, await readJson(ctx.request)));
   });
   route('GET', '/api/checkout', async ctx => {
     const user = await requireUser(ctx);
-    return json(await checkout().status(user, ctx.url.searchParams.get('id') || ''));
+    return json(await (await checkout()).status(user, ctx.url.searchParams.get('id') || ''));
   });
   // Coupon check for the app's "Apply" button. Uses the same rules as the real
   // checkout (quoteCheckout + the reserve_subscription_checkout usage limits),
@@ -644,7 +667,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const raw = await ctx.request.text();
     if (raw.length > MAX_BODY) fail(413, 'Payload too large');
     try {
-      const result = await checkout().webhook(raw, ctx.request.headers.get('x-razorpay-signature'), cfg.razorpayWebhookSecret);
+      const result = await (await checkout()).webhook(raw, ctx.request.headers.get('x-razorpay-signature'), (await gatewayCreds()).webhookSecret);
       await audit(ctx, 'BILLING', 'WEBHOOK_PROCESSED', `Razorpay webhook processed${result?.ignored ? ` (ignored ${result.ignored})` : ''}`);
       return json({ success: true });
     } catch (err) {
@@ -1321,13 +1344,19 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   // ---- Admin: payment gateway ---------------------------------------
   async function gatewayView() {
     const stored = (await getSetting('gateway_config')) || {};
+    const creds = await gatewayCreds();
+    const tail = v => (v ? `••••${String(v).slice(-4)}` : '');
     return {
       provider: 'razorpay',
-      mode: cfg.razorpayKeyId.startsWith('rzp_live_') ? 'live' : 'test',
-      keyId: cfg.razorpayKeyId,
-      hasSecret: Boolean(cfg.razorpayKeySecret),
-      hasWebhookSecret: Boolean(cfg.razorpayWebhookSecret),
-      managedBy: 'environment',
+      mode: String(creds.keyId || '').startsWith('rzp_live_') ? 'live' : 'test',
+      keyId: creds.keyId || '',
+      // Secrets are write-only: only whether they are set and their last 4 characters.
+      hasSecret: Boolean(creds.keySecret),
+      secretHint: tail(creds.keySecret),
+      hasWebhookSecret: Boolean(creds.webhookSecret),
+      webhookSecretHint: tail(creds.webhookSecret),
+      managedBy: creds.source,
+      keysUpdatedAt: creds.updatedAt,
       autoCapture: stored.autoCapture !== false,
       currency: 'INR',
       upiVpa: stored.upiVpa || '',
@@ -1341,9 +1370,40 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   route('POST', '/api/platform/gateway/config', async ctx => {
     await requireAdmin(ctx);
     const body = await readJson(ctx.request);
-    if (body.keySecret || body.webhookSecret || (body.keyId && body.keyId !== cfg.razorpayKeyId)) {
-      fail(400, 'Razorpay keys are configured as server secrets (RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET), not in the database.');
+
+    // Razorpay keys (optional). Empty fields keep what is saved; clearKeys
+    // removes the admin-panel keys so the environment variables apply again.
+    const newKeyId = str(body.keyId, 64);
+    const newSecret = str(body.keySecret, 128);
+    const newWebhook = str(body.webhookSecret, 128);
+    if (body.clearKeys === true) {
+      await putSetting('gateway_secrets', { updatedAt: nowIso(), clearedAt: nowIso() });
+      gatewayCache = null;
+      await audit(ctx, 'GATEWAY', 'GATEWAY_KEYS_CLEARED', 'Razorpay keys removed from the admin panel (environment keys apply)', { status: 'warning' });
+    } else if (newKeyId || newSecret || newWebhook) {
+      const current = (await getSetting('gateway_secrets')) || {};
+      const keyId = newKeyId || current.keyId || '';
+      const keySecret = newSecret || current.keySecret || '';
+      if (!/^rzp_(test|live)_[A-Za-z0-9]{6,40}$/.test(keyId)) fail(400, 'Enter a valid Razorpay Key ID (starts with rzp_test_ or rzp_live_).');
+      if (!keySecret) fail(400, 'Enter the Razorpay Key Secret.');
+      if (/\s/.test(keySecret) || keySecret.length < 10) fail(400, 'The Razorpay Key Secret looks incomplete. Paste it exactly as shown in Razorpay.');
+      if (newWebhook && (/\s/.test(newWebhook) || newWebhook.length < 6)) fail(400, 'The webhook secret looks incomplete.');
+      if (newKeyId || newSecret) {
+        // Verify with Razorpay before saving, so a typo can't break payments.
+        try {
+          await createRazorpay({ keyId, keySecret, fetchImpl })('GET', 'payments?count=1');
+        } catch (err) {
+          fail(400, `Razorpay rejected these keys: ${err.message}`);
+        }
+      }
+      await putSetting('gateway_secrets', {
+        keyId, keySecret, webhookSecret: newWebhook || current.webhookSecret || '', updatedAt: nowIso(),
+      });
+      gatewayCache = null;
+      const changed = [newKeyId && 'key id', newSecret && 'key secret', newWebhook && 'webhook secret'].filter(Boolean).join(', ');
+      await audit(ctx, 'GATEWAY', 'GATEWAY_KEYS_UPDATED', `Razorpay ${changed} updated (key ${keyId.slice(0, 9)}…${keyId.slice(-4)}, ${keyId.startsWith('rzp_live_') ? 'live' : 'test'} mode)`, { status: 'warning' });
     }
+
     const stored = (await getSetting('gateway_config')) || {};
     const next = {
       ...stored,
@@ -1360,7 +1420,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const started = Date.now();
     let ok = false, message;
     try {
-      await gateway('GET', 'payments?count=1');
+      await (await gatewayClient())('GET', 'payments?count=1');
       ok = true; message = `Razorpay accepted the configured credentials (${Date.now() - started}ms).`;
     } catch (err) { message = err.message; }
     const stored = (await getSetting('gateway_config')) || {};
@@ -1372,7 +1432,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const admin = await requireAdmin(ctx);
     const body = await readJson(ctx.request);
     const tenant = await findTenant(str(body.tenantId, 64));
-    const result = await checkout().start({ id: admin.id, role: 'super_admin', tenant_id: tenant.tenant_id }, {
+    const result = await (await checkout()).start({ id: admin.id, role: 'super_admin', tenant_id: tenant.tenant_id }, {
       planId: str(body.planId, 50), yearly: body.yearly === true, couponCode: str(body.couponCode, 32) || undefined,
       printerId: str(body.printerId, 64) || undefined, shippingAddress: body.shippingAddress,
     });
