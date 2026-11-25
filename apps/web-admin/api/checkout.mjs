@@ -1,6 +1,7 @@
 // Subscription checkout: server-side quote, Razorpay payment link, and
 // settlement only after the captured payment is verified with Razorpay.
 import { HttpError } from './supabase.mjs';
+import { couponDate } from './catalog.mjs';
 
 const fail = (message, status = 400) => { throw new HttpError(status, message); };
 
@@ -18,15 +19,25 @@ export function quoteCheckout(catalog, input, now = new Date()) {
     return number;
   };
   let base = money(input.yearly === true ? (plan.yearlyPrice ?? plan.annualPrice) : plan.monthlyPrice);
+  const listBase = base;
   let days = input.yearly === true ? 365 : 30;
   let coupon = null;
   if (input.couponCode) {
     const wanted = String(input.couponCode).trim().toUpperCase();
     coupon = (catalog.coupons || []).find(c => String(c.code || '').toUpperCase() === wanted);
-    const expiry = coupon?.expiryDate || coupon?.validUntil;
-    if (!coupon || coupon.isActive === false || coupon.isPaused === true ||
-      (expiry && new Date(`${expiry}`.length <= 10 ? `${expiry}T23:59:59+05:30` : expiry) <= now) ||
-      base < money(coupon.minAmount ?? coupon.minOrderValue ?? 0)) fail('Coupon is unavailable');
+    // Specific reasons, so the agency owner knows why a code was refused.
+    if (!coupon || coupon.isActive === false || coupon.isPaused === true) fail(`Coupon "${wanted}" is not valid`);
+    if (coupon.startDate && couponDate(coupon.startDate, false) > now) fail(`Coupon "${wanted}" is not valid yet — it starts on ${coupon.startDate}`);
+    const expiry = coupon.expiryDate || coupon.validUntil;
+    if (expiry && couponDate(expiry, true) <= now) fail(`Coupon "${wanted}" is not valid — it expired on ${expiry}`);
+    const planIds = Array.isArray(coupon.planIds) ? coupon.planIds : [];
+    if (planIds.length && !planIds.includes(plan.id || plan.planId)) {
+      const names = planIds.map(id => tiers.find(t => (t.id || t.planId) === id)?.name || id).join(', ');
+      fail(`Coupon "${wanted}" is not valid for this plan — only for ${names}`);
+    }
+    if (coupon.billingCycle === 'monthly' && input.yearly === true) fail(`Coupon "${wanted}" is not valid for yearly billing — monthly only`);
+    if (coupon.billingCycle === 'yearly' && input.yearly !== true) fail(`Coupon "${wanted}" is not valid for monthly billing — yearly only`);
+    if (base < money(coupon.minAmount ?? coupon.minOrderValue ?? 0)) fail(`Coupon "${wanted}" is not valid — it needs a plan worth at least ₹${coupon.minAmount ?? coupon.minOrderValue}`);
     if (!Number.isFinite(coupon.value) || coupon.value < 0) fail('Invalid coupon');
     if (coupon.type === 'trial') {
       if (!Number.isInteger(coupon.value) || coupon.value < 1 || coupon.value > 365) fail('Invalid trial duration');
@@ -48,7 +59,10 @@ export function quoteCheckout(catalog, input, now = new Date()) {
     hardware.push(addon);
   }
   if (hardware.length && (typeof input.shippingAddress !== 'string' || input.shippingAddress.trim().length < 10)) fail('Shipping address is required');
-  let amount = base + Math.round(base * rate(catalog.plans?.planGst ?? catalog.planGstRate) / 100);
+  const planGst = rate(catalog.plans?.planGst ?? catalog.planGstRate);
+  // What the coupon saved on the plan, incl. GST (paise) — for usage reports.
+  const discountAmount = (listBase + Math.round(listBase * planGst / 100)) - (base + Math.round(base * planGst / 100));
+  let amount = base + Math.round(base * planGst / 100);
   let hardwareAmount = 0;
   for (const item of hardware) {
     const price = money(item.price);
@@ -60,6 +74,7 @@ export function quoteCheckout(catalog, input, now = new Date()) {
     amount, currency: 'INR', planId: plan.id || plan.planId, planName: plan.name,
     maxUsers: plan.maxUsers ?? 1, maxShops: plan.maxShops ?? 200, days,
     couponCode: coupon?.code || null, couponLimit: coupon?.maxUses ?? 1000,
+    discountAmount: coupon ? discountAmount : 0, yearly: input.yearly === true,
     trial: coupon?.type === 'trial', hardwareAmount, hardware,
     shippingAddress: hardware.length ? input.shippingAddress.trim() : null,
   };

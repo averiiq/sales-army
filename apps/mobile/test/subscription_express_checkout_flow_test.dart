@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salesarmy/core/services/app_state.dart';
+import 'package:salesarmy/features/admin/data/models/coupon_model.dart';
 import 'package:salesarmy/features/admin/presentation/screens/plan_and_pricing_screen.dart';
 import 'package:salesarmy/features/admin/presentation/screens/subscription_checkout_screen.dart';
 
@@ -85,17 +86,27 @@ void main() {
       expect(find.text('Shop Address'), findsOneWidget);
       expect(find.text('+ Add New Delivery Address'), findsOneWidget);
 
-      // 3. Verify Coupon input field exists and apply TRIAL30
+      // 3. Coupon input exists. Codes are checked by the server; in this test
+      //    there is no signed-in session, so Apply must NOT apply anything.
       final couponField = find.widgetWithText(TextField, 'Enter coupon or promo code...');
       await tester.ensureVisible(couponField);
-      await tester.enterText(couponField, 'TRIAL30');
+      await tester.enterText(couponField, 'PROMO70');
       final applyBtn = find.text('Apply');
       await tester.ensureVisible(applyBtn);
-      await tester.tap(applyBtn);
+      await tester.runAsync(() async {
+        await tester.tap(applyBtn);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
       await tester.pumpAndSettle();
+      expect(appState.appliedCoupon, isNull);
 
-      expect(appState.appliedCoupon?.code, equals('TRIAL30'));
-      expect(find.textContaining('Applied: TRIAL30'), findsOneWidget);
+      // A coupon the server confirmed (30-day trial) is shown as applied
+      appState.setServerConfirmedCouponForTest(CouponModel.fromMap({
+        'code': 'PROMO70', 'type': 'trial', 'value': 30, 'title': '30-Day Free Trial',
+      }));
+      await tester.pumpAndSettle();
+      expect(appState.appliedCoupon?.code, equals('PROMO70'));
+      expect(find.textContaining('Applied: PROMO70'), findsOneWidget);
 
       // 4. Verify Express CTA updates to Free Trial (or includes printer if added)
       expect(find.textContaining('Pay ₹'), findsOneWidget);

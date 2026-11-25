@@ -6,6 +6,12 @@ import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/services/notification_service.dart';
 import 'package:salesarmy/features/dashboard/data/models/notification_model.dart';
 import 'package:salesarmy/features/dashboard/presentation/dialogs/notification_center_modal.dart';
+import 'package:salesarmy/features/shops/data/models/shop_model.dart';
+import 'package:salesarmy/features/inventory/data/models/product_model.dart';
+import 'package:salesarmy/features/orders/data/models/order_model.dart';
+import 'package:salesarmy/features/billing/data/models/transaction_item_snapshot.dart';
+import 'package:salesarmy/features/collections/data/models/payment_model.dart';
+import 'package:salesarmy/features/orders/data/models/sales_return_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -240,6 +246,160 @@ void main() {
         await tester.pumpAndSettle();
         expect(appState.unreadNotificationsCount, equals(0));
       }
+    });
+
+    testWidgets('5. NotificationCenterModal with initialNotificationId displays detail and marks as read', (tester) async {
+      appState.clearAllNotifications();
+
+      final targetNotif = NotificationModel(
+        id: 'detail_target_1',
+        title: 'Overdue Balance Notice',
+        message: 'Kirana Mart overdue balance is ₹12,000 for 15 days',
+        type: 'payment',
+        createdAt: DateTime.now(),
+        isRead: false,
+      );
+      appState.addNotification(targetNotif, showPopup: false);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: appState,
+          child: MaterialApp(
+            navigatorKey: rootNavigatorKey,
+            home: Builder(
+              builder: (ctx) => Scaffold(
+                body: ElevatedButton(
+                  onPressed: () => NotificationCenterModal.show(
+                    ctx,
+                    initialNotificationId: 'detail_target_1',
+                  ),
+                  child: const Text('Open Detail Modal'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Detail Modal'));
+      await tester.pumpAndSettle();
+
+      // Check detail view elements
+      expect(find.text('Notification Detail'), findsOneWidget);
+      expect(find.text('Overdue Balance Notice'), findsOneWidget);
+      expect(find.text('Kirana Mart overdue balance is ₹12,000 for 15 days'), findsOneWidget);
+      expect(find.text('Back to Notifications'), findsOneWidget);
+
+      // Verify marked as read
+      expect(appState.notifications.firstWhere((n) => n.id == 'detail_target_1').isRead, isTrue);
+
+      // Tap back button
+      await tester.tap(find.text('Back to Notifications'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notifications & Alerts'), findsOneWidget);
+    });
+
+    test('6. Real business triggers generate in-app notifications', () async {
+      appState.clearAllNotifications();
+
+      // Setup sample shop & product
+      final testShop = ShopModel(
+        shopId: 'shop_test_1',
+        shopName: 'Super Store',
+        ownerName: 'Ramesh',
+        phone: '9876543210',
+        address: 'MG Road',
+        currentOutstanding: 1000.0,
+      );
+      await appState.addShop(testShop);
+
+      final testProduct = ProductModel(
+        productId: 'prod_test_1',
+        name: 'Basmati Rice 5kg',
+        gstRate: 5.0,
+        wholesalePrice: 400.0,
+        stockQuantity: 6,
+        lowStockAlertQty: 5,
+      );
+      await appState.addProduct(testProduct);
+
+      // 1. Order Creation + Low Stock trigger
+      final orderItem = TransactionItemSnapshot(
+        productId: 'prod_test_1',
+        productName: 'Basmati Rice 5kg',
+        quantity: 2, // Stock drops from 6 -> 4 <= 5
+        rate: 400.0,
+        gstRate: 5.0,
+        taxableAmount: 800.0,
+        totalGst: 40.0,
+        total: 840.0,
+      );
+
+      final testOrder = OrderModel(
+        orderId: 'ORD-TEST-99',
+        shopId: 'shop_test_1',
+        createdByUid: 'test_user',
+        status: 'pending',
+        items: [orderItem],
+        subtotal: 800.0,
+        totalGst: 40.0,
+        grandTotal: 840.0,
+        placedAt: DateTime.now(),
+      );
+
+      await appState.addOrder(testOrder);
+
+      // Check notifications generated
+      final orderNotifs = appState.notifications.where((n) => n.type == 'order').toList();
+      expect(orderNotifs.any((n) => n.title.contains('ORD-TEST-99')), isTrue);
+
+      final stockNotifs = appState.notifications.where((n) => n.type == 'inventory').toList();
+      expect(stockNotifs.any((n) => n.title.contains('Low Stock Alert: Basmati Rice 5kg')), isTrue);
+
+      // 2. Payment Collection trigger
+      final testPayment = PaymentModel(
+        paymentId: 'PAY-TEST-99',
+        shopId: 'shop_test_1',
+        createdByUid: 'test_user',
+        amount: 500.0,
+        paymentMode: 'Cash',
+        date: DateTime.now(),
+      );
+
+      await appState.recordPayment(testPayment);
+
+      final paymentNotifs = appState.notifications.where((n) => n.type == 'payment').toList();
+      expect(paymentNotifs.any((n) => n.title.contains('Payment Received: ₹500')), isTrue);
+
+      // 3. Sales Return trigger
+      final returnItem = TransactionItemSnapshot(
+        productId: 'prod_test_1',
+        productName: 'Basmati Rice 5kg',
+        quantity: 1,
+        rate: 400.0,
+        gstRate: 5.0,
+        taxableAmount: 400.0,
+        totalGst: 20.0,
+        total: 420.0,
+      );
+
+      final testReturn = SalesReturnModel(
+        returnId: 'RET-TEST-99',
+        returnNumber: 'SR-99',
+        shopId: 'shop_test_1',
+        shopName: 'Super Store',
+        createdByUid: 'test_user',
+        date: DateTime.now(),
+        items: [returnItem],
+        totalAmount: 420.0,
+        reason: 'Damaged packaging',
+      );
+
+      await appState.processSalesReturn(testReturn);
+
+      final returnNotifs = appState.notifications.where((n) => n.type == 'inventory').toList();
+      expect(returnNotifs.any((n) => n.title.contains('Sales Return Processed: SR-99')), isTrue);
     });
   });
 }

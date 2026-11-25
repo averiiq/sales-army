@@ -6,14 +6,18 @@ import 'package:salesarmy/core/theme/app_theme.dart';
 import 'package:salesarmy/features/dashboard/data/models/notification_model.dart';
 
 class NotificationCenterModal extends StatefulWidget {
-  const NotificationCenterModal({super.key});
+  final String? initialNotificationId;
 
-  static Future<void> show(BuildContext context) {
+  const NotificationCenterModal({super.key, this.initialNotificationId});
+
+  static Future<void> show(BuildContext context, {String? initialNotificationId}) {
     return showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => const NotificationCenterModal(),
+      builder: (_) => NotificationCenterModal(
+        initialNotificationId: initialNotificationId,
+      ),
     );
   }
 
@@ -24,6 +28,29 @@ class NotificationCenterModal extends StatefulWidget {
 class _NotificationCenterModalState extends State<NotificationCenterModal> {
   NotificationModel? _selectedDetail;
   String _selectedFilter = 'All'; // 'All', 'Orders', 'Payments', 'Inventory', 'Broadcasts'
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialNotificationId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final appState = context.read<AppState>();
+        final matches = appState.notifications.where(
+          (n) => n.id == widget.initialNotificationId,
+        );
+        if (matches.isNotEmpty) {
+          final notif = matches.first;
+          setState(() {
+            _selectedDetail = notif;
+          });
+          if (!notif.isRead) {
+            appState.markNotificationAsRead(notif.id);
+          }
+        }
+      });
+    }
+  }
 
   String _formatRelativeTime(DateTime dt) {
     final diff = DateTime.now().difference(dt);

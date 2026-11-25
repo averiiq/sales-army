@@ -959,10 +959,17 @@ tbody tr:hover td {
   border-color: var(--emerald-border);
 }
 
-.badge-pending, .badge-trial {
+.badge-pending, .badge-trial, .badge-warning {
   background: var(--amber-bg);
   color: var(--amber-text);
   border-color: var(--amber-border);
+}
+
+/* Scheduled coupons, info states (also used by order / notification badges). */
+.badge-blue {
+  background: var(--indigo-bg);
+  color: var(--indigo-text);
+  border-color: var(--indigo-border);
 }
 
 .badge-expired {

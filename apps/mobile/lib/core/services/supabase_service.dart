@@ -1896,6 +1896,25 @@ class SupabaseService {
         },
       );
 
+      // 1b. Platform-wide admin broadcasts are stored with tenant_id NULL, so
+      // the tenant filter above never matches them.
+      _notificationChannel!.onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'notifications',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'is_broadcast',
+          value: true,
+        ),
+        callback: (payload) {
+          final record = payload.newRecord;
+          if (record.isNotEmpty) {
+            onNotificationReceived(record);
+          }
+        },
+      );
+
       // 2. Listen for Realtime Broadcast events
       _notificationChannel!.onBroadcast(
         event: 'notification',
@@ -1910,6 +1929,24 @@ class SupabaseService {
       debugPrint('⚡ Supabase: Subscribed to realtime push notifications for tenant $tenantId');
     } catch (e) {
       debugPrint('Supabase subscribeToNotifications error: $e');
+    }
+  }
+
+  /// Latest admin messages for this agency plus platform-wide broadcasts
+  /// (row-level security limits the result to what this user may read).
+  Future<List<Map<String, dynamic>>> fetchNotifications(String tenantId, {int limit = 50}) async {
+    if (client == null || tenantId.isEmpty) return const [];
+    try {
+      final rows = await client!
+          .from('notifications')
+          .select()
+          .or('tenant_id.eq.$tenantId,is_broadcast.eq.true')
+          .order('created_at', ascending: false)
+          .limit(limit);
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('Supabase fetchNotifications error: $e');
+      return const [];
     }
   }
 

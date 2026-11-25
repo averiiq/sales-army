@@ -1,3 +1,4 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:salesarmy/core/utils/app_error.dart';
 import 'package:flutter/services.dart';
@@ -37,7 +38,11 @@ class _ShellTabItem {
 class MainShell extends StatefulWidget {
   final VoidCallback onSignOut;
   final bool isSuperAdmin;
-  const MainShell({super.key, required this.onSignOut, this.isSuperAdmin = false});
+  const MainShell({
+    super.key,
+    required this.onSignOut,
+    this.isSuperAdmin = false,
+  });
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -45,13 +50,16 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   /// Party the Bill tab should preselect (set by Parties "New Order").
-  final ValueNotifier<ShopModel?> _billShopRequest = ValueNotifier<ShopModel?>(null);
+  final ValueNotifier<ShopModel?> _billShopRequest = ValueNotifier<ShopModel?>(
+    null,
+  );
 
   @override
   void dispose() {
     _billShopRequest.dispose();
     super.dispose();
   }
+
   int _currentIndex = 0;
 
   String _getInitials(String? name) {
@@ -62,7 +70,10 @@ class _MainShellState extends State<MainShell> {
       final second = words[1].isNotEmpty ? words[1][0] : '';
       return '$first$second'.toUpperCase();
     }
-    return name.trim().substring(0, name.trim().length >= 2 ? 2 : 1).toUpperCase();
+    return name
+        .trim()
+        .substring(0, name.trim().length >= 2 ? 2 : 1)
+        .toUpperCase();
   }
 
   Widget _buildFallbackInitials(String name) {
@@ -109,71 +120,92 @@ class _MainShellState extends State<MainShell> {
     final tabs = <_ShellTabItem>[];
 
     // 1. Home (Always accessible for all roles)
-    tabs.add(_ShellTabItem(
-      id: 'home',
-      icon: Icons.home_rounded,
-      label: 'Home',
-      widget: DistributorDashboard(
-        onNavigateTab: (targetIndex) => _navigateToLegacyTab(targetIndex, appState),
-        onNavigateRoute: (routeName) => _navigateToTabId(routeName, appState),
-        onOpenOrderTaker: () => _openOrderTaker(),
-        onSignOut: widget.onSignOut,
+    tabs.add(
+      _ShellTabItem(
+        id: 'home',
+        icon: Icons.home_rounded,
+        label: 'Home',
+        widget: DistributorDashboard(
+          onNavigateTab: (targetIndex) =>
+              _navigateToLegacyTab(targetIndex, appState),
+          onNavigateRoute: (routeName) => _navigateToTabId(routeName, appState),
+          onOpenOrderTaker: () => _openOrderTaker(),
+          onSignOut: widget.onSignOut,
+        ),
       ),
-    ));
+    );
 
     // 2. Parties / Retailers (If role has 'shops' permission)
     if (appState.canAccessModule('shops')) {
-      tabs.add(_ShellTabItem(
-        id: 'shops',
-        icon: Icons.storefront_rounded,
-        label: 'Parties',
-        widget: ShopsTab(
-          onBack: () => _navigateToTabId('home', appState),
-          onStartOrderForShop: (shop) => _openOrderTaker(shop: shop),
+      tabs.add(
+        _ShellTabItem(
+          id: 'shops',
+          icon: Icons.storefront_rounded,
+          label: 'Parties',
+          widget: ShopsTab(
+            onBack: () => _navigateToTabId('home', appState),
+            onStartOrderForShop: (shop) => _openOrderTaker(shop: shop),
+          ),
         ),
-      ));
+      );
     }
 
     // 3. Bill / POS Invoicing (Accessible for roles with 'billing' permission or Field Sales)
-    if ((appState.canAccessModule('billing') || appState.isFieldSalesRole) && !appState.isDeliveryRole && !appState.isStoreManagerRole) {
-      tabs.add(_ShellTabItem(
-        id: 'billing',
-        icon: Icons.receipt_long_rounded,
-        label: 'Bill',
-        widget: OrderTakerFlow(
-          isEmbedded: true,
-          shopRequest: _billShopRequest,
-          onBack: () => _navigateToTabId('home', appState),
-          onOrderCompleted: () {
-            _navigateToTabId('orders', appState);
-          },
+    if ((appState.canAccessModule('billing') || appState.isFieldSalesRole) &&
+        !appState.isDeliveryRole &&
+        !appState.isStoreManagerRole) {
+      tabs.add(
+        _ShellTabItem(
+          id: 'billing',
+          icon: Icons.receipt_long_rounded,
+          label: 'Bill',
+          widget: OrderTakerFlow(
+            isEmbedded: true,
+            shopRequest: _billShopRequest,
+            onBack: () => _navigateToTabId('home', appState),
+            onOrderCompleted: () {
+              _navigateToTabId('orders', appState);
+            },
+          ),
         ),
-      ));
+      );
     }
 
     // 4. Orders / Dispatches (Owner, Field Sales, Delivery Staff, Store Manager)
-    if ((appState.canAccessModule('orders') || appState.isStoreManagerRole) && !appState.isAccountantRole) {
-      tabs.add(_ShellTabItem(
-        id: 'orders',
-        icon: Icons.local_shipping_outlined,
-        label: 'Orders',
-        widget: OrdersTab(
-          initialTabIndex: 0,
-          onBack: () => _navigateToTabId('home', appState),
-          onTakeNewOrder: () => _openOrderTaker(),
+    if ((appState.canAccessModule('orders') || appState.isStoreManagerRole) &&
+        !appState.isAccountantRole) {
+      tabs.add(
+        _ShellTabItem(
+          id: 'orders',
+          icon: Icons.local_shipping_outlined,
+          label: 'Orders',
+          widget: OrdersTab(
+            initialTabIndex: 0,
+            onBack: () => _navigateToTabId('home', appState),
+            onTakeNewOrder: () => _openOrderTaker(),
+          ),
         ),
-      ));
+      );
     }
 
     // 5. Collection / Khata (ONLY for roles with 'accounts' or 'collections': Owner, Accountant)
-    if ((appState.canAccessModule('accounts') || appState.canAccessModule('collections') || appState.isOwnerRole || appState.isAccountantRole) &&
-        !appState.isDeliveryRole && !appState.isFieldSalesRole && !appState.isStoreManagerRole) {
-      tabs.add(_ShellTabItem(
-        id: 'collections',
-        icon: Icons.account_balance_wallet_rounded,
-        label: 'Collection',
-        widget: CollectionsTab(onBack: () => _navigateToTabId('home', appState)),
-      ));
+    if ((appState.canAccessModule('accounts') ||
+            appState.canAccessModule('collections') ||
+            appState.isOwnerRole ||
+            appState.isAccountantRole) &&
+        !appState.isDeliveryRole &&
+        !appState.isFieldSalesRole &&
+        !appState.isStoreManagerRole) {
+      tabs.add(
+        _ShellTabItem(
+          id: 'collections',
+          icon: Icons.account_balance_wallet_rounded,
+          label: 'Collection',
+          widget: CollectionsTab(
+            onBack: () => _navigateToTabId('home', appState),
+          ),
+        ),
+      );
     }
 
     return tabs;
@@ -206,7 +238,8 @@ class _MainShellState extends State<MainShell> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => CollectionsTab(onBack: () => Navigator.pop(context)),
+            builder: (_) =>
+                CollectionsTab(onBack: () => Navigator.pop(context)),
           ),
         );
         break;
@@ -286,10 +319,14 @@ class _MainShellState extends State<MainShell> {
   void _openOrderTaker({ShopModel? shop}) {
     final appState = Provider.of<AppState>(context, listen: false);
     if (appState.isAccountPausedOrCancelled) {
-      showAppError(context, 'Account Suspended: Cannot create new orders while account is ${appState.subscriptionBadgeText}.');
+      showAppError(
+        context,
+        'Account Suspended: Cannot create new orders while account is ${appState.subscriptionBadgeText}.',
+      );
       return;
     }
-    if (appState.isModuleRemotelyDisabled('billing') || appState.isModuleRemotelyDisabled('orders')) {
+    if (appState.isModuleRemotelyDisabled('billing') ||
+        appState.isModuleRemotelyDisabled('orders')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Order Taker is temporarily unavailable.'),
@@ -300,7 +337,10 @@ class _MainShellState extends State<MainShell> {
       return;
     }
     if (!appState.canAccessModule('billing') && !appState.isFieldSalesRole) {
-      showAppError(context, 'Access Restricted: Role (${appState.activeRole}) cannot create Bills.');
+      showAppError(
+        context,
+        'Access Restricted: Role (${appState.activeRole}) cannot create Bills.',
+      );
       return;
     }
 
@@ -308,7 +348,8 @@ class _MainShellState extends State<MainShell> {
       // Open the Bill tab itself (not the standalone Orders & Billing page);
       // a party chosen elsewhere (e.g. Parties "New Order") is preselected.
       if (shop != null) {
-        _billShopRequest.value = null; // re-selecting the same party still notifies
+        _billShopRequest.value =
+            null; // re-selecting the same party still notifies
         _billShopRequest.value = shop;
       }
       // Pop any pushed page (e.g. Parties opened from Home) back to the shell.
@@ -334,11 +375,12 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-
-
-
-
-  PreferredSizeWidget _buildHomeAppBar(BuildContext context, AppState appState, bool isDark, String displayFirmName) {
+  PreferredSizeWidget _buildHomeAppBar(
+    BuildContext context,
+    AppState appState,
+    bool isDark,
+    String displayFirmName,
+  ) {
     return AppBar(
       automaticallyImplyLeading: false,
       elevation: 0,
@@ -356,7 +398,12 @@ class _MainShellState extends State<MainShell> {
         decoration: BoxDecoration(
           gradient: AppTheme.getNavbarGradient(isDark),
           border: Border(
-            bottom: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFEAB308).withValues(alpha: 0.3), width: 1.0),
+            bottom: BorderSide(
+              color: isDark
+                  ? const Color(0xFF334155)
+                  : const Color(0xFFEAB308).withValues(alpha: 0.3),
+              width: 1.0,
+            ),
           ),
         ),
       ),
@@ -398,10 +445,16 @@ class _MainShellState extends State<MainShell> {
                             end: Alignment.bottomRight,
                           ),
                           shape: BoxShape.circle,
-                          border: Border.all(color: isDark ? const Color(0xFF3B82F6) : const Color(0xFFFDE68A), width: 2.0),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFFFDE68A),
+                            width: 2.0,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF1E56E2).withValues(alpha: 0.22),
+                              color: const Color(0xFF1E56E2)
+                                  .withValues(alpha: 0.22),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -409,31 +462,44 @@ class _MainShellState extends State<MainShell> {
                         ),
                         alignment: Alignment.center,
                         child: ClipOval(
-                          child: ((appState.tenant.logoUrl?.trim().isNotEmpty == true)
+                          child:
+                              ((appState.tenant.logoUrl?.trim().isNotEmpty ==
+                                  true)
                               ? AppImageHelper.buildImage(
                                   appState.tenant.logoUrl!,
                                   width: 40,
                                   height: 40,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => (appState.tenant.profileImageUrl?.trim().isNotEmpty == true)
+                                  errorBuilder: (_, __, ___) =>
+                                      (appState.tenant.profileImageUrl
+                                              ?.trim()
+                                              .isNotEmpty ==
+                                          true)
                                       ? AppImageHelper.buildImage(
                                           appState.tenant.profileImageUrl!,
                                           width: 40,
                                           height: 40,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => _buildFallbackInitials(displayFirmName),
+                                          errorBuilder: (_, __, ___) =>
+                                              _buildFallbackInitials(
+                                                displayFirmName,
+                                              ),
                                         )
                                       : _buildFallbackInitials(displayFirmName),
                                 )
-                              : (appState.tenant.profileImageUrl?.trim().isNotEmpty == true)
-                                  ? AppImageHelper.buildImage(
-                                      appState.tenant.profileImageUrl!,
-                                      width: 40,
-                                      height: 40,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => _buildFallbackInitials(displayFirmName),
-                                    )
-                                  : _buildFallbackInitials(displayFirmName)),
+                              : (appState.tenant.profileImageUrl
+                                        ?.trim()
+                                        .isNotEmpty ==
+                                    true)
+                              ? AppImageHelper.buildImage(
+                                  appState.tenant.profileImageUrl!,
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _buildFallbackInitials(displayFirmName),
+                                )
+                              : _buildFallbackInitials(displayFirmName)),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -448,7 +514,9 @@ class _MainShellState extends State<MainShell> {
                               style: TextStyle(
                                 fontSize: context.isCompact ? 13 : 14,
                                 fontWeight: FontWeight.w800,
-                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
                                 letterSpacing: -0.3,
                                 height: 1.15,
                               ),
@@ -463,7 +531,9 @@ class _MainShellState extends State<MainShell> {
                                   width: 6,
                                   height: 6,
                                   decoration: BoxDecoration(
-                                    color: appState.isSubscriptionExpired || appState.isAccountPausedOrCancelled
+                                    color:
+                                        appState.isSubscriptionExpired ||
+                                            appState.isAccountPausedOrCancelled
                                         ? const Color(0xFFEF4444)
                                         : const Color(0xFF10B981),
                                     shape: BoxShape.circle,
@@ -477,7 +547,10 @@ class _MainShellState extends State<MainShell> {
                                       fontSize: context.isCompact ? 9 : 10,
                                       fontWeight: FontWeight.w700,
                                       height: 1.1,
-                                      color: appState.isSubscriptionExpired || appState.isAccountPausedOrCancelled
+                                      color:
+                                          appState.isSubscriptionExpired ||
+                                              appState
+                                                  .isAccountPausedOrCancelled
                                           ? const Color(0xFFDC2626)
                                           : const Color(0xFF16A34A),
                                     ),
@@ -488,12 +561,21 @@ class _MainShellState extends State<MainShell> {
                                 const SizedBox(width: 6),
                                 Flexible(
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.5) : const Color(0xFFEFF6FF),
+                                      color: isDark
+                                          ? const Color(0xFF1E3A8A)
+                                                .withValues(alpha: 0.5)
+                                          : const Color(0xFFEFF6FF),
                                       borderRadius: BorderRadius.circular(5),
                                       border: Border.all(
-                                        color: isDark ? const Color(0xFF3B82F6).withValues(alpha: 0.5) : const Color(0xFFBFDBFE),
+                                        color: isDark
+                                            ? const Color(0xFF3B82F6)
+                                                  .withValues(alpha: 0.5)
+                                            : const Color(0xFFBFDBFE),
                                         width: 0.8,
                                       ),
                                     ),
@@ -502,7 +584,9 @@ class _MainShellState extends State<MainShell> {
                                       style: TextStyle(
                                         fontSize: context.isCompact ? 8.5 : 9,
                                         fontWeight: FontWeight.w800,
-                                        color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                        color: isDark
+                                            ? const Color(0xFF93C5FD)
+                                            : const Color(0xFF1D4ED8),
                                         height: 1.1,
                                       ),
                                       maxLines: 1,
@@ -531,11 +615,15 @@ class _MainShellState extends State<MainShell> {
                 color: isDark ? const Color(0xFF1E293B) : Colors.white,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  color: isDark
+                      ? const Color(0xFF334155)
+                      : const Color(0xFFE2E8F0),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: isDark ? Colors.black.withValues(alpha: 0.2) : const Color(0xFF0F172A).withValues(alpha: 0.05),
+                    color: isDark
+                        ? Colors.black.withValues(alpha: 0.2)
+                        : const Color(0xFF0F172A).withValues(alpha: 0.05),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -553,8 +641,12 @@ class _MainShellState extends State<MainShell> {
                   },
                   child: Center(
                     child: Icon(
-                      isDark ? Icons.light_mode_rounded : Icons.dark_mode_outlined,
-                      color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF475569),
+                      isDark
+                          ? Icons.light_mode_rounded
+                          : Icons.dark_mode_outlined,
+                      color: isDark
+                          ? const Color(0xFFFBBF24)
+                          : const Color(0xFF475569),
                       size: 20,
                     ),
                   ),
@@ -573,10 +665,16 @@ class _MainShellState extends State<MainShell> {
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF1E293B) : Colors.white,
                     shape: BoxShape.circle,
-                    border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFFDE68A)),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFFDE68A),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: isDark ? Colors.black.withValues(alpha: 0.2) : const Color(0xFFD97706).withValues(alpha: 0.10),
+                        color: isDark
+                            ? Colors.black.withValues(alpha: 0.2)
+                            : const Color(0xFFD97706).withValues(alpha: 0.10),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -592,7 +690,13 @@ class _MainShellState extends State<MainShell> {
                         NotificationCenterModal.show(context);
                       },
                       child: Center(
-                        child: Icon(Icons.notifications_none_rounded, color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155), size: 21),
+                        child: Icon(
+                          Icons.notifications_none_rounded,
+                          color: isDark
+                              ? const Color(0xFFE2E8F0)
+                              : const Color(0xFF334155),
+                          size: 21,
+                        ),
                       ),
                     ),
                   ),
@@ -607,7 +711,10 @@ class _MainShellState extends State<MainShell> {
                         color: Color(0xFFDC2626),
                         shape: BoxShape.circle,
                       ),
-                      constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                      constraints: const BoxConstraints(
+                        minWidth: 17,
+                        minHeight: 17,
+                      ),
                       child: Text(
                         '${appState.unreadNotificationsCount}',
                         style: const TextStyle(
@@ -631,11 +738,13 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final tenant = appState.tenant;
-    final displayFirmName = tenant.firmName != null && tenant.firmName!.trim().isNotEmpty
+    final displayFirmName =
+        tenant.firmName != null && tenant.firmName!.trim().isNotEmpty
         ? tenant.firmName!
-        : (tenant.representativeName != null && tenant.representativeName!.trim().isNotEmpty
-            ? tenant.representativeName!
-            : 'SalesArmy Agency');
+        : (tenant.representativeName != null &&
+                  tenant.representativeName!.trim().isNotEmpty
+              ? tenant.representativeName!
+              : 'SalesArmy Agency');
 
     final availableTabs = _buildAvailableTabs(appState);
     if (_currentIndex >= availableTabs.length) {
@@ -661,27 +770,44 @@ class _MainShellState extends State<MainShell> {
         ),
         child: Scaffold(
           backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-          appBar: isHome ? _buildHomeAppBar(context, appState, isDark, displayFirmName) : null,
+          appBar: isHome
+              ? _buildHomeAppBar(context, appState, isDark, displayFirmName)
+              : null,
           body: Container(
             color: isDark ? const Color(0xFF0F172A) : Colors.white,
             child: Column(
               children: [
                 // Account / broadcast / maintenance notices appear on the Home
                 // tab only, so they don't cover the working screens.
-                if (isHome && (appState.isSubscriptionExpired || appState.isAccountPausedOrCancelled))
+                if (isHome &&
+                    (appState.isSubscriptionExpired ||
+                        appState.isAccountPausedOrCancelled))
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    color: isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.4) : const Color(0xFFFEF2F2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    color: isDark
+                        ? const Color(0xFF7F1D1D).withValues(alpha: 0.4)
+                        : const Color(0xFFFEF2F2),
                     child: Row(
                       children: [
-                        const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 18),
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xFFDC2626),
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             appState.isAccountPausedOrCancelled
                                 ? 'Account status: ${appState.subscriptionBadgeText}. Please contact SalesArmy support to reactivate your agency.'
                                 : 'Account status: ${appState.subscriptionBadgeText}. You can view data and collect dues, but new orders, bills and records need a plan — renew in Plan & Pricing.',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFDC2626),
+                            ),
                           ),
                         ),
                       ],
@@ -690,10 +816,16 @@ class _MainShellState extends State<MainShell> {
                 if (isHome && appState.cloudSyncError != null)
                   Container(
                     padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
-                    color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.35) : const Color(0xFFFFFBEB),
+                    color: isDark
+                        ? const Color(0xFF78350F).withValues(alpha: 0.35)
+                        : const Color(0xFFFFFBEB),
                     child: Row(
                       children: [
-                        const Icon(Icons.cloud_off_rounded, color: Color(0xFFD97706), size: 18),
+                        const Icon(
+                          Icons.cloud_off_rounded,
+                          color: Color(0xFFD97706),
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -701,13 +833,19 @@ class _MainShellState extends State<MainShell> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
+                              color: isDark
+                                  ? const Color(0xFFFCD34D)
+                                  : const Color(0xFF92400E),
                             ),
                           ),
                         ),
                         TextButton(
-                          onPressed: appState.isCloudSyncing ? null : () => appState.syncAllFromCloud(),
-                          child: Text(appState.isCloudSyncing ? 'Retrying…' : 'Retry'),
+                          onPressed: appState.isCloudSyncing
+                              ? null
+                              : () => appState.syncAllFromCloud(),
+                          child: Text(
+                            appState.isCloudSyncing ? 'Retrying…' : 'Retry',
+                          ),
                         ),
                         IconButton(
                           tooltip: 'Dismiss',
@@ -718,35 +856,52 @@ class _MainShellState extends State<MainShell> {
                       ],
                     ),
                   ),
-                if (isHome &&
-                    appState.emergencyBroadcast != null &&
-                    appState.emergencyBroadcast!['active'] == true &&
-                    !appState.isAnnouncementDismissed)
+                if (isHome && appState.showBroadcastBanner)
                   _buildEmergencyBroadcastBanner(context, appState, isDark),
                 if (isHome && appState.isMaintenanceMode)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.4) : const Color(0xFFFFFBEB),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    color: isDark
+                        ? const Color(0xFF78350F).withValues(alpha: 0.4)
+                        : const Color(0xFFFFFBEB),
                     child: Row(
                       children: [
-                        const Icon(Icons.engineering_rounded, color: Color(0xFFD97706), size: 18),
+                        const Icon(
+                          Icons.engineering_rounded,
+                          color: Color(0xFFD97706),
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Maintenance Notice: ${appState.maintenanceMessage}',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFB45309)),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFB45309),
+                            ),
                           ),
                         ),
                         if (appState.maintenanceEta != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFEF3C7),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               appState.maintenanceEta!,
-                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFB45309)),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFB45309),
+                              ),
                             ),
                           ),
                       ],
@@ -764,10 +919,14 @@ class _MainShellState extends State<MainShell> {
           bottomNavigationBar: Container(
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF0F172A) : Colors.white,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: isDark ? Colors.black.withValues(alpha: 0.35) : const Color(0xFF0F172A).withValues(alpha: 0.08),
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.35)
+                      : const Color(0xFF0F172A).withValues(alpha: 0.08),
                   blurRadius: 24,
                   offset: const Offset(0, -6),
                 ),
@@ -782,7 +941,9 @@ class _MainShellState extends State<MainShell> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 680),
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: context.isCompact ? 6 : 12),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: context.isCompact ? 6 : 12,
+                      ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: List.generate(availableTabs.length, (idx) {
@@ -794,9 +955,21 @@ class _MainShellState extends State<MainShell> {
 
                           // The Bill tab is the raised round "+" action button.
                           if (tab.id == 'billing') {
-                            return _buildCenterActionButton(idx, tab.label, isDark, onTap: select);
+                            return _buildCenterActionButton(
+                              idx,
+                              tab.label,
+                              isDark,
+                              onTap: select,
+                            );
                           }
-                          return _buildNavItem(context, idx, tab.icon, tab.label, isDark, onTap: select);
+                          return _buildNavItem(
+                            context,
+                            idx,
+                            tab.icon,
+                            tab.label,
+                            isDark,
+                            onTap: select,
+                          );
                         }),
                       ),
                     ),
@@ -819,8 +992,12 @@ class _MainShellState extends State<MainShell> {
     VoidCallback? onTap,
   }) {
     final isSelected = _currentIndex == index;
-    final activeColor = isDark ? const Color(0xFF60A5FA) : const Color(0xFF1E56E2);
-    final inactiveColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final activeColor = isDark
+        ? const Color(0xFF60A5FA)
+        : const Color(0xFF1E56E2);
+    final inactiveColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
     final color = isSelected ? activeColor : inactiveColor;
 
     return Expanded(
@@ -840,7 +1017,11 @@ class _MainShellState extends State<MainShell> {
                 scale: isSelected ? 1.1 : 1.0,
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOutBack,
-                child: Icon(icon, size: context.isCompact ? 22 : 24, color: color),
+                child: Icon(
+                  icon,
+                  size: context.isCompact ? 22 : 24,
+                  color: color,
+                ),
               ),
               const SizedBox(height: 4),
               AnimatedDefaultTextStyle(
@@ -850,7 +1031,11 @@ class _MainShellState extends State<MainShell> {
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   color: color,
                 ),
-                child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(height: 3),
               // Small active dot under the selected tab.
@@ -858,7 +1043,10 @@ class _MainShellState extends State<MainShell> {
                 duration: const Duration(milliseconds: 200),
                 width: isSelected ? 5 : 0,
                 height: 5,
-                decoration: BoxDecoration(color: activeColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: activeColor,
+                  shape: BoxShape.circle,
+                ),
               ),
             ],
           ),
@@ -868,7 +1056,12 @@ class _MainShellState extends State<MainShell> {
   }
 
   /// Raised round "+" button used for the Bill tab (create a bill / order).
-  Widget _buildCenterActionButton(int index, String label, bool isDark, {required VoidCallback onTap}) {
+  Widget _buildCenterActionButton(
+    int index,
+    String label,
+    bool isDark, {
+    required VoidCallback onTap,
+  }) {
     final isSelected = _currentIndex == index;
     const blue = Color(0xFF1E56E2);
     const blueDeep = Color(0xFF173BBF);
@@ -896,7 +1089,10 @@ class _MainShellState extends State<MainShell> {
                     end: Alignment.bottomRight,
                   ),
                   // White ring separates the button from the bar like the reference.
-                  border: Border.all(color: isDark ? const Color(0xFF0F172A) : Colors.white, width: 4),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                    width: 2,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: blue.withValues(alpha: isSelected ? 0.55 : 0.38),
@@ -908,7 +1104,11 @@ class _MainShellState extends State<MainShell> {
                 child: AnimatedRotation(
                   turns: isSelected ? 0.125 : 0,
                   duration: const Duration(milliseconds: 220),
-                  child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+                  child: const Icon(
+                    Icons.add_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
                 ),
               ),
             ),
@@ -918,13 +1118,22 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _buildEmergencyBroadcastBanner(BuildContext context, AppState appState, bool isDark) {
+  Widget _buildEmergencyBroadcastBanner(
+    BuildContext context,
+    AppState appState,
+    bool isDark,
+  ) {
     final bcast = appState.emergencyBroadcast!;
-    final type = (bcast['type'] ?? 'info').toString().toLowerCase();
+    // severity is the style the admin picked; `type` is a legacy mirror.
+    final type = (bcast['severity'] ?? bcast['type'] ?? 'info')
+        .toString()
+        .toLowerCase();
     final title = bcast['title']?.toString() ?? 'Platform Announcement';
     final message = bcast['message']?.toString() ?? '';
     final dismissible = bcast['dismissible'] != false;
     final actionText = bcast['actionText']?.toString();
+    final actionUrl = bcast['actionUrl']?.toString() ?? '';
+    final canOpenAction = actionUrl.startsWith('https://');
 
     Color bgColor;
     Color borderColor;
@@ -945,10 +1154,17 @@ class _MainShellState extends State<MainShell> {
         iconData = Icons.warning_amber_rounded;
         break;
       case 'festive':
+      case 'promo':
         bgColor = isDark ? const Color(0xFF4C1D95) : const Color(0xFFF5F3FF);
         borderColor = const Color(0xFF8B5CF6);
         textColor = isDark ? const Color(0xFFDDD6FE) : const Color(0xFF5B21B6);
         iconData = Icons.celebration_rounded;
+        break;
+      case 'success':
+        bgColor = isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
+        borderColor = const Color(0xFF10B981);
+        textColor = isDark ? const Color(0xFF6EE7B7) : const Color(0xFF065F46);
+        iconData = Icons.check_circle_rounded;
         break;
       default:
         bgColor = isDark ? const Color(0xFF1E3A8A) : const Color(0xFFEFF6FF);
@@ -997,21 +1213,29 @@ class _MainShellState extends State<MainShell> {
               ],
             ),
           ),
-          if (actionText != null && actionText.isNotEmpty) ...[
+          if (actionText != null && actionText.isNotEmpty && canOpenAction) ...[
             const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: borderColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: borderColor.withValues(alpha: 0.3)),
+            InkWell(
+              key: const ValueKey('broadcast_action'),
+              borderRadius: BorderRadius.circular(6),
+              onTap: () => launchUrl(
+                Uri.parse(actionUrl),
+                mode: LaunchMode.externalApplication,
               ),
-              child: Text(
-                actionText,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: textColor,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: borderColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: borderColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  actionText,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                  ),
                 ),
               ),
             ),

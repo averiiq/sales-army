@@ -478,15 +478,96 @@ class AppState extends ChangeNotifier {
   bool _isAnnouncementDismissed = false;
   bool get isAnnouncementDismissed => _isAnnouncementDismissed;
 
+  static const String _dismissedBroadcastKey = 'salesarmy_dismissed_broadcast';
+
+  /// Identifies one published banner: a re-sync of the same banner keeps it
+  /// dismissed; a newly published one (new updatedAt) shows again.
+  static String broadcastStamp(Map<String, dynamic> b) =>
+      '${b['updatedAt'] ?? ''}|${b['title'] ?? ''}|${b['message'] ?? ''}';
+
   void setEmergencyBroadcast(Map<String, dynamic>? broadcast) {
     _emergencyBroadcast = broadcast;
     _isAnnouncementDismissed = false;
     notifyListeners();
+    if (broadcast == null) return;
+    final stamp = broadcastStamp(broadcast);
+    SharedPreferences.getInstance().then((prefs) {
+      if (_emergencyBroadcast == null || broadcastStamp(_emergencyBroadcast!) != stamp) return;
+      if (prefs.getString(_dismissedBroadcastKey) == stamp && broadcast['dismissible'] != false) {
+        _isAnnouncementDismissed = true;
+        notifyListeners();
+      }
+    }).catchError((_) {});
   }
 
   void dismissAnnouncement() {
+    final b = _emergencyBroadcast;
+    if (b != null && b['dismissible'] == false) return; // admin made it mandatory
     _isAnnouncementDismissed = true;
     notifyListeners();
+    if (b != null) {
+      final stamp = broadcastStamp(b);
+      SharedPreferences.getInstance().then((prefs) => prefs.setString(_dismissedBroadcastKey, stamp)).catchError((_) => false);
+    }
+  }
+
+  /// Whether the admin banner should be shown to THIS user: it is live, not
+  /// dismissed, and aimed at this agency / plan / role.
+  bool get showBroadcastBanner {
+    final b = _emergencyBroadcast;
+    if (b == null || b['active'] != true || _isAnnouncementDismissed) return false;
+    return isTargetedToMe(b);
+  }
+
+  /// Admin targeting for banners and inbox messages. Accepts both the
+  /// broadcast setting (targetTenant / targetPlan / targetRole) and
+  /// notifications rows (tenant_id / target_role / target_uid / data.targetPlan).
+  /// Missing, empty or 'all' means everyone.
+  bool isTargetedToMe(Map<String, dynamic> m) {
+    bool open(Object? v) => v == null || v.toString().trim().isEmpty || v.toString().toLowerCase() == 'all';
+    final nested = m['data'] is Map ? Map<String, dynamic>.from(m['data'] as Map) : const <String, dynamic>{};
+    final myTenant = currentTenantId ?? _tenant.tenantId;
+
+    final tenant = m['targetTenant'] ?? m['tenant_id'];
+    if (!open(tenant) && tenant.toString() != myTenant) return false;
+
+    final uid = m['targetUid'] ?? m['target_uid'];
+    if (!open(uid) && uid.toString() != currentUid) return false;
+
+    final role = m['target_role'] ?? (m['targetRole'] != m['targetPlan'] ? m['targetRole'] : null);
+    if (!open(role) && role.toString() != (currentUserRole ?? '')) return false;
+
+    final plan = (m['targetPlan'] ?? nested['targetPlan'])?.toString().toLowerCase();
+    if (!open(plan)) {
+      final status = (_tenant.subscriptionStatus ?? '').toLowerCase();
+      final matches = plan == currentPlan.id.toLowerCase() ||
+          (plan == 'trial' && status == 'trial') ||
+          (plan == 'expired' && isSubscriptionExpired);
+      if (!matches) return false;
+    }
+    return true;
+  }
+
+  /// Loads recent admin messages from the cloud into the inbox (no popups),
+  /// so messages sent while the app was closed are not lost. Local read
+  /// state is kept.
+  Future<void> loadCloudNotifications() async {
+    final tid = currentTenantId ?? _tenant.tenantId;
+    if (tid.isEmpty) return;
+    final rows = await SupabaseService.instance.fetchNotifications(tid);
+    if (rows.isEmpty) return;
+    var added = false;
+    for (final row in rows) {
+      if (!isTargetedToMe(row)) continue;
+      final id = row['notification_id']?.toString() ?? row['id']?.toString();
+      if (id == null || id.isEmpty || _notifications.any((n) => n.id == id)) continue;
+      _notifications.add(NotificationModel.fromMap(row, id));
+      added = true;
+    }
+    if (!added) return;
+    _notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    notifyListeners();
+    _persistNotificationsLocally();
   }
 
   String _maintenanceMessage = 'SalesArmy is currently undergoing scheduled platform maintenance. Cloud sync is active.';
@@ -667,7 +748,9 @@ class AppState extends ChangeNotifier {
   void addPackagingUnit(String unit) => addProductUnit(unit);
 
   // 4. Coupons Management (Trial & Flat Discount Coupons)
-  final List<CouponModel> _coupons = List.from(CouponModel.defaultCoupons);
+  // No built-in codes: only coupons created in the admin panel are valid, and
+  // they are checked by the server when the owner taps Apply (applyCoupon).
+  final List<CouponModel> _coupons = [];
   List<CouponModel> get coupons => List.unmodifiable(_coupons);
   CouponModel? _appliedCoupon;
   CouponModel? get appliedCoupon => _appliedCoupon;
@@ -731,18 +814,38 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  bool applyCoupon(String code) {
-    final coupon = findCoupon(code);
-    if (coupon != null) {
-      _appliedCoupon = coupon;
+  /// Checks [code] with the server (same rules as the real checkout) for the
+  /// selected plan. Returns null when applied, otherwise the reason it can't be.
+  Future<String?> applyCoupon(String code, {required String planId, required bool yearly}) async {
+    final clean = code.trim().toUpperCase();
+    if (clean.isEmpty) return 'Enter a coupon code';
+    try {
+      final result = await PlatformApi.request('/api/checkout/coupon', body: {
+        'couponCode': clean,
+        'planId': planId,
+        'yearly': yearly,
+      });
+      final data = result['coupon'];
+      if (result['success'] != true || data is! Map) {
+        return result['error']?.toString() ?? 'Invalid coupon "$clean"';
+      }
+      _appliedCoupon = CouponModel.fromMap(Map<String, dynamic>.from(data));
       notifyListeners();
-      return true;
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst(RegExp(r'^(Bad state|Exception|PlatformApiException): '), '');
     }
-    return false;
   }
 
   void clearAppliedCoupon() {
     _appliedCoupon = null;
+    notifyListeners();
+  }
+
+  /// Tests only: stands in for a coupon the server confirmed via [applyCoupon].
+  @visibleForTesting
+  void setServerConfirmedCouponForTest(CouponModel coupon) {
+    _appliedCoupon = coupon;
     notifyListeners();
   }
 
@@ -2186,8 +2289,9 @@ class AppState extends ChangeNotifier {
 
     void processPricingData(Map<String, dynamic> data) {
       if (data['coupons'] is List) {
+        // The applied coupon was checked by the server, so it is kept here;
+        // the server checks it again at payment.
         _coupons..clear()..addAll((data['coupons'] as List).whereType<Map>().map((c) => CouponModel.fromMap(Map<String, dynamic>.from(c))));
-        if (_appliedCoupon != null && findCoupon(_appliedCoupon!.code) == null) _appliedCoupon = null;
       }
       if (data['subscriptionAddons'] is List) {
         _subscriptionAddons..clear()..addAll((data['subscriptionAddons'] as List).whereType<Map>().map((a) => SubscriptionAddonModel.fromMap(Map<String, dynamic>.from(a), a['id'].toString())));
@@ -3113,6 +3217,10 @@ class AppState extends ChangeNotifier {
     _loadCatalogLists();
     // A Razorpay payment finished while the app was closed still activates.
     reconcilePendingCheckout();
+    // Admin broadcasts: live subscription for this agency + messages missed
+    // while the app was closed.
+    NotificationService.instance.connectForTenant(this);
+    loadCloudNotifications();
     // Anti-Data-Loss Multi-Device Hydration: Immediately trigger full fetch from central cloud database
     syncAllFromCloud();
     notifyListeners();
@@ -3210,50 +3318,96 @@ class AppState extends ChangeNotifier {
             }
           }
 
+          await _loadSeenInCloud(tenantId);
+          final pendingShops = <ShopModel>[];
+          final pendingProducts = <ProductModel>[];
+          final pendingOrders = <OrderModel>[];
+          final pendingInvoices = <InvoiceModel>[];
+          final pendingPayments = <PaymentModel>[];
+
+          // Cloud lists are MERGED with this phone's records: anything that
+          // has never reached the cloud is kept and uploaded again, so a failed
+          // upload can never be wiped by a sync (or lost on reinstall later).
           final shopsData = await sb.fetchShops(tenantId);
-          if (shopsData.isNotEmpty) {
-            final loadedShops = shopsData.map((m) => ShopModel.fromMap(m, m['shop_id']?.toString() ?? '')).toList();
-            _shops.clear();
-            _shops.addAll(loadedShops);
-            _shopRepository?.replaceWith(loadedShops);
-            await _persistShopsLocally();
+          {
+            final cloud = shopsData.map((m) => ShopModel.fromMap(m, m['shop_id']?.toString() ?? '')).toList();
+            final merged = _mergeWithCloud<ShopModel>('shop', _shops, cloud, (x) => x.shopId, pendingShops);
+            if (merged != null) {
+              _shops
+                ..clear()
+                ..addAll(merged);
+              _shopRepository?.replaceWith(merged);
+              await _persistShopsLocally();
+            }
           }
           // Previously: fell back to _seedMockData() if cloud shops empty.
           // Removed — empty cloud now means empty on mobile too.
 
           final prodsData = await sb.fetchProducts(tenantId);
-          if (prodsData.isNotEmpty) {
-            final loadedProds = prodsData.map((m) => ProductModel.fromMap(m, m['product_id']?.toString() ?? '')).toList();
-            _products.clear();
-            _products.addAll(loadedProds);
-            _productRepository?.replaceWith(loadedProds);
-            await _persistProductsLocally();
+          {
+            final cloud = prodsData.map((m) => ProductModel.fromMap(m, m['product_id']?.toString() ?? '')).toList();
+            final merged = _mergeWithCloud<ProductModel>('product', _products, cloud, (x) => x.productId, pendingProducts);
+            if (merged != null) {
+              _products
+                ..clear()
+                ..addAll(merged);
+              _productRepository?.replaceWith(merged);
+              await _persistProductsLocally();
+            }
           }
           // Same note as shops above — no demo-product fallback for new tenants.
 
           final ordersData = await sb.fetchOrders(tenantId);
-          if (ordersData.isNotEmpty) {
-            final loadedOrders = ordersData.map((m) => OrderModel.fromMap(m, m['order_id']?.toString() ?? '')).toList();
-            _orders.clear();
-            _orders.addAll(loadedOrders);
-            _orderRepository?.replaceWith(loadedOrders);
-            await _persistOrdersLocally();
+          {
+            final cloud = ordersData.map((m) => OrderModel.fromMap(m, m['order_id']?.toString() ?? '')).toList();
+            final merged = _mergeWithCloud<OrderModel>('order', _orders, cloud, (x) => x.orderId, pendingOrders);
+            if (merged != null) {
+              _orders
+                ..clear()
+                ..addAll(merged);
+              _orderRepository?.replaceWith(merged);
+              await _persistOrdersLocally();
+            }
           }
 
           final invsData = await sb.fetchInvoices(tenantId);
-          if (invsData.isNotEmpty) {
-            final loadedInvoices = invsData.map((m) => InvoiceModel.fromMap(m, m['invoice_id']?.toString() ?? '')).toList();
-            _invoices.clear();
-            _invoices.addAll(loadedInvoices);
-            await _persistInvoicesLocally();
+          {
+            final cloud = invsData.map((m) => InvoiceModel.fromMap(m, m['invoice_id']?.toString() ?? '')).toList();
+            final merged = _mergeWithCloud<InvoiceModel>('invoice', _invoices, cloud, (x) => x.invoiceId, pendingInvoices);
+            if (merged != null) {
+              _invoices
+                ..clear()
+                ..addAll(merged);
+              await _persistInvoicesLocally();
+            }
           }
 
           final paymentsData = await sb.fetchPayments(tenantId);
-          if (paymentsData.isNotEmpty) {
-            final loadedPayments = paymentsData.map((m) => PaymentModel.fromMap(m, m['payment_id']?.toString() ?? '')).toList();
-            _payments.clear();
-            _payments.addAll(loadedPayments);
-            await _persistPaymentsLocally();
+          {
+            final cloud = paymentsData.map((m) => PaymentModel.fromMap(m, m['payment_id']?.toString() ?? '')).toList();
+            final merged = _mergeWithCloud<PaymentModel>('payment', _payments, cloud, (x) => x.paymentId, pendingPayments);
+            if (merged != null) {
+              _payments
+                ..clear()
+                ..addAll(merged);
+              await _persistPaymentsLocally();
+            }
+          }
+          await _saveSeenInCloud(tenantId);
+
+          // Upload everything that is not in the cloud yet (parents first).
+          final notUploaded = await _uploadPendingToCloud(
+            tenantId,
+            shops: pendingShops,
+            products: pendingProducts,
+            orders: pendingOrders,
+            invoices: pendingInvoices,
+            payments: pendingPayments,
+          );
+          if (notUploaded > 0) {
+            syncError ??= StateError(
+              '$notUploaded record(s) could not be saved to the cloud yet. They are safe on this phone and will be retried automatically.',
+            );
           }
 
           final ledgerData = await sb.fetchLedgerEntries(tenantId);
@@ -3315,6 +3469,130 @@ class AppState extends ChangeNotifier {
       _cloudSyncError = syncError == null ? null : AppError.message(syncError, action: 'refresh your data from the cloud');
       notifyListeners();
     }
+  }
+
+  // ── Cloud reconciliation: never lose records that failed to upload ──
+  //
+  // _seenInCloud remembers which records this phone has seen in the cloud
+  // ("kind:id"). At each sync:
+  //   * cloud record                         -> kept (cloud is authoritative)
+  //   * on phone, never seen in the cloud     -> NOT uploaded yet: kept + re-uploaded
+  //   * on phone, seen before, now gone       -> deleted on another device: dropped
+  // An empty cloud list never removes anything (it may be a network error).
+  final Set<String> _seenInCloud = {};
+  String? _seenInCloudTenant;
+
+  /// Per-record upload attempts that have not shown up in the cloud yet.
+  final Map<String, int> _uploadAttempts = {};
+
+  /// Records on this phone that are not in the cloud yet (after last sync).
+  int _pendingCloudUploads = 0;
+  int get pendingCloudUploads => _pendingCloudUploads;
+
+  String _seenInCloudKey(String tenantId) => 'salesarmy_seen_in_cloud_$tenantId';
+  String _uploadAttemptsKey(String tenantId) => 'salesarmy_upload_attempts_$tenantId';
+
+  Future<void> _loadSeenInCloud(String tenantId) async {
+    if (_seenInCloudTenant == tenantId) return;
+    _seenInCloud.clear();
+    _uploadAttempts.clear();
+    _seenInCloudTenant = tenantId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _seenInCloud.addAll(prefs.getStringList(_seenInCloudKey(tenantId)) ?? const []);
+      final raw = prefs.getString(_uploadAttemptsKey(tenantId));
+      if (raw != null) {
+        _uploadAttempts.addAll(Map<String, dynamic>.from(jsonDecode(raw) as Map).map((k, v) => MapEntry(k, (v as num).toInt())));
+      }
+    } catch (e) {
+      debugPrint('Load cloud reconciliation state: $e');
+    }
+  }
+
+  Future<void> _saveSeenInCloud(String tenantId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_seenInCloudKey(tenantId), _seenInCloud.toList());
+      await prefs.setString(_uploadAttemptsKey(tenantId), jsonEncode(_uploadAttempts));
+    } catch (e) {
+      debugPrint('Save cloud reconciliation state: $e');
+    }
+  }
+
+  /// Returns the merged list (cloud + not-yet-uploaded phone records), or
+  /// null when nothing changes. Fills [pending] with records to upload.
+  List<T>? _mergeWithCloud<T>(String kind, List<T> local, List<T> cloud, String Function(T) idOf, List<T> pending) {
+    final cloudIds = <String>{for (final c in cloud) idOf(c)};
+    final keepLocal = <T>[];
+    for (final item in local) {
+      final id = idOf(item);
+      if (id.isEmpty || cloudIds.contains(id)) continue;
+      // Seen in the cloud before: it was uploaded. If it is gone now it was
+      // deleted elsewhere (dropped below) — unless the cloud list is empty,
+      // which may be a network error; then the phone list is left untouched.
+      if (_seenInCloud.contains('$kind:$id')) continue;
+      keepLocal.add(item);
+      pending.add(item);
+    }
+    for (final id in cloudIds) {
+      _seenInCloud.add('$kind:$id');
+      _uploadAttempts.remove('$kind:$id');
+    }
+    if (cloud.isEmpty) return null; // keep this phone's list as it is
+    return [...keepLocal, ...cloud];
+  }
+
+  @visibleForTesting
+  List<T>? mergeWithCloudForTest<T>(String kind, List<T> local, List<T> cloud, String Function(T) idOf, List<T> pending) =>
+      _mergeWithCloud<T>(kind, local, cloud, idOf, pending);
+
+  @visibleForTesting
+  bool seenInCloudForTest(String key) => _seenInCloud.contains(key);
+
+  /// Uploads records that are not in the cloud yet, parents before children
+  /// (parties/products before orders, bills and payments). Returns how many
+  /// have now failed repeatedly (shown to the user).
+  Future<int> _uploadPendingToCloud(
+    String tenantId, {
+    required List<ShopModel> shops,
+    required List<ProductModel> products,
+    required List<OrderModel> orders,
+    required List<InvoiceModel> invoices,
+    required List<PaymentModel> payments,
+  }) async {
+    final sb = SupabaseService.instance;
+    _pendingCloudUploads = shops.length + products.length + orders.length + invoices.length + payments.length;
+    if (_pendingCloudUploads == 0) return 0;
+    debugPrint('Cloud reconcile: uploading $_pendingCloudUploads record(s) missing from the cloud');
+    var stuck = 0;
+    Future<void> attempt(String key, Future<void> Function() upload) async {
+      final tries = (_uploadAttempts[key] ?? 0) + 1;
+      _uploadAttempts[key] = tries;
+      if (tries > 2) stuck++; // still missing after earlier uploads
+      try {
+        await upload();
+      } catch (e) {
+        debugPrint('Cloud reconcile upload $key: $e');
+      }
+    }
+
+    for (final x in shops) {
+      await attempt('shop:${x.shopId}', () => sb.upsertShop(tenantId: tenantId, shopData: _shopToJson(x)));
+    }
+    for (final x in products) {
+      await attempt('product:${x.productId}', () => sb.upsertProduct(tenantId: tenantId, productData: _productToJson(x)));
+    }
+    for (final x in orders) {
+      await attempt('order:${x.orderId}', () => sb.insertOrder(tenantId: tenantId, orderData: x.toMap(), items: x.items.map((i) => i.toMap()).toList()));
+    }
+    for (final x in invoices) {
+      await attempt('invoice:${x.invoiceId}', () => sb.insertInvoice(tenantId: tenantId, invoiceData: x.toMap()));
+    }
+    for (final x in payments) {
+      await attempt('payment:${x.paymentId}', () => sb.insertPayment(tenantId: tenantId, paymentData: x.toMap()));
+    }
+    await _saveSeenInCloud(tenantId);
+    return stuck;
   }
 
   // ── Cloud sync status (shown on Home with a Retry button) ──
@@ -3455,6 +3733,16 @@ class AppState extends ChangeNotifier {
   @visibleForTesting
   void applyPlanSettingsForTest(Map<String, dynamic> data) {
     _applyPlanSettings(data);
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void updateTenantLocallyForTest({required String plan, String status = 'active', DateTime? endDate}) {
+    _tenant = _tenant.copyWith(
+      subscriptionPlanId: plan,
+      subscriptionStatus: status,
+      subscriptionEndDate: endDate ?? DateTime.now().add(const Duration(days: 30)),
+    );
     notifyListeners();
   }
 
@@ -4919,6 +5207,20 @@ class AppState extends ChangeNotifier {
     await _persistOrdersLocally();
     notifyListeners();
 
+    // Business Notification: Order creation
+    final shopMatches = _shops.where((s) => s.shopId == order.shopId);
+    final shopName = shopMatches.isNotEmpty ? shopMatches.first.shopName : 'Customer';
+    addNotification(
+      NotificationModel(
+        id: 'notif_ord_${order.orderId}_${DateTime.now().millisecondsSinceEpoch}',
+        type: 'order',
+        title: 'New Order Booked: #${order.orderId}',
+        message: 'Order #${order.orderId} of ₹${order.grandTotal.toStringAsFixed(0)} booked for $shopName (${order.items.length} items).',
+        createdAt: DateTime.now(),
+        isRead: false,
+      ),
+    );
+
     if (SupabaseService.instance.client != null) return;
     syncOrderToServerBridge(order);
 
@@ -5191,6 +5493,18 @@ class AppState extends ChangeNotifier {
             stockQuantity: updatedQty,
             updatedAt: DateTime.now(),
           );
+          if (updatedQty <= currentProd.lowStockAlertQty) {
+            addNotification(
+              NotificationModel(
+                id: 'notif_lowstock_${currentProd.productId}_${DateTime.now().millisecondsSinceEpoch}',
+                type: 'inventory',
+                title: 'Low Stock Alert: ${currentProd.name}',
+                message: '${currentProd.name} is low on stock ($updatedQty left, min: ${currentProd.lowStockAlertQty}).',
+                createdAt: DateTime.now(),
+                isRead: false,
+              ),
+            );
+          }
         }
       }
     }
@@ -5252,8 +5566,7 @@ class AppState extends ChangeNotifier {
     }
 
     // 3. Emit notification
-    _notifications.insert(
-      0,
+    addNotification(
       NotificationModel(
         id: 'notif_ret_${DateTime.now().millisecondsSinceEpoch}',
         type: 'inventory',
@@ -5444,6 +5757,18 @@ class AppState extends ChangeNotifier {
               stockQuantity: updatedQty,
             );
           }
+          if (updatedQty <= currentProd.lowStockAlertQty) {
+            addNotification(
+              NotificationModel(
+                id: 'notif_lowstock_${currentProd.productId}_${DateTime.now().millisecondsSinceEpoch}',
+                type: 'inventory',
+                title: 'Low Stock Alert: ${currentProd.name}',
+                message: '${currentProd.name} is running low ($updatedQty units left, alert threshold: ${currentProd.lowStockAlertQty}).',
+                createdAt: DateTime.now(),
+                isRead: false,
+              ),
+            );
+          }
         }
       }
 
@@ -5596,6 +5921,19 @@ class AppState extends ChangeNotifier {
         date: payment.date,
       );
       _ledgerEntries.insert(0, paymentLedgerEntry);
+
+      // Business Notification: Payment collection
+      final shopName = old.shopName;
+      addNotification(
+        NotificationModel(
+          id: 'notif_pay_${payment.paymentId}_${DateTime.now().millisecondsSinceEpoch}',
+          type: 'payment',
+          title: 'Payment Received: ₹${payment.amount.toStringAsFixed(0)}',
+          message: 'Received ₹${payment.amount.toStringAsFixed(0)} via ${payment.paymentMode} from $shopName. Outstanding dues: ₹${newOutstanding.toStringAsFixed(0)}.',
+          createdAt: DateTime.now(),
+          isRead: false,
+        ),
+      );
     }
 
     // 2. Liquid balance sync: update In-Hand Cash for cash collections, In-Account for UPI / online

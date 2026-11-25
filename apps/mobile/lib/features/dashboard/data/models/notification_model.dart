@@ -69,9 +69,10 @@ class NotificationModel {
       type: map['type'] as String? ?? 'system',
       title: map['title'] as String? ?? 'SalesArmy Notification',
       message: map['message'] as String? ?? (map['detail'] as String? ?? map['summary'] as String? ?? ''),
-      targetUid: map['targetUid'] as String?,
-      isRead: map['isRead'] as bool? ?? false,
-      createdAt: parseDate(map['createdAt']),
+      // Rows from the notifications table use snake_case column names.
+      targetUid: (map['targetUid'] ?? map['target_uid'])?.toString(),
+      isRead: (map['isRead'] ?? map['is_read']) as bool? ?? false,
+      createdAt: parseDate(map['createdAt'] ?? map['created_at'] ?? map['timestamp']),
     );
   }
 }

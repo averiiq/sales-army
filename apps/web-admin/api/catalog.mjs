@@ -221,6 +221,14 @@ export function normalizeCoupon(c) {
   const minAmount = num(c.minAmount ?? c.minOrderValue ?? 0, 'minimum order value');
   const expiry = str(c.expiryDate || c.validUntil || c.expiresAt, 30) || null;
   if (expiry && Number.isNaN(new Date(expiry).getTime())) fail('Invalid coupon expiry date');
+  const startDate = str(c.startDate || c.validFrom, 30) || null;
+  if (startDate && Number.isNaN(new Date(startDate).getTime())) fail('Invalid coupon start date');
+  if (startDate && expiry && couponDate(startDate, false) > couponDate(expiry, true)) fail('Coupon start date must be before its expiry date');
+  // Restrictions: empty planIds = every plan; billingCycle any | monthly | yearly.
+  const planIds = [...new Set((Array.isArray(c.planIds) ? c.planIds : []).map(v => str(v, 64)).filter(Boolean))];
+  if (planIds.some(id => !/^[A-Za-z0-9_\-]{1,64}$/.test(id))) fail('Invalid plan in coupon restriction');
+  const billingCycle = str(c.billingCycle || 'any', 10).toLowerCase();
+  if (!['any', 'monthly', 'yearly'].includes(billingCycle)) fail('Billing cycle must be any, monthly or yearly');
   const isActive = c.isPaused === true ? false : bool(c.isActive ?? c.active, true);
   return {
     id: str(c.id, 64) || code, code, type, value,
@@ -229,9 +237,26 @@ export function normalizeCoupon(c) {
     minAmount, minOrderValue: minAmount,
     maxUses: num(c.maxUses ?? c.limit ?? 100, 'maxUses', { min: 1, max: 1000000, integer: true }),
     expiryDate: expiry, validUntil: expiry,
+    startDate, planIds, billingCycle,
     isActive, isPaused: !isActive,
     createdAt: c.createdAt || new Date().toISOString(),
   };
+}
+
+/** Coupon dates are calendar days in IST: a coupon starts at 00:00 and ends at 23:59:59. */
+export function couponDate(value, endOfDay) {
+  const v = String(value);
+  return new Date(v.length <= 10 ? `${v}T${endOfDay ? '23:59:59' : '00:00:00'}+05:30` : v);
+}
+
+/** paused | scheduled | expired | used_up | active — shown in the admin console. */
+export function couponStatus(c, usedCount = 0, now = new Date()) {
+  if (!c || c.isActive === false || c.isPaused === true) return 'paused';
+  if (c.startDate && couponDate(c.startDate, false) > now) return 'scheduled';
+  const expiry = c.expiryDate || c.validUntil;
+  if (expiry && couponDate(expiry, true) <= now) return 'expired';
+  if (Number(c.maxUses) > 0 && usedCount >= Number(c.maxUses)) return 'used_up';
+  return 'active';
 }
 
 export function normalizeCoupons(coupons) {
@@ -252,6 +277,10 @@ export function normalizeSettings(input, current = {}) {
     else if (key === 'allowTestPlanActivation') out[key] = input[key] === true || input[key] === 'true';
     else out[key] = str(input[key], 200);
   }
+  // Maintenance lives ONLY in remote_config.maintenance. A stale copy here was
+  // re-saved as false on every settings save and switched phones out of
+  // maintenance (the app reads both), so it is dropped.
+  delete out.maintenanceMode;
   return out;
 }
 
@@ -290,6 +319,9 @@ export function normalizeRemoteConfig(updates, current = DEFAULT_REMOTE_CONFIG) 
   return next;
 }
 
+/** Banner / notification styles offered by the admin console. */
+export const BROADCAST_SEVERITIES = ['info', 'warning', 'critical', 'success', 'festive', 'promo'];
+
 export function normalizeBroadcast(b, current = DEFAULT_BROADCAST) {
   if (!b || typeof b !== 'object' || Array.isArray(b)) fail('Invalid broadcast');
   const severity = str(b.severity ?? b.type ?? current.severity ?? 'info', 20).toLowerCase();
@@ -298,7 +330,7 @@ export function normalizeBroadcast(b, current = DEFAULT_BROADCAST) {
     active: bool(b.active, current.active),
     title: b.title !== undefined ? str(b.title, 120) : current.title,
     message: b.message !== undefined ? str(b.message, 1000) : current.message,
-    severity: ['info', 'warning', 'critical', 'success', 'promo'].includes(severity) ? severity : 'info',
+    severity: BROADCAST_SEVERITIES.includes(severity) ? severity : 'info',
     dismissible: bool(b.dismissible, current.dismissible ?? true),
     actionText: b.actionText !== undefined ? str(b.actionText, 40) : current.actionText || '',
     actionUrl: b.actionUrl !== undefined ? str(b.actionUrl, 300) : current.actionUrl || '',
@@ -307,6 +339,9 @@ export function normalizeBroadcast(b, current = DEFAULT_BROADCAST) {
     updatedAt: new Date().toISOString(),
   };
   if (out.actionUrl && !/^(https:\/\/|\/)/i.test(out.actionUrl)) fail('Broadcast action URL must be https:// or an in-app path');
+  // The app styles the banner from severity; keep the legacy `type` in step
+  // so an old value never overrides a newly published style.
+  out.type = out.severity;
   return out;
 }
 

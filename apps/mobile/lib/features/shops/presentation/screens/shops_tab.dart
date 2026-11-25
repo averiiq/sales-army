@@ -313,14 +313,15 @@ class _ShopsTabState extends State<ShopsTab> {
 
       // Circular Royal Blue FAB (Owner & Field Sales Only)
       floatingActionButton: (appState.isOwnerRole || appState.isFieldSalesRole)
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               heroTag: 'fab_shops_tab',
               backgroundColor: const Color(0xFF1E56E2),
               foregroundColor: Colors.white,
               elevation: 4,
-              shape: const CircleBorder(),
+              shape: const StadiumBorder(),
               onPressed: () => showAddShopDialog(context),
-              child: const Icon(Icons.add, size: 28),
+              icon: const Icon(Icons.add_rounded, size: 22),
+              label: const Text('Add', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             )
           : null,
     );

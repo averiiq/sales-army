@@ -128,13 +128,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('18.0% Standard Goods & Services Tax'), findsOneWidget);
+      expect(find.text('18% Standard Goods & Services Tax'), findsOneWidget);
 
       // Add a custom rate 40% via AppState
       appState.addGstRate(40.0);
       await tester.pumpAndSettle();
       expect(appState.gstRates, contains(40.0));
-      expect(find.text('40.0% Standard Goods & Services Tax'), findsOneWidget);
+      expect(find.text('40% Standard Goods & Services Tax'), findsOneWidget);
 
       // Remove rate
       appState.removeGstRate(40.0);
@@ -306,10 +306,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Collect Payment'), findsWidgets);
+      expect(find.text('Payment'), findsWidgets);
 
-      // Tap first Collect Payment
-      await tester.tap(find.text('Collect Payment').first);
+      // Tap first Payment button (renamed from 'Collect Payment')
+      await tester.tap(find.text('Payment').first);
       await tester.pumpAndSettle();
 
       expect(find.byType(CollectPaymentDialog), findsOneWidget);

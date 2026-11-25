@@ -29,7 +29,9 @@ export function createFakeSupabase() {
   }
   function matches(row, filters) {
     return filters.every(([col, op, val]) => {
-      const cell = row[col];
+      // JSON field filter, e.g. quote->>couponCode
+      const [jsonCol, jsonKey] = col.split('->>');
+      const cell = jsonKey !== undefined ? row[jsonCol]?.[jsonKey] : row[col];
       if (op === 'eq') return String(cell) === val;
       if (op === 'neq') return String(cell) !== val;
       if (op === 'in') return val.includes(String(cell));
@@ -41,7 +43,8 @@ export function createFakeSupabase() {
   function parseQuery(search) {
     const filters = []; let order = null; let limit = null;
     for (const part of search.replace(/^\?/, '').split('&').filter(Boolean)) {
-      const [k, v = ''] = part.split(/=(.*)/s);
+      const [rawKey, v = ''] = part.split(/=(.*)/s);
+      const k = decodeURIComponent(rawKey);
       if (k === 'select' || k === 'on_conflict') continue;
       if (k === 'order') { order = decodeURIComponent(v).split('.')[0]; continue; }
       if (k === 'limit') { limit = Number(v); continue; }

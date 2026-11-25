@@ -1,6 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:salesarmy/core/services/app_state.dart';
 import 'package:salesarmy/core/services/supabase_service.dart';
 import 'package:salesarmy/features/dashboard/data/models/notification_model.dart';
@@ -17,7 +20,8 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 /// 4. Automated Business Triggers (Orders, Collections, Low Stock, Khata Dues)
 class NotificationService {
   static NotificationService? _instance;
-  static NotificationService get instance => _instance ??= NotificationService._();
+  static NotificationService get instance =>
+      _instance ??= NotificationService._();
 
   NotificationService._();
 
@@ -27,11 +31,75 @@ class NotificationService {
   bool _initialized = false;
   bool get isInitialized => _initialized;
 
-  /// Initialize notification listeners and tie to AppState
+  /// Agency the realtime subscription currently listens for.
+  String? _subscribedTenantId;
+
+  /// Initialize notification listeners and tie to AppState. Called at app
+  /// start, usually before anyone has signed in — [connectForTenant] then
+  /// subscribes once the agency is known.
   void initialize(AppState appState) {
     if (_initialized) return;
     _initialized = true;
     _appState = appState;
+    _setupSupabaseRealtime(appState);
+    requestPermissions();
+  }
+
+  /// Request runtime push notification permissions on supported platforms (Android 13+)
+  Future<void> requestPermissions() async {
+    try {
+      final status = await Permission.notification.status;
+      if (status.isDenied) {
+        await Permission.notification.request();
+      }
+    } catch (e) {
+      debugPrint('NotificationService permission request note: $e');
+    }
+  }
+
+  /// Determines whether a notification type is allowed based on user preferences.
+  Future<bool> _shouldShowForType(String type) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      switch (type.toLowerCase()) {
+        case 'order':
+          return prefs.getBool('salesarmy_pref_notif_order') ?? true;
+        case 'inventory':
+          return prefs.getBool('salesarmy_pref_notif_inventory') ?? true;
+        case 'payment':
+        case 'payment_due':
+          return prefs.getBool('salesarmy_pref_notif_payment') ?? true;
+        case 'sync':
+        case 'cloud_sync':
+          return prefs.getBool('salesarmy_pref_notif_cloud_sync') ?? true;
+        case 'broadcast':
+        case 'announcement':
+        case 'system':
+        default:
+          return true; // Critical broadcasts are always delivered
+      }
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Checks if sound & vibration alerts are enabled in preferences.
+  Future<bool> _isSoundVibrationEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('salesarmy_pref_notif_sound_vibration') ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// (Re)subscribes to admin messages for the signed-in agency. Safe to call
+  /// repeatedly; does nothing if already listening for this agency.
+  void connectForTenant(AppState appState) {
+    _appState = appState;
+    _initialized = true;
+    final tenantId = appState.currentTenantId ?? appState.tenant.tenantId;
+    if (tenantId.isEmpty || tenantId == _subscribedTenantId) return;
     _setupSupabaseRealtime(appState);
   }
 
@@ -43,11 +111,13 @@ class NotificationService {
     _currentBannerEntry = null;
     _appState = null;
     _initialized = false;
+    _subscribedTenantId = null;
   }
 
   void _setupSupabaseRealtime(AppState appState) {
     final tenantId = appState.currentTenantId ?? appState.tenant.tenantId;
     if (tenantId.isEmpty) return;
+    _subscribedTenantId = tenantId;
 
     try {
       SupabaseService.instance.subscribeToNotifications(
@@ -55,21 +125,13 @@ class NotificationService {
         onNotificationReceived: (data) {
           final notif = NotificationModel.fromMap(
             data,
-            data['notification_id']?.toString() ?? data['id']?.toString() ?? 'notif_${DateTime.now().millisecondsSinceEpoch}',
+            data['notification_id']?.toString() ??
+                data['id']?.toString() ??
+                'notif_${DateTime.now().millisecondsSinceEpoch}',
           );
 
-          // Check if targeting matches current user or role
-          final targetUid = notif.targetUid;
-          final targetRole = data['target_role']?.toString();
-          final userUid = appState.currentUid;
-          final userRole = appState.currentUserRole;
-
-          if (targetUid != null && targetUid.isNotEmpty && targetUid != userUid && targetUid != 'all') {
-            return; // Not targeted to this user
-          }
-          if (targetRole != null && targetRole.isNotEmpty && targetRole != 'all' && targetRole != userRole) {
-            return; // Not targeted to this role
-          }
+          // Only messages for this agency / user / role / plan.
+          if (!appState.isTargetedToMe(data)) return;
 
           // Add to local state & show popup
           appState.receiveRemoteNotification(notif);
@@ -81,8 +143,11 @@ class NotificationService {
   }
 
   /// Displays an interactive In-App Notification Popup Banner sliding from top
-  void showInAppPopup(NotificationModel notification) {
+  Future<void> showInAppPopup(NotificationModel notification) async {
     try {
+      final allowed = await _shouldShowForType(notification.type);
+      if (!allowed) return;
+
       final navState = rootNavigatorKey.currentState;
       final overlay = navState?.overlay;
       if (overlay == null) return;
@@ -90,7 +155,13 @@ class NotificationService {
       // Remove existing banner if any
       _dismissCurrentBanner();
 
-      HapticFeedback.mediumImpact();
+      final soundVibration = await _isSoundVibrationEnabled();
+      if (soundVibration) {
+        try {
+          HapticFeedback.mediumImpact();
+          SystemSound.play(SystemSoundType.alert);
+        } catch (_) {}
+      }
 
       _currentBannerEntry = OverlayEntry(
         builder: (context) {
@@ -103,7 +174,10 @@ class NotificationService {
               _dismissCurrentBanner();
               final currentContext = rootNavigatorKey.currentContext;
               if (currentContext != null) {
-                NotificationCenterModal.show(currentContext);
+                NotificationCenterModal.show(
+                  currentContext,
+                  initialNotificationId: notification.id,
+                );
               }
             },
           );
@@ -118,7 +192,9 @@ class NotificationService {
         _dismissCurrentBanner();
       });
     } catch (e) {
-      debugPrint('NotificationService showInAppPopup skipped in headless/test mode: $e');
+      debugPrint(
+        'NotificationService showInAppPopup skipped in headless/test mode: $e',
+      );
     }
   }
 
@@ -153,7 +229,8 @@ class _InAppBannerWidget extends StatefulWidget {
   State<_InAppBannerWidget> createState() => _InAppBannerWidgetState();
 }
 
-class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTickerProviderStateMixin {
+class _InAppBannerWidgetState extends State<_InAppBannerWidget>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<Offset> _offsetAnim;
   late Animation<double> _fadeAnim;
@@ -166,18 +243,12 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
       duration: const Duration(milliseconds: 320),
     );
 
-    _offsetAnim = Tween<Offset>(
-      begin: const Offset(0, -1.0),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOutBack,
-    ));
+    _offsetAnim = Tween<Offset>(begin: const Offset(0, -1.0), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
+        );
 
-    _fadeAnim = CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOut,
-    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
 
     _animController.forward();
   }
@@ -232,16 +303,26 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
   Color _getTypeBg(String type, bool isDark) {
     switch (type.toLowerCase()) {
       case 'order':
-        return isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.4) : const Color(0xFFEFF6FF);
+        return isDark
+            ? const Color(0xFF1E3A8A).withValues(alpha: 0.4)
+            : const Color(0xFFEFF6FF);
       case 'payment':
-        return isDark ? const Color(0xFF064E3B).withValues(alpha: 0.4) : const Color(0xFFECFDF5);
+        return isDark
+            ? const Color(0xFF064E3B).withValues(alpha: 0.4)
+            : const Color(0xFFECFDF5);
       case 'payment_due':
-        return isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.4) : const Color(0xFFFEF2F2);
+        return isDark
+            ? const Color(0xFF7F1D1D).withValues(alpha: 0.4)
+            : const Color(0xFFFEF2F2);
       case 'inventory':
-        return isDark ? const Color(0xFF78350F).withValues(alpha: 0.4) : const Color(0xFFFFFBEB);
+        return isDark
+            ? const Color(0xFF78350F).withValues(alpha: 0.4)
+            : const Color(0xFFFFFBEB);
       case 'broadcast':
       case 'announcement':
-        return isDark ? const Color(0xFF581C87).withValues(alpha: 0.4) : const Color(0xFFF5F3FF);
+        return isDark
+            ? const Color(0xFF581C87).withValues(alpha: 0.4)
+            : const Color(0xFFF5F3FF);
       default:
         return isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
     }
@@ -273,7 +354,10 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
                 onTap: widget.onTap,
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF1E293B) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
@@ -329,7 +413,9 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
                                     style: TextStyle(
                                       fontSize: 13.5,
                                       fontWeight: FontWeight.w800,
-                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
                                       letterSpacing: -0.2,
                                     ),
                                     maxLines: 1,
@@ -337,9 +423,14 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                                    color: isDark
+                                        ? const Color(0xFF0F172A)
+                                        : const Color(0xFFF1F5F9),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -347,7 +438,9 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
                                     style: TextStyle(
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.w600,
-                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                      color: isDark
+                                          ? const Color(0xFF94A3B8)
+                                          : const Color(0xFF64748B),
                                     ),
                                   ),
                                 ),
@@ -358,7 +451,9 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
                               notif.message,
                               style: TextStyle(
                                 fontSize: 11.5,
-                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                                color: isDark
+                                    ? const Color(0xFFCBD5E1)
+                                    : const Color(0xFF475569),
                                 height: 1.25,
                               ),
                               maxLines: 2,
@@ -370,9 +465,14 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
                       const SizedBox(width: 8),
                       // View Pill Action
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
-                          color: typeColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                          color: typeColor.withValues(
+                            alpha: isDark ? 0.25 : 0.12,
+                          ),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: typeColor.withValues(alpha: 0.4),
@@ -398,7 +498,9 @@ class _InAppBannerWidgetState extends State<_InAppBannerWidget> with SingleTicke
                           child: Icon(
                             Icons.close_rounded,
                             size: 16,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B),
                           ),
                         ),
                       ),

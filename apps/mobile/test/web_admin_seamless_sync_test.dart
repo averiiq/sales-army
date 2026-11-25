@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salesarmy/core/services/app_state.dart';
+import 'package:salesarmy/features/admin/data/models/coupon_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,56 +12,30 @@ void main() {
       appState = AppState();
     });
 
-    test('1. Default coupons contain all Web Admin shared coupon codes', () {
-      final sharedCodes = [
-        'TRIAL30',
-        'TRIAL14',
-        'FLAT100',
-        'SAVE200',
-        'WELCOME50',
-        'FESTIVE25',
-        'FREE100',
-        'DEMO1MONTH',
-        'FREE1WEEK',
-        'DEMO1DAY',
-        'SAVE50',
-      ];
-
-      for (final code in sharedCodes) {
-        final coupon = appState.findCoupon(code);
-        expect(coupon, isNotNull, reason: 'Coupon code $code should be in defaultCoupons and valid');
-        expect(coupon!.isValid, isTrue, reason: 'Coupon $code should be active and valid');
+    test('1. The app has no built-in coupon codes (only admin-panel coupons, checked by the server)', () {
+      for (final code in ['TRIAL30', 'TRIAL14', 'FLAT100', 'SAVE200', 'WELCOME50', 'FESTIVE25', 'FREE100', 'DEMO1MONTH', 'FREE1WEEK', 'DEMO1DAY', 'SAVE50']) {
+        expect(appState.findCoupon(code), isNull, reason: 'Built-in code $code must not exist any more');
       }
+      expect(appState.coupons, isEmpty);
     });
 
-    test('2. Applying Web Admin coupons updates appliedCoupon and computes accurate discounts', () {
-      // Test TRIAL30 (100% off trial)
-      expect(appState.applyCoupon('TRIAL30'), isTrue);
-      expect(appState.appliedCoupon?.code, 'TRIAL30');
-      expect(appState.appliedCoupon?.calculateDiscount(899.0), 899.0);
-      expect(appState.appliedCoupon?.trialDays, 30);
+    test('2. Coupon discounts are computed correctly for each coupon type', () async {
+      // Server-confirmed coupons arrive as maps (same shape as /api/checkout/coupon)
+      final trial = CouponModel.fromMap({'code': 'promo70', 'type': 'trial', 'value': 30, 'title': '30 days'});
+      expect(trial.code, 'PROMO70');
+      expect(trial.calculateDiscount(899.0), 899.0);
+      expect(trial.trialDays, 30);
+      final flat = CouponModel.fromMap({'code': 'FLAT100', 'type': 'flat', 'value': 100, 'minAmount': 300});
+      expect(flat.calculateDiscount(499.0), 100.0);
+      expect(flat.calculateDiscount(299.0), 0.0, reason: 'below the minimum order value');
+      final half = CouponModel.fromMap({'code': 'HALF', 'type': 'percentage', 'value': 50});
+      expect(half.calculateDiscount(899.0), 449.5);
 
-      // Test FLAT100
-      expect(appState.applyCoupon('FLAT100'), isTrue);
-      expect(appState.appliedCoupon?.code, 'FLAT100');
-      expect(appState.appliedCoupon?.calculateDiscount(499.0), 100.0);
+      // Without a signed-in session the server cannot confirm a code, so nothing is applied
+      final error = await appState.applyCoupon('PROMO70', planId: 'startup', yearly: false);
+      expect(error, isNotNull);
+      expect(appState.appliedCoupon, isNull);
 
-      // Test SAVE200
-      expect(appState.applyCoupon('SAVE200'), isTrue);
-      expect(appState.appliedCoupon?.code, 'SAVE200');
-      expect(appState.appliedCoupon?.calculateDiscount(1299.0), 200.0);
-
-      // Test WELCOME50 (50% off)
-      expect(appState.applyCoupon('WELCOME50'), isTrue);
-      expect(appState.appliedCoupon?.code, 'WELCOME50');
-      expect(appState.appliedCoupon?.calculateDiscount(899.0), 449.5);
-
-      // Test FREE100 (100% fee waiver)
-      expect(appState.applyCoupon('FREE100'), isTrue);
-      expect(appState.appliedCoupon?.code, 'FREE100');
-      expect(appState.appliedCoupon?.calculateDiscount(3999.0), 3999.0);
-
-      // Test Clear Applied Coupon
       appState.clearAppliedCoupon();
       expect(appState.appliedCoupon, isNull);
     });

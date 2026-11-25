@@ -69,6 +69,7 @@ class _SubscriptionCheckoutScreenState extends State<SubscriptionCheckoutScreen>
   bool _isProcessingPayment = false;
 
   final _couponController = TextEditingController();
+  bool _applyingCoupon = false;
   final _recipientNameCtrl = TextEditingController();
   final _recipientPhoneCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
@@ -1415,19 +1416,22 @@ class _SubscriptionCheckoutScreenState extends State<SubscriptionCheckoutScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () {
+                onPressed: _applyingCoupon ? null : () async {
                   final code = _couponController.text.trim();
                   if (code.isEmpty) return;
-                  final ok = appState.applyCoupon(code);
-                  if (ok) {
+                  setState(() => _applyingCoupon = true);
+                  final error = await appState.applyCoupon(code, planId: _selectedPlan.id, yearly: _isYearly);
+                  if (!mounted) return;
+                  setState(() => _applyingCoupon = false);
+                  if (error == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Coupon "$code" applied!'), backgroundColor: const Color(0xFF059669)),
+                      SnackBar(content: Text('Coupon "${code.toUpperCase()}" applied!'), backgroundColor: const Color(0xFF059669)),
                     );
                   } else {
-                    showAppError(context, 'Invalid coupon "$code"');
+                    showAppError(context, error);
                   }
                 },
-                child: const Text('Apply', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                child: Text(_applyingCoupon ? 'Checking…' : 'Apply', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
               ),
             ],
           ),

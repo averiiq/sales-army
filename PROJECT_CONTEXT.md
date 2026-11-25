@@ -726,3 +726,4 @@ Cross-referencing the 27 operational requirements defined in `docs/CLIENT_MEETIN
 
 
 claude --resume 4f8be6c4-7306-4c0f-a82f-06efaab439d4
+claude --resume 4f8be6c4-7306-4c0f-a82f-06efaab439d4

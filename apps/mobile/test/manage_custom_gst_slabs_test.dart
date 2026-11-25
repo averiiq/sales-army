@@ -146,7 +146,9 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final appState = AppState();
+      final appState = AppState()
+        // Custom tax slabs are an Enterprise feature.
+        ..updateTenantLocallyForTest(plan: 'enterprise');
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AppState>.value(
@@ -165,7 +167,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify Popup Header
-      expect(find.text('Add Custom GST Tax Slab'), findsOneWidget);
+      expect(find.text('Add GST Slab'), findsOneWidget);
 
       // Verify that extra sliders, preset chips, and tax preview cards are removed
       expect(find.byType(Slider), findsNothing);
@@ -201,7 +203,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify modal dismissed and new slab appears in list
-      expect(find.text('Add Custom GST Tax Slab'), findsNothing);
+      expect(find.text('Add GST Slab'), findsNothing);
       expect(find.textContaining('Packaged Staples'), findsWidgets);
     });
   });

@@ -161,9 +161,9 @@ test('coupons are normalised so checkout enforces expiry and minimum amount', as
   assert.equal(c.expiryDate, '2020-01-01');
   assert.equal(c.minAmount, 500);
   const catalog = { plans: { tiers: [{ id: 'startup', name: 'Startup', monthlyPrice: 399, yearlyPrice: 3828 }] }, coupons: [c] };
-  assert.throws(() => quoteCheckout(catalog, { planId: 'startup', couponCode: 'OLD10' }), /Coupon is unavailable/);
+  assert.throws(() => quoteCheckout(catalog, { planId: 'startup', couponCode: 'OLD10' }), /Coupon ".*" is not valid/);
   const big = normalizeCoupon({ code: 'BIG', type: 'flat', value: 50, minOrderValue: 1000 });
-  assert.throws(() => quoteCheckout({ ...catalog, coupons: [big] }, { planId: 'startup', couponCode: 'BIG' }), /Coupon is unavailable/);
+  assert.throws(() => quoteCheckout({ ...catalog, coupons: [big] }, { planId: 'startup', couponCode: 'BIG' }), /Coupon ".*" is not valid/);
   const q = quoteCheckout(catalog, { planId: 'startup' });
   assert.equal(q.amount, Math.round(39900 * 1.18));
 });

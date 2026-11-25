@@ -73,56 +73,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return AppFormatters.date(dt);
   }
 
-  void _triggerTestNotification(AppState appState) {
-    HapticFeedback.mediumImpact();
-    final testPresets = [
-      NotificationModel(
-        id: 'notif_test_${DateTime.now().millisecondsSinceEpoch}',
-        type: 'order',
-        title: 'New Order Received',
-        message: 'Order #ORD-8924 placed by Balaji Traders for ₹14,850. Ready for dispatch.',
-        createdAt: DateTime.now(),
-        isRead: false,
-      ),
-      NotificationModel(
-        id: 'notif_test_${DateTime.now().millisecondsSinceEpoch + 1}',
-        type: 'inventory',
-        title: 'Low Stock Alert',
-        message: 'Parle-G 250g is critically low (only 4 units left in warehouse). Reorder recommended.',
-        createdAt: DateTime.now(),
-        isRead: false,
-      ),
-      NotificationModel(
-        id: 'notif_test_${DateTime.now().millisecondsSinceEpoch + 2}',
-        type: 'payment',
-        title: 'Payment Received',
-        message: '₹22,000 received via UPI from Laxmi General Store. Bank balance updated.',
-        createdAt: DateTime.now(),
-        isRead: false,
-      ),
-      NotificationModel(
-        id: 'notif_test_${DateTime.now().millisecondsSinceEpoch + 3}',
-        type: 'payment_due',
-        title: 'Payment Due Overdue',
-        message: 'Invoice #INV-4412 for Sharma Kirana Store (₹8,400) is past due by 5 days.',
-        createdAt: DateTime.now(),
-        isRead: false,
-      ),
-    ];
-
-    // Pick one sequentially or based on time
-    final nextPreset = testPresets[DateTime.now().second % testPresets.length];
-    appState.addNotification(nextPreset);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Test alert generated: "${nextPreset.title}"'),
-        backgroundColor: const Color(0xFF1E56E2),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   void _confirmClearAll(BuildContext context, AppState appState) {
     final isDark = appState.isDarkMode;
     showDialog(
@@ -549,8 +499,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 );
               } else if (val == 'clear_all') {
                 _confirmClearAll(context, appState);
-              } else if (val == 'test_notification') {
-                _triggerTestNotification(appState);
               }
             },
             itemBuilder: (ctx) => [
@@ -562,16 +510,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     const Icon(Icons.done_all_rounded, size: 18, color: Color(0xFF1E56E2)),
                     const SizedBox(width: 10),
                     Text('Mark All as Read', style: TextStyle(fontSize: 13, color: isDark ? Colors.white : const Color(0xFF0F172A))),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'test_notification',
-                child: Row(
-                  children: [
-                    const Icon(Icons.add_alert_rounded, size: 18, color: Color(0xFFD97706)),
-                    const SizedBox(width: 10),
-                    Text('Send Test Alert', style: TextStyle(fontSize: 13, color: isDark ? Colors.white : const Color(0xFF0F172A))),
                   ],
                 ),
               ),
@@ -737,18 +675,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: () => _triggerTestNotification(appState),
-                            icon: const Icon(Icons.add_alert_rounded, size: 16, color: Colors.white),
-                            label: const Text('Send Test Alert', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1E56E2),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                         ],
@@ -987,37 +913,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         child: SafeArea(
           top: false,
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _triggerTestNotification(appState),
-                  icon: const Icon(Icons.add_alert_rounded, size: 16),
-                  label: const Text('Send Test Alert', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF1E56E2),
-                    side: const BorderSide(color: Color(0xFF1E56E2)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: unreadCount > 0 ? () => appState.markAllNotificationsAsRead() : null,
+              icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
+              label: const Text('Mark All Read', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E56E2),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: unreadCount > 0 ? () => appState.markAllNotificationsAsRead() : null,
-                  icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
-                  label: const Text('Mark All Read', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E56E2),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

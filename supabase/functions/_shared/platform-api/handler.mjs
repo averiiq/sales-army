@@ -16,9 +16,9 @@ import {
   ROLES, STAFF_ROLES, TENANT_STATUSES, ORDER_STATUSES, HARDWARE_STATUSES, canonicalRole, tierFor, signupTrial, CAPABILITIES,
   DEFAULT_TIERS, DEFAULT_PRINTERS, DEFAULT_ADDONS, DEFAULT_REMOTE_CONFIG, DEFAULT_BROADCAST,
   normalizePlans, normalizePrinter, normalizeAddon, normalizeCoupon, normalizeCoupons,
-  normalizeSettings, normalizeRemoteConfig, normalizeBroadcast,
+  normalizeSettings, normalizeRemoteConfig, normalizeBroadcast, BROADCAST_SEVERITIES, couponStatus,
 } from './catalog.mjs';
-import { createCheckoutService, createRazorpay } from './checkout.mjs';
+import { createCheckoutService, createRazorpay, quoteCheckout } from './checkout.mjs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG_RE = /^[A-Za-z0-9_\-]{1,64}$/;
@@ -254,6 +254,31 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     };
   }
 
+  // Usage activity (client spec §2): an agency is "Active" when any of its users
+  // signed in, or it created an order or a bill, within the last 30 days.
+  // Returns { [tenant_id]: latest activity ISO time inside that window }.
+  const ACTIVE_WINDOW_DAYS = 30;
+  async function loadTenantActivity() {
+    const since = enc(new Date(Date.now() - ACTIVE_WINDOW_DAYS * 86400000).toISOString());
+    const [logins, orders, bills] = await Promise.all([
+      db().select('profiles', `last_login_at=gte.${since}&select=tenant_id,last_login_at`).catch(() => []),
+      db().select('orders', `order_date=gte.${since}&select=tenant_id,order_date`).catch(() => []),
+      db().select('invoices', `created_at=gte.${since}&select=tenant_id,created_at`).catch(() => []),
+    ]);
+    const latest = {};
+    const note = (tenantId, at) => {
+      if (!tenantId || !at) return;
+      if (!latest[tenantId] || new Date(at) > new Date(latest[tenantId])) latest[tenantId] = at;
+    };
+    logins.forEach(p => note(p.tenant_id, p.last_login_at));
+    orders.forEach(o => note(o.tenant_id, o.order_date));
+    bills.forEach(i => note(i.tenant_id, i.created_at));
+    return latest;
+  }
+  function withActivity(mapped, activity) {
+    return mapped.map(t => ({ ...t, lastActiveAt: activity[t.tenantId] || null, usageActive: Boolean(activity[t.tenantId]) }));
+  }
+
   async function loadRetailOrders(limit = 200, tenantId = null) {
     const filter = tenantId ? `tenant_id=eq.${enc(tenantId)}&` : '';
     const orders = await db().select('orders', `${filter}select=*&order=order_date.desc&limit=${limit}`);
@@ -265,7 +290,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const inList = arr => `(${arr.map(v => `"${String(v).replace(/"/g, '')}"`).join(',')})`;
     const [items, shops, staff, invoices, tenants] = await Promise.all([
       db().select('order_items', `order_id=in.${enc(inList(ids))}&select=*`),
-      shopIds.length ? db().select('shops', `tenant_id=in.${enc(inList(tenantIds))}&shop_id=in.${enc(inList(shopIds))}&select=tenant_id,shop_id,shop_name,owner_name,phone,address`) : [],
+      shopIds.length ? db().select('shops', `tenant_id=in.${enc(inList(tenantIds))}&shop_id=in.${enc(inList(shopIds))}&select=tenant_id,shop_id,shop_name,owner_name,phone,address,city,state`) : [],
       staffIds.length ? db().select('profiles', `id=in.${enc(inList(staffIds))}&select=id,name`) : [],
       db().select('invoices', `tenant_id=in.${enc(inList(tenantIds))}&order_id=in.${enc(inList(orders.map(o => o.order_id)))}&select=tenant_id,order_id,payment_status,amount_due,invoice_number`),
       db().select('tenants', `tenant_id=in.${enc(inList(tenantIds))}&select=tenant_id,business_name`),
@@ -289,6 +314,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
         tenantId: o.tenant_id, tenantName: tenantMap.get(o.tenant_id) || o.tenant_id,
         shopId: o.shop_id, shopName: shop?.shop_name || o.shop_id, ownerName: shop?.owner_name || '',
         phone: shop?.phone || '', address: shop?.address || '',
+        city: shop?.city || '', state: shop?.state || '',
         salesmanName: staffMap.get(o.sales_person_uid) || '',
         subtotal: Number(o.subtotal || 0), totalGst: Number(o.total_gst || 0), grandTotal: Number(o.grand_total || 0),
         status: titleCase(o.status || 'confirmed'),
@@ -299,31 +325,39 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     });
   }
 
+  // Shown in the admin console when the admin database functions are missing
+  // (migration 20261123000000_admin_platform_hardening.sql not applied).
+  const SCHEMA_WARNING = 'Database update missing: dashboard statistics, integrity check, manual settlement and the audit log '
+    + 'need migration 20261123000000_admin_platform_hardening.sql. Figures may show 0 until it is applied.';
+
   async function platformSnapshot() {
-    const [tenants, profiles, pricing, coupons, remoteConfig, broadcast, settings, printerRows, notifRows, stats, couponUse] = await Promise.all([
+    const warnings = [];
+    const [tenants, profiles, pricing, coupons, remoteConfig, broadcast, settings, printerRows, notifRows, stats, couponUse, activity] = await Promise.all([
       db().select('tenants', 'select=*&order=created_at.desc'),
       db().select('profiles', 'select=id,name,email,phone,role,tenant_id,account_status,is_active,created_at,updated_at,last_login_at&order=created_at.desc'),
       getPricing(), getCoupons(), getRemoteConfig(), getBroadcast(), getGeneralSettings(),
       db().select('printer_hardware_orders', 'select=*&order=created_at.desc&limit=200'),
       db().select('notifications', 'select=*&order=created_at.desc&limit=100'),
-      db().rpc('admin_platform_stats').catch(err => { console.warn('[stats]', err.message); return {}; }),
+      db().rpc('admin_platform_stats').catch(err => { console.warn('[stats]', err.message); warnings.push(SCHEMA_WARNING); return {}; }),
       db().select('subscription_checkouts', 'status=eq.paid&select=couponCode:quote->>couponCode').catch(() => []),
+      loadTenantActivity(),
     ]);
     const used = {};
     for (const row of couponUse) { const code = row.couponCode; if (code) used[code] = (used[code] || 0) + 1; }
     const tenantNames = Object.fromEntries(tenants.map(t => [t.tenant_id, t.business_name]));
     return {
-      tenants: tenants.map(t => mapTenant(t, pricing.plans, stats || {}, Number(settings.trialGracePeriodDays || 0))),
+      tenants: withActivity(tenants.map(t => mapTenant(t, pricing.plans, stats || {}, Number(settings.trialGracePeriodDays || 0))), activity),
       capabilities: CAPABILITIES,
       users: profiles.map(p => mapUser(p, tenantNames)),
       plans: pricing.plans,
       printerOptions: pricing.printerOptions,
       subscriptionAddons: pricing.subscriptionAddons,
-      coupons: coupons.map(c => ({ ...c, usedCount: used[c.code] || 0 })),
+      coupons: coupons.map(c => ({ ...c, usedCount: used[c.code] || 0, status: couponStatus(c, used[c.code] || 0) })),
       remoteConfig, broadcast, settings,
       printerOrders: printerRows.map(mapPrinterOrder),
       retailOrders: await loadRetailOrders(100),
       notifications: notifRows.map(mapNotification),
+      warnings: [...new Set(warnings)],
     };
   }
 
@@ -569,6 +603,41 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const user = await requireUser(ctx);
     return json(await checkout().status(user, ctx.url.searchParams.get('id') || ''));
   });
+  // Coupon check for the app's "Apply" button. Uses the same rules as the real
+  // checkout (quoteCheckout + the reserve_subscription_checkout usage limits),
+  // so a coupon accepted here is accepted at payment. Codes are never listed
+  // to clients; only the one typed is checked.
+  route('POST', '/api/checkout/coupon', async ctx => {
+    const user = await requireUser(ctx);
+    if (!['owner', 'distributor', 'super_admin'].includes(user.role) || !user.tenant_id) fail(403, 'Only a workspace owner can apply a coupon');
+    const body = await readJson(ctx.request);
+    const code = str(body.couponCode, 32).toUpperCase();
+    if (!code) fail(400, 'Enter a coupon code');
+    const catalog = await getCatalog();
+    const input = { planId: str(body.planId, 64), yearly: body.yearly === true };
+    const base = quoteCheckout(catalog, input); // plan must exist
+    let quote;
+    try { quote = quoteCheckout(catalog, { ...input, couponCode: code }); } catch (err) {
+      if (err.status === 400) fail(400, /^Coupon "/.test(err.message) ? err.message : `Coupon "${code}" is not valid for this plan`);
+      throw err;
+    }
+    const coupon = catalog.coupons.find(c => String(c.code).toUpperCase() === code);
+    const used = await db().select('subscription_checkouts', `quote->>couponCode=eq.${enc(code)}&select=tenant_id,status,created_at,quote`);
+    const recent = Date.now() - 30 * 60000;
+    const counted = used.filter(u => String(u.quote?.couponCode || '').toUpperCase() === code && (u.status === 'paid' || new Date(u.created_at).getTime() > recent));
+    if (counted.length >= Number(coupon.maxUses || 1000)) fail(400, `Coupon "${code}" has reached its usage limit`);
+    if (counted.some(u => u.tenant_id === user.tenant_id)) fail(400, `Coupon "${code}" was already used by your workspace`);
+    return json({
+      success: true,
+      coupon: {
+        code: coupon.code, type: coupon.type, value: coupon.value, title: coupon.title || '', description: coupon.description || '',
+        minAmount: Number(coupon.minAmount ?? coupon.minOrderValue ?? 0), expiryDate: coupon.expiryDate || null,
+      },
+      // Plan-only amounts in rupees incl. GST: without and with this coupon
+      regularAmount: base.amount / 100, amountWithCoupon: quote.amount / 100,
+      days: quote.days,
+    });
+  });
   route('POST', '/api/checkout/webhook', async ctx => {
     const raw = await ctx.request.text();
     if (raw.length > MAX_BODY) fail(413, 'Payload too large');
@@ -590,11 +659,11 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   });
   route('GET', '/api/platform/tenants', async ctx => {
     await requireAdmin(ctx);
-    const [rows, pricing, stats] = await Promise.all([
-      db().select('tenants', 'select=*&order=created_at.desc'), getPricing(), db().rpc('admin_platform_stats').catch(() => ({})),
+    const [rows, pricing, stats, activity] = await Promise.all([
+      db().select('tenants', 'select=*&order=created_at.desc'), getPricing(), db().rpc('admin_platform_stats').catch(() => ({})), loadTenantActivity(),
     ]);
     const settings = await getGeneralSettings();
-    return json({ success: true, tenants: rows.map(t => mapTenant(t, pricing.plans, stats, Number(settings.trialGracePeriodDays || 0))) });
+    return json({ success: true, tenants: withActivity(rows.map(t => mapTenant(t, pricing.plans, stats, Number(settings.trialGracePeriodDays || 0))), activity) });
   });
   route('GET', '/api/platform/users', async ctx => {
     await requireAdmin(ctx);
@@ -639,7 +708,8 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
         patch.max_shops = tier.maxShops ?? 200;
       }
     }
-    const limit = v => { const n = parseInt(v, 10); if (!Number.isInteger(n) || n < 1 || n > 10000000) fail(400, 'Limits must be positive whole numbers'); return n; };
+    // 0 = unlimited (same convention as plan limits).
+    const limit = v => { const n = parseInt(v, 10); if (!Number.isInteger(n) || n < 0 || n > 10000000) fail(400, 'Limits must be whole numbers (0 = unlimited)'); return n; };
     const users = body.maxUsers ?? body.max_users;
     const shops = body.maxShops ?? body.max_shops;
     if (users !== undefined && users !== null && users !== '' && Number(users) !== current.max_users) patch.max_users = limit(users);
@@ -712,6 +782,66 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
       loadRetailOrders(100, tenant.tenant_id),
     ]);
     return json({ success: true, tenant, shops, products, orders, invoices, payments, ledger, staff, checkouts });
+  });
+  // Agency reports for the admin to download (PDF / Excel is built in the browser).
+  // type = ledger | purchases | expenses | orders | invoices
+  const REPORT_LIMIT = 5000;
+  route('GET', /^\/api\/platform\/tenant\/([^/]+)\/report$/, async (ctx, [rawId]) => {
+    await requireAdmin(ctx);
+    const tenant = await findTenant(decodeURIComponent(rawId));
+    const type = ctx.url.searchParams.get('type') || '';
+    const filterParty = ctx.url.searchParams.get('partyId') || ctx.url.searchParams.get('party') || '';
+    const filterCity = (ctx.url.searchParams.get('city') || '').toLowerCase().trim();
+    const filterState = (ctx.url.searchParams.get('state') || '').toLowerCase().trim();
+    const q = `tenant_id=eq.${enc(tenant.tenant_id)}`;
+    const shopNames = async () => Object.fromEntries((await db().select('shops', `${q}&select=shop_id,shop_name`)).map(s => [s.shop_id, s.shop_name]));
+    const day = v => (v ? String(v).slice(0, 10) : '');
+    const num = v => Number(v || 0);
+    let title, columns, rows;
+    if (type === 'ledger') {
+      const partyFilter = filterParty ? `&shop_id=eq.${enc(filterParty)}` : '';
+      const [entries, shops] = await Promise.all([db().select('ledger_entries', `${q}${partyFilter}&select=*&order=created_at.asc&limit=${REPORT_LIMIT}`), shopNames()]);
+      title = filterParty ? `Ledger — ${shops[filterParty] || filterParty}` : 'Ledger (Khata)';
+      columns = [['date', 'Date'], ['party', 'Party'], ['type', 'Type'], ['description', 'Description'], ['debit', 'Debit (₹)'], ['credit', 'Credit (₹)'], ['balance', 'Balance (₹)']];
+      rows = entries.map(e => ({ date: day(e.created_at), party: shops[e.shop_id] || e.shop_id, type: titleCase(e.transaction_type || ''), description: e.description || '', debit: num(e.debit), credit: num(e.credit), balance: num(e.balance_after) }));
+    } else if (type === 'purchases') {
+      const list = await db().select('purchases', `${q}&select=*&order=date.desc&limit=${REPORT_LIMIT}`);
+      title = 'Purchases';
+      columns = [['date', 'Date'], ['purchaseId', 'Purchase ID'], ['supplier', 'Supplier'], ['items', 'Items'], ['amount', 'Amount (₹)']];
+      rows = list.map(p => ({ date: day(p.date || p.created_at), purchaseId: p.purchase_id, supplier: p.supplier_name || '', items: Array.isArray(p.items) ? p.items.length : 0, amount: num(p.total_amount) }));
+    } else if (type === 'expenses') {
+      const list = await db().select('expenses', `${q}&select=*&order=date.desc&limit=${REPORT_LIMIT}`);
+      title = 'Expenses';
+      columns = [['date', 'Date'], ['category', 'Category'], ['title', 'Title'], ['mode', 'Payment Mode'], ['notes', 'Notes'], ['amount', 'Amount (₹)']];
+      rows = list.map(e => ({ date: day(e.date || e.created_at), category: e.category || '', title: e.title || '', mode: e.payment_mode || '', notes: e.notes || '', amount: num(e.amount) }));
+    } else if (type === 'parties' || type === 'shops') {
+      let list = await db().select('shops', `${q}&select=*&order=shop_name.asc&limit=${REPORT_LIMIT}`);
+      if (filterCity) list = list.filter(s => (s.city || '').toLowerCase().includes(filterCity));
+      if (filterState) list = list.filter(s => (s.state || '').toLowerCase().includes(filterState));
+      title = 'Parties / Retail Outlets';
+      columns = [['name', 'Party Name'], ['shopId', 'Shop ID'], ['owner', 'Owner Name'], ['phone', 'Phone'], ['city', 'City'], ['state', 'State'], ['address', 'Address'], ['outstanding', 'Outstanding Dues (₹)']];
+      rows = list.map(s => ({ name: s.shop_name, shopId: s.shop_id, owner: s.owner_name || '', phone: s.phone || '', city: s.city || '', state: s.state || '', address: s.address || '', outstanding: num(s.current_outstanding) }));
+    } else if (type === 'orders') {
+      let list = await loadRetailOrders(REPORT_LIMIT, tenant.tenant_id);
+      if (filterParty) list = list.filter(o => o.shopId === filterParty || o.shopName.toLowerCase() === filterParty.toLowerCase());
+      if (filterCity) list = list.filter(o => (o.city || '').toLowerCase().includes(filterCity));
+      if (filterState) list = list.filter(o => (o.state || '').toLowerCase().includes(filterState));
+      title = filterParty ? `Orders — Party: ${filterParty}` : (filterCity ? `Orders — City: ${filterCity}` : (filterState ? `Orders — State: ${filterState}` : 'All Orders'));
+      columns = [['date', 'Date'], ['orderId', 'Order ID'], ['party', 'Party Name'], ['city', 'City'], ['state', 'State'], ['salesman', 'Salesman'], ['items', 'Items Count'], ['total', 'Total Amount (₹)'], ['payment', 'Payment Status'], ['status', 'Order Status']];
+      rows = list.map(o => ({ date: day(o.orderDate), orderId: o.orderNumber, party: o.shopName, city: o.city || '', state: o.state || '', salesman: o.salesmanName, items: o.items.length, total: o.grandTotal, payment: o.paymentStatus, status: o.status }));
+    } else if (type === 'invoices') {
+      const [list, shops] = await Promise.all([db().select('invoices', `${q}&select=*&order=invoice_date.desc&limit=${REPORT_LIMIT}`), shopNames()]);
+      title = 'Invoices';
+      columns = [['date', 'Date'], ['invoiceNo', 'Invoice No'], ['party', 'Party'], ['billType', 'Type'], ['taxable', 'Taxable (₹)'], ['gst', 'GST (₹)'], ['total', 'Total (₹)'], ['paid', 'Paid (₹)'], ['due', 'Due (₹)'], ['status', 'Status']];
+      rows = list.map(i => ({ date: day(i.invoice_date || i.created_at), invoiceNo: i.invoice_number, party: shops[i.shop_id] || i.buyer_details?.name || i.shop_id, billType: i.invoice_type === 'estimate' ? 'Estimate' : 'GST', taxable: num(i.taxable_amount), gst: num(i.total_gst), total: num(i.grand_total), paid: num(i.amount_paid), due: num(i.amount_due), status: titleCase(i.cancelled_at ? 'cancelled' : (i.payment_status || 'unpaid')) }));
+    } else {
+      fail(400, 'Unknown report type');
+    }
+    await audit(ctx, 'SECURITY', 'DATA_EXPORTED', `${title} report for ${tenant.business_name} (${rows.length} rows)`, { target: tenant.tenant_id });
+    return json({
+      success: true, type, title, agency: tenant.business_name, tenantId: tenant.tenant_id,
+      columns: columns.map(([key, label]) => ({ key, label })), rows, truncated: rows.length >= REPORT_LIMIT,
+    });
   });
 
   // ---- Admin: users -------------------------------------------------
@@ -851,6 +981,49 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     return json({ success: true, deleted: key });
   });
 
+  // Who used a coupon, when, what it saved and what was paid.
+  route('GET', /^\/api\/platform\/coupon\/([^/]+)\/usage$/, async (ctx, [raw]) => {
+    await requireAdmin(ctx);
+    const code = decodeURIComponent(raw).toUpperCase();
+    if (!/^[A-Z0-9_\-]{3,32}$/.test(code)) fail(400, 'Invalid coupon code');
+    const coupon = (await getCoupons()).find(c => c.code === code) || null;
+    const rows = await db().select('subscription_checkouts',
+      `quote->>couponCode=eq.${enc(code)}&select=id,tenant_id,status,amount,quote,created_at,paid_at&order=created_at.desc&limit=500`);
+    const tenantIds = [...new Set(rows.map(r => r.tenant_id))];
+    const tenants = tenantIds.length
+      ? await db().select('tenants', `tenant_id=in.(${tenantIds.map(t => `"${String(t).replace(/"/g, '')}"`).join(',')})&select=tenant_id,business_name`)
+      : [];
+    const names = Object.fromEntries(tenants.map(t => [t.tenant_id, t.business_name]));
+    const uses = rows.map(r => ({
+      checkoutId: r.id,
+      tenantId: r.tenant_id,
+      tenantName: names[r.tenant_id] || r.tenant_id,
+      status: r.status,
+      planId: r.quote?.planId || null,
+      planName: r.quote?.planName || r.quote?.planId || null,
+      billing: r.quote?.trial ? `${r.quote?.days}-day trial` : (r.quote?.yearly || Number(r.quote?.days) >= 365 ? 'Yearly' : 'Monthly'),
+      amountPaid: Number(r.amount || 0) / 100,
+      discount: r.quote?.discountAmount !== undefined ? Number(r.quote.discountAmount) / 100 : null,
+      createdAt: r.created_at,
+      paidAt: r.paid_at,
+    }));
+    const paid = uses.filter(u => u.status === 'paid');
+    return json({
+      success: true,
+      code,
+      coupon: coupon ? { ...coupon, status: couponStatus(coupon, paid.length) } : null,
+      summary: {
+        redemptions: paid.length,
+        agencies: new Set(paid.map(u => u.tenantId)).size,
+        revenue: Math.round(paid.reduce((a, u) => a + u.amountPaid, 0) * 100) / 100,
+        discountGiven: Math.round(paid.reduce((a, u) => a + (u.discount || 0), 0) * 100) / 100,
+        pending: uses.filter(u => u.status === 'pending').length,
+        remaining: coupon ? Math.max(0, Number(coupon.maxUses || 0) - paid.length) : null,
+      },
+      uses,
+    });
+  });
+
   async function upsertCatalogItem(ctx, listKey, normalize, label) {
     await requireAdmin(ctx);
     const item = normalize(await readJson(ctx.request));
@@ -933,7 +1106,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     if (targetTenant !== 'all') await findTenant(targetTenant);
     const targetRole = canonicalRole(body.targetRole || 'all') || 'all';
     if (targetRole !== 'all' && !ROLES.includes(targetRole)) fail(400, 'Invalid target role');
-    const severity = ['info', 'warning', 'critical', 'success', 'promo'].includes(body.severity) ? body.severity : 'info';
+    const severity = BROADCAST_SEVERITIES.includes(body.severity) ? body.severity : 'info';
     const actionUrl = str(body.actionUrl, 300);
     if (actionUrl && !/^(https:\/\/|\/)/i.test(actionUrl)) fail(400, 'Action URL must be https:// or an in-app path');
     const row = {
@@ -1097,6 +1270,37 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
       pending: pending.filter(p => new Date(p.created_at).getTime() >= stale),
       expired: pending.filter(p => new Date(p.created_at).getTime() < stale),
       paid, renewals, failed: [],
+    });
+  });
+  // Dashboard revenue: paid plan checkouts + paid hardware / add-on orders (rupees).
+  // Checkout amounts are in paise; the hardware part of a checkout is already a
+  // printer_hardware_orders row, so it is counted only once (as hardware).
+  route('GET', '/api/platform/revenue-summary', async ctx => {
+    await requireAdmin(ctx);
+    const [checkouts, allHardware] = await Promise.all([
+      db().select('subscription_checkouts', 'status=eq.paid&select=id,tenant_id,amount,quote,paid_at,subscription_end_date&order=paid_at.desc'),
+      db().select('printer_hardware_orders', 'select=order_id,tenant_id,business_name,printer_model,quantity,total_amount,payment_status,fulfillment_status,created_at&order=created_at.desc'),
+    ]);
+    const hardware = allHardware.filter(h => h.payment_status === 'paid');
+    const round2 = n => Math.round(n * 100) / 100;
+    const planRevenue = round2(checkouts.reduce((sum, c) => sum + (Number(c.amount || 0) - Number(c.quote?.hardwareAmount || 0)) / 100, 0));
+    const hardwareRevenue = round2(hardware.reduce((sum, h) => sum + Number(h.total_amount || 0), 0));
+    return json({
+      success: true,
+      planRevenue, hardwareRevenue, totalRevenue: round2(planRevenue + hardwareRevenue),
+      paidSubscriptions: checkouts.length, paidHardwareOrders: hardware.length,
+      subscriptions: checkouts.map(c => ({
+        id: c.id, tenantId: c.tenant_id, planName: c.quote?.planName || c.quote?.planId || '',
+        amount: round2((Number(c.amount || 0) - Number(c.quote?.hardwareAmount || 0)) / 100), paidAt: c.paid_at || null,
+        days: Number(c.quote?.days) || null, trial: c.quote?.trial === true, couponCode: c.quote?.couponCode || null,
+        validTill: c.subscription_end_date || null,
+      })),
+      // Every hardware / printer / paper-roll order (any payment status) for the Revenue Reports page
+      hardwareOrders: allHardware.map(h => ({
+        id: h.order_id, tenantId: h.tenant_id, agencyName: h.business_name || '', item: h.printer_model || '',
+        quantity: h.quantity || 1, amount: round2(Number(h.total_amount || 0)), paymentStatus: h.payment_status || 'pending',
+        status: h.fulfillment_status || 'processing', orderedAt: h.created_at || null,
+      })),
     });
   });
   route('POST', '/api/platform/subscriptions/settle', async ctx => {

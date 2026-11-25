@@ -585,7 +585,7 @@ class AdminPortal {
     this.tenantSortOrder = 'latest';
     this.tenantSortKey = 'createdAt';
     this.tenantSortDir = 'desc';
-    this.tenantViewMode = 'table';
+    this.tenantViewMode = 'grid'; // client spec: subscribers shown as cards
     this.userFilter = 'all';
     this.userStatusFilter = 'all';
     this.orderFilter = 'all';
@@ -720,10 +720,13 @@ class AdminPortal {
   // possible. Prefer data-* attributes + delegated listeners for new code.
   escapeJs(str) {
     if (str === null || str === undefined) return '';
+    // Quotes become \x27 / \x22 (not \' / \"): the result is placed inside
+    // HTML attributes like onclick="...", where the HTML parser ends the
+    // attribute at a raw " even when it is preceded by a backslash.
     return String(str)
       .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/"/g, '\\"')
+      .replace(/'/g, '\\x27')
+      .replace(/"/g, '\\x22')
       .replace(/</g, '\\x3c')
       .replace(/>/g, '\\x3e')
       .replace(/&/g, '\\x26')
@@ -1055,6 +1058,13 @@ class AdminPortal {
         const json = await res.json();
         if (!json.success || !json.data) return;
         const d = json.data;
+        // Surface server-side problems (e.g. a missing database migration)
+        // once per session instead of silently showing zeros.
+        const warnKey = (d.warnings || []).join('|');
+        if (warnKey && warnKey !== this._lastSnapshotWarning) {
+          this._lastSnapshotWarning = warnKey;
+          d.warnings.forEach(w => this.showToast(w, '⚠️', 'warning'));
+        }
         const assign = (prop, key, value) => {
           if (value === undefined) return false;
           if (JSON.stringify(value) === JSON.stringify(this[prop])) return false;
@@ -1650,6 +1660,11 @@ class AdminPortal {
       });
     });
 
+    document.getElementById('couponStatusFilter')?.addEventListener('change', (e) => {
+      this.couponStatusFilter = e.target.value;
+      this.renderCouponsTable();
+    });
+
     // Coupon search
     document.getElementById('searchCouponsInput')?.addEventListener('input', (e) => {
       this.couponSearch = e.target.value.toLowerCase().trim();
@@ -1766,7 +1781,6 @@ class AdminPortal {
     const pages = [
       { id: 'dashboard', title: 'Executive Dashboard', sub: 'Overview, GMV, Orders & Analytics', icon: '⚡' },
       { id: 'tenants', title: 'Agencies & Tenants Directory', sub: 'Manage SaaS tenants & quotas', icon: '🏢' },
-      { id: 'orders', title: 'Retail B2B Orders & Invoicing', sub: 'Beat sales, bills & GST invoices', icon: '🛍️' },
       { id: 'users', title: 'Platform Staff & RBAC', sub: 'User accounts & agency staff roles', icon: '👥' },
       { id: 'plans', title: 'SaaS Plans & Pricing', sub: 'Subscription tiers & hardware catalog', icon: '💳' },
       { id: 'coupons', title: 'Coupons & Promo Passes', sub: 'Discount codes & extended trials', icon: '🏷️' },
@@ -1803,23 +1817,6 @@ class AdminPortal {
         sub: `${t.ownerName || 'Proprietor'} • ${t.city || 'Location'} (ID: ${t.userId || t.id})`,
         badge: t.subscriptionStatus ? t.subscriptionStatus.toUpperCase() : 'ACTIVE',
         action: () => { this.switchView('tenants'); this.openTenantDetailModal(t.id); this.clearOmnisearch(); }
-      })) });
-    }
-
-    // 3. Retail Orders
-    const matchOrders = (this.retailOrders || []).filter(o =>
-      (o.orderNumber || o.orderId || o.id || '').toLowerCase().includes(q) ||
-      (o.shopName || '').toLowerCase().includes(q) ||
-      (o.salesmanName || '').toLowerCase().includes(q)
-    ).slice(0, 4);
-
-    if (matchOrders.length) {
-      results.push({ group: 'Retail Orders', items: matchOrders.map(o => ({
-        icon: '📦',
-        title: `${o.orderNumber || o.orderId || o.id} - ₹${Number(o.grandTotal || 0).toLocaleString('en-IN')}`,
-        sub: `${o.shopName || 'Retail Outlet'} • ${o.status || 'Confirmed'}`,
-        badge: (o.status || 'ORDER').toUpperCase(),
-        action: () => { this.switchView('orders'); this.openOrderDetailModal(o.id || o.orderId); this.clearOmnisearch(); }
       })) });
     }
 
@@ -1902,7 +1899,7 @@ class AdminPortal {
   switchView(viewId) {
     this.currentView = viewId;
     this.navItems.forEach(item => {
-      const match = (item.dataset.view === viewId) || (viewId === 'tenant-drilldown' && item.dataset.view === 'tenants');
+      const match = (item.dataset.view === viewId) || ((viewId === 'tenant-drilldown' || viewId === 'tenant-profile') && item.dataset.view === 'tenants');
       item.classList.toggle('active', match);
     });
 
@@ -1911,20 +1908,22 @@ class AdminPortal {
     });
 
     const titles = {
-      dashboard: 'Executive Dashboard',
-      'app-control': 'Remote App Control & Feature Flags',
-      billing: 'Billing & Subscriptions',
-      'tenant-drilldown': 'Tenant Drill-Down',
-      broadcasts: 'In-App Announcements',
-      coupons: 'Coupons & Promo Passes',
-      plans: 'Plans & Pricing',
-      printers: 'Hardware Orders',
-      orders: 'Retail Orders & Invoicing',
-      tenants: 'Agencies & Tenants',
+      dashboard: 'Dashboard',
+      'app-control': 'Remote App Control',
+      billing: 'Subscriptions',
+      'tenant-drilldown': 'Subscriber Drill-Down',
+      'tenant-profile': 'Subscriber Profile',
+      revenue: 'Revenue Reports',
+      broadcasts: 'In App Broadcast',
+      coupons: 'Coupon & Offers',
+      plans: 'Plan & Pricing Control',
+      printers: 'Orders',
+      orders: 'Orders',
+      tenants: 'Subscribers',
       users: 'User Management',
-      settings: 'Platform Settings',
-      gateways: 'Platform Payment Gateways & Checkout Engine',
-      'audit-logs': 'Platform Audit Trail & System Health',
+      settings: 'Platform Setting',
+      gateways: 'Payment Gateway Configuration',
+      'audit-logs': 'Audit Trail & Health',
     };
     if (this.pageTitle) {
       this.pageTitle.textContent = titles[viewId] || 'Admin Console';
@@ -1940,13 +1939,14 @@ class AdminPortal {
       this.renderAddonsGrid();
     }
     if (viewId === 'printers') this.renderPrintersTable();
-    if (viewId === 'orders') this.renderOrdersView();
+    if (viewId === 'orders') this.switchOrderTab('hardware');
     if (viewId === 'users') this.renderUsersTable();
     if (viewId === 'sync') this.renderSyncPills();
     if (viewId === 'settings') this.renderPlatformSettings();
     if (viewId === 'gateways') this.renderGatewaySettings();
     if (viewId === 'audit-logs') this.renderAuditLogs();
     if (viewId === 'billing') this.renderBilling();
+    if (viewId === 'revenue') this.loadRevenueReports();
     if (viewId === 'tenant-drilldown') this.renderTenantDrilldown();
     if (viewId === 'tenants') this.renderTenantsView();
   }
@@ -1997,7 +1997,7 @@ class AdminPortal {
     if (filterTenantSelect && filterTenantSelect.options.length <= 1) {
       const currentVal = this.userTenantFilter || 'all';
       filterTenantSelect.innerHTML = '<option value="all">All Agencies</option>' + 
-        (this.tenants || []).map(t => `<option value="${t.id || t.tenantId}" ${currentVal === (t.id || t.tenantId) ? 'selected' : ''}>${this.escapeHtml(t.firmName || t.name)}</option>`).join('');
+        (this.tenants || []).map(t => `<option value="${this.escapeHtml(t.id || t.tenantId)}" ${currentVal === (t.id || t.tenantId) ? 'selected' : ''}>${this.escapeHtml(t.firmName || t.name)}</option>`).join('');
     }
 
     if (!tbody) return;
@@ -2309,6 +2309,7 @@ class AdminPortal {
 
   renderAll() {
     this.renderStats();
+    this.renderDashboardOverview();
     this.renderCouponsTable();
     this.renderRecentOrdersTable();
     this.renderPrintersTable();
@@ -2601,6 +2602,201 @@ class AdminPortal {
 
     // Render All Charts
     this.renderDashboardCharts();
+
+    // Overview section at the top (users, revenue, agency cards, orders)
+    this.renderDashboardOverview();
+  }
+
+  // ==============================================
+  // DASHBOARD OVERVIEW (client spec §1)
+  // ==============================================
+  formatRupees(n) {
+    return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  }
+
+  renderDashboardOverview() {
+    const tenants = this.tenants || [];
+    const statusOf = t => String(t.subscriptionStatus || '').toLowerCase();
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('ovRegistered', tenants.length);
+    setText('ovTrial', tenants.filter(t => statusOf(t) === 'trial').length);
+    setText('ovUnregistered', tenants.filter(t => statusOf(t) === 'expired').length);
+
+    // Client spec §1 metrics. Paid = on an active plan; Unpaid = trial or expired.
+    const since = Date.now() - 30 * 86400000;
+    const recent = tenants.filter(t => new Date(t.createdAt || 0).getTime() >= since);
+    setText('ovRecentSignups', recent.length);
+    setText('ovPaidSubscribers', tenants.filter(t => statusOf(t) === 'active').length);
+    setText('ovUnpaidSubscribers', tenants.filter(t => ['trial', 'expired'].includes(statusOf(t))).length);
+    setText('ovTotalHardwareOrders', (this.printerOrders || []).length);
+    this.renderRecentSignupsTable();
+
+    // Agency cards: Unique ID + name
+    const cards = document.getElementById('ovAgencyCards');
+    if (cards) {
+      cards.innerHTML = tenants.length ? tenants.map(t => `
+        <div style="border: 1px solid var(--border-color, #E2E8F0); border-radius: 12px; padding: 12px 14px;">
+          <div style="font-weight: 700; color: var(--text-main);">${this.escapeHtml(t.firmName || t.name || 'Agency')}</div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono, monospace); word-break: break-all; margin-top: 4px;">ID: ${this.escapeHtml(t.id || t.tenantId)}</div>
+        </div>`).join('')
+        : '<div style="color: var(--text-muted); padding: 8px 0;">No registered users yet</div>';
+    }
+
+    // User (agency) filter for orders — rebuilt each time, keeps the selection
+    const sel = document.getElementById('ovOrderUserFilter');
+    if (sel) {
+      const current = this.ovUserFilter || 'all';
+      sel.innerHTML = '<option value="all">All Users</option>' + tenants.map(t =>
+        `<option value="${this.escapeHtml(t.id || t.tenantId)}">${this.escapeHtml(t.firmName || t.name || 'Agency')}</option>`).join('');
+      sel.value = tenants.some(t => (t.id || t.tenantId) === current) ? current : 'all';
+      this.ovUserFilter = sel.value;
+    }
+
+    this.loadOverviewRevenue();
+    this.renderOverviewOrders();
+  }
+
+  // Newest subscribers first (client spec §1 "Recent Signup").
+  renderRecentSignupsTable() {
+    const tbody = document.getElementById('dashRecentSignupsTableBody');
+    if (!tbody) return;
+    const esc = v => this.escapeHtml(v);
+    const list = [...(this.tenants || [])]
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .slice(0, 10);
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 24px; color: var(--text-muted);">No subscribers yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(t => {
+      const isSuspended = t.isSuspended === true || t.subscriptionStatus === 'suspended';
+      const badge = this._getTenantStatusBadge(t.subscriptionStatus, isSuspended);
+      const d = t.createdAt ? new Date(t.createdAt) : null;
+      return `
+        <tr>
+          <td><span class="code-pill" style="font-size: 11px;">${esc(t.id)}</span></td>
+          <td><strong>${esc(t.firmName || t.name || 'Agency')}</strong></td>
+          <td>${esc(t.ownerName || '—')}</td>
+          <td>${esc(t.phone || '—')}</td>
+          <td>${esc([t.city, t.state].filter(Boolean).join(', ') || '—')}</td>
+          <td>${esc(t.planName || '—')}</td>
+          <td><span class="badge ${badge.class}">${esc(badge.label)}</span></td>
+          <td>${esc(d && !isNaN(d) ? d.toLocaleDateString('en-IN') : '—')}</td>
+          <td><button class="btn btn-outline btn-sm" onclick="adminApp.openTenantDetailModal('${this.escapeJs(t.id)}')">View</button></td>
+        </tr>`;
+    }).join('');
+  }
+
+  // Dashboard "Download Report": subscribers + key totals, PDF or Excel.
+  async downloadFullPlatformReport(format = 'pdf') {
+    try {
+      let rev = {};
+      try {
+        const res = await fetch('/api/platform/revenue-summary', { headers: this.getAuthHeaders() });
+        const j = await res.json();
+        if (j.success) rev = j;
+      } catch (_) { /* totals fall back to 0 */ }
+      const tenants = this.tenants || [];
+      const statusOf = t => String(t.subscriptionStatus || '').toLowerCase();
+      const since = Date.now() - 30 * 86400000;
+      const n = v => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+      const day = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? d.toISOString().slice(0, 10) : ''; };
+      const summary = [
+        `Recent signups (30 days): ${tenants.filter(t => new Date(t.createdAt || 0).getTime() >= since).length}`,
+        `Paid subscribers: ${tenants.filter(t => statusOf(t) === 'active').length}`,
+        `Unpaid subscribers: ${tenants.filter(t => ['trial', 'expired'].includes(statusOf(t))).length}`,
+        `Total orders: ${(this.printerOrders || []).length}`,
+        `Total revenue: Rs ${n(rev.totalRevenue)} (subscriptions Rs ${n(rev.planRevenue)}, hardware Rs ${n(rev.hardwareRevenue)})`,
+      ].join('  •  ');
+      const report = {
+        agency: 'SalesArmy Platform',
+        title: `Subscribers Report — ${summary}`,
+        columns: [
+          ['id', 'Subscriber ID'], ['agency', 'Agency'], ['owner', 'Owner'], ['phone', 'Phone'], ['city', 'City'],
+          ['state', 'State'], ['plan', 'Plan'], ['status', 'Status'], ['signedUp', 'Signed Up'], ['expiry', 'Plan Expiry'],
+        ].map(([key, label]) => ({ key, label })),
+        rows: [...tenants]
+          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+          .map(t => ({
+            id: t.id, agency: t.firmName || t.name || '', owner: t.ownerName || '', phone: t.phone || '',
+            city: t.city || '', state: t.state || '', plan: t.planName || '', status: this.formatRoleLabel(t.subscriptionStatus || ''),
+            signedUp: day(t.createdAt), expiry: t.expiryDate || '',
+          })),
+      };
+      const fileBase = `SalesArmy_Platform_Report_${new Date().toISOString().slice(0, 10)}`;
+      if (format === 'excel') await this.writeReportExcel(report, fileBase);
+      else await this.writeReportPdf(report, fileBase);
+      this.showToast(`Platform report downloaded (${report.rows.length} subscribers).`, '📥');
+    } catch (err) {
+      console.warn('Platform report error:', err);
+      this.showToast(`Report download failed: ${err.message}`, '⚠️', 'warning');
+    }
+  }
+
+  async loadOverviewRevenue() {
+    if (this._ovRevenueInFlight || !this.hasSession()) return;
+    this._ovRevenueInFlight = true;
+    try {
+      const res = await fetch('/api/platform/revenue-summary', { headers: this.getAuthHeaders() });
+      const j = await res.json();
+      if (!j.success) return;
+      const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setText('ovTotalRevenue', this.formatRupees(j.totalRevenue));
+      setText('ovPlanRevenue', this.formatRupees(j.planRevenue));
+      setText('ovHardwareRevenue', this.formatRupees(j.hardwareRevenue));
+      this.ovPaidSubscriptions = j.subscriptions || [];
+      this.renderOverviewOrders();
+    } catch (err) {
+      console.warn('Revenue summary error:', err);
+    } finally {
+      this._ovRevenueInFlight = false;
+    }
+  }
+
+  onOverviewUserFilterChange() {
+    const sel = document.getElementById('ovOrderUserFilter');
+    this.ovUserFilter = sel ? sel.value : 'all';
+    this.renderOverviewOrders();
+  }
+
+  // Orders received by SalesArmy: paid subscriptions + hardware/printer/paper-roll orders.
+  renderOverviewOrders() {
+    const userId = this.ovUserFilter || 'all';
+    const names = Object.fromEntries((this.tenants || []).map(t => [t.id || t.tenantId, t.firmName || t.name]));
+    const subs = (this.ovPaidSubscriptions || []).map(s => ({
+      ref: s.id, date: s.paidAt, tenantId: s.tenantId, agency: names[s.tenantId] || s.tenantId,
+      type: 'Subscription', item: s.planName, amount: s.amount, payment: 'paid', status: '—',
+    }));
+    const hw = (this.printerOrders || []).map(o => ({
+      ref: o.orderId || o.id, date: o.orderedAt, tenantId: o.tenantId, agency: o.agencyName || names[o.tenantId] || o.tenantId,
+      type: 'Hardware', item: o.printerItem, amount: o.price, payment: o.paymentStatus, status: o.status,
+    }));
+    let rows = subs.concat(hw);
+    if (userId !== 'all') rows = rows.filter(r => r.tenantId === userId);
+    rows.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+    const tbody = document.getElementById('ovOrdersTableBody');
+    if (!tbody) return;
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--text-muted);">No orders found</td></tr>';
+      return;
+    }
+    const cap = v => { const s = String(v || ''); return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'; };
+    tbody.innerHTML = rows.map(r => {
+      const d = r.date ? new Date(r.date) : null;
+      const date = d && !isNaN(d) ? d.toLocaleDateString('en-IN') : '—';
+      return `
+        <tr>
+          <td><strong style="font-family: var(--font-mono, monospace); font-size: 12px;">${this.escapeHtml(r.ref)}</strong></td>
+          <td>${this.escapeHtml(date)}</td>
+          <td>${this.escapeHtml(r.agency || '')}</td>
+          <td>${this.escapeHtml(r.type)}</td>
+          <td>${this.escapeHtml(r.item || '')}</td>
+          <td><strong>${this.escapeHtml(this.formatRupees(r.amount))}</strong></td>
+          <td>${this.escapeHtml(cap(r.payment))}</td>
+          <td>${this.escapeHtml(cap(r.status))}</td>
+        </tr>`;
+    }).join('');
   }
 
   renderRecentOrdersOnDashboard(orders) {
@@ -3468,6 +3664,7 @@ class AdminPortal {
     const canvas = document.getElementById('chartPlanDistribution');
     if (!canvas) return;
     if (typeof Chart === 'undefined') { this.renderNativePlanDistribution(); return; }
+    if (!this.charts) this.charts = {};
 
     const theme = this.getChartThemeColors();
     const tenants = this.tenants || [];
@@ -4134,23 +4331,46 @@ class AdminPortal {
   }
 
   // --- VIEW 2: Coupons Management ---
+  /** Same rules as the server (api/catalog.mjs couponStatus); server value wins. */
+  couponStatusOf(c) {
+    if (c.status) return c.status;
+    const day = (v, end) => new Date(String(v).length <= 10 ? `${v}T${end ? '23:59:59' : '00:00:00'}+05:30` : v);
+    const now = new Date();
+    if (c.isActive === false || c.isPaused === true) return 'paused';
+    if (c.startDate && day(c.startDate, false) > now) return 'scheduled';
+    const expiry = c.expiryDate || c.validUntil;
+    if (expiry && day(expiry, true) <= now) return 'expired';
+    if (Number(c.maxUses) > 0 && Number(c.usedCount || 0) >= Number(c.maxUses)) return 'used_up';
+    return 'active';
+  }
+
+  couponPlanNames(ids) {
+    const tiers = this.plans?.tiers || [];
+    return (ids || []).map(id => tiers.find(t => t.id === id)?.name || id);
+  }
+
   renderCouponsTable() {
     const tbody = document.getElementById('couponsTableBody');
     if (!tbody) return;
+    const esc = v => this.escapeHtml(v);
 
-    let list = this.coupons;
+    let list = this.coupons || [];
 
     // Filter type
-    if (this.couponFilter !== 'all') {
+    if (this.couponFilter && this.couponFilter !== 'all') {
       list = list.filter(c => c.type === this.couponFilter);
     }
-
+    // Filter status
+    if (this.couponStatusFilter && this.couponStatusFilter !== 'all') {
+      list = list.filter(c => this.couponStatusOf(c) === this.couponStatusFilter);
+    }
     // Search query
     if (this.couponSearch) {
-      list = list.filter(c => 
-        c.code.toLowerCase().includes(this.couponSearch) ||
-        c.title.toLowerCase().includes(this.couponSearch) ||
-        c.description.toLowerCase().includes(this.couponSearch)
+      const q = this.couponSearch;
+      list = list.filter(c =>
+        String(c.code || '').toLowerCase().includes(q) ||
+        String(c.title || '').toLowerCase().includes(q) ||
+        String(c.description || '').toLowerCase().includes(q)
       );
     }
 
@@ -4159,63 +4379,79 @@ class AdminPortal {
       return;
     }
 
+    const STATUS = {
+      active: ['badge-active', 'Active'],
+      scheduled: ['badge-blue', 'Scheduled'],
+      expired: ['badge-expired', 'Expired'],
+      used_up: ['badge-warning', 'Used up'],
+      paused: ['badge-expired', 'Paused'],
+    };
+
     tbody.innerHTML = list.map(c => {
       const typeBadgeClass = c.type === 'trial' ? 'badge-trial' : (c.type === 'flat' ? 'badge-flat' : 'badge-pct');
       const typeLabel = c.type === 'trial' ? 'Membership Trial' : (c.type === 'flat' ? 'Flat Discount' : 'Percentage Off');
       const benefitText = c.type === 'trial'
-        ? `+${c.value} Days Free Access`
-        : (c.type === 'flat' ? `₹${c.value} OFF` : `${c.value}% OFF`);
-
-      const usagePct = Math.min(100, Math.round((c.usedCount / c.maxUses) * 100));
+        ? `+${esc(c.value)} Days Free Access`
+        : (c.type === 'flat' ? `₹${esc(c.value)} OFF` : `${esc(c.value)}% OFF`);
+      const used = Number(c.usedCount || 0);
+      const max = Number(c.maxUses || 0);
+      const usagePct = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
+      const status = this.couponStatusOf(c);
+      const [statusClass, statusLabel] = STATUS[status] || STATUS.active;
+      const plans = this.couponPlanNames(c.planIds);
+      const limits = [
+        plans.length ? `Plans: ${plans.map(esc).join(', ')}` : 'All plans',
+        c.billingCycle === 'monthly' ? 'Monthly only' : c.billingCycle === 'yearly' ? 'Yearly only' : '',
+        Number(c.minOrderValue || c.minAmount || 0) > 0 ? `Min ₹${esc(c.minOrderValue || c.minAmount)}` : '',
+      ].filter(Boolean).join(' · ');
+      const expiry = c.expiryDate || c.validUntil;
+      const validity = `${c.startDate ? `From ${esc(c.startDate)}<br>` : ''}${expiry ? `Until ${esc(expiry)}` : 'No expiry'}`;
+      const id = this.escapeJs(c.id);
+      const canPause = status !== 'paused';
 
       return `
         <tr>
           <td>
             <div class="code-pill">
-              <span>${this.escapeHtml(c.code)}</span>
+              <span>${esc(c.code)}</span>
               <button onclick="adminApp.copyText('${this.escapeJs(c.code)}')" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer;" title="Copy Code">📋</button>
             </div>
-            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; font-weight: 600;">${this.escapeHtml(c.title)}</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; font-weight: 600;">${esc(c.title)}</div>
           </td>
           <td>
             <span class="badge ${typeBadgeClass}">${typeLabel}</span>
           </td>
           <td>
             <strong style="color: var(--text-main); font-size: 14px;">${benefitText}</strong>
-            <div style="font-size: 11px; color: var(--text-muted);">Min Order: ₹${c.minOrderValue}</div>
+            <div style="font-size: 11px; color: var(--text-muted); max-width: 220px;">${limits}</div>
           </td>
           <td>
-            <div style="display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 4px; font-weight: 600;">
-              <span style="color: var(--text-main);">${c.usedCount}</span>
-              <span style="color: var(--text-muted);">${c.maxUses} max</span>
+            <div style="display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 4px; font-weight: 600; width: 110px;">
+              <span style="color: var(--text-main);">${used} used</span>
+              <span style="color: var(--text-muted);">${max ? `${Math.max(0, max - used)} left` : '∞'}</span>
             </div>
-            <div style="width: 100px; height: 6px; background: var(--border-subtle); border-radius: 999px; overflow:hidden;">
+            <div style="width: 110px; height: 6px; background: var(--border-subtle); border-radius: 999px; overflow:hidden;">
               <div style="width: ${usagePct}%; height:100%; background: linear-gradient(90deg, #4F46E5, #3B82F6); border-radius: 999px;"></div>
             </div>
+            <button class="btn btn-sm btn-outline" style="margin-top:6px; padding:2px 8px; font-size:11px;" onclick="adminApp.openCouponUsage('${this.escapeJs(c.code)}')">View usage</button>
           </td>
-          <td style="font-size: 12.5px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
-            ${this.escapeHtml(c.validUntil)}
+          <td style="font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+            ${validity}
           </td>
           <td>
-            <span class="badge ${c.isActive ? 'badge-active' : 'badge-expired'}">
+            <span class="badge ${statusClass}">
               <span style="width: 5px; height: 5px; border-radius: 50%; background: currentColor;"></span>
-              ${c.isActive ? 'Active' : 'Paused'}
+              ${statusLabel}
             </span>
           </td>
           <td>
-            <div style="display: flex; gap: 6px;">
-              <button class="btn btn-sm ${c.isActive ? 'btn-outline' : 'btn-primary'}" onclick="adminApp.toggleCouponStatus('${this.escapeJs(c.id)}')">
-                ${c.isActive ? 'Pause' : 'Activate'}
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button class="btn btn-sm ${canPause ? 'btn-outline' : 'btn-primary'}" onclick="adminApp.toggleCouponStatus('${id}')">
+                ${canPause ? 'Pause' : 'Activate'}
               </button>
-              <button class="btn btn-sm btn-outline" onclick="adminApp.editCoupon('${this.escapeJs(c.id)}')">
-                Edit
-              </button>
-              <button class="btn btn-sm btn-outline" onclick="adminApp.duplicateCoupon('${this.escapeJs(c.id)}')" title="Duplicate coupon code">
-                Duplicate
-              </button>
-              <button class="btn btn-sm btn-outline" style="color: var(--accent-rose); border-color: rgba(244, 63, 94, 0.3);" onclick="adminApp.deleteCoupon('${this.escapeJs(c.id)}')">
-                Delete
-              </button>
+              <button class="btn btn-sm btn-outline" onclick="adminApp.editCoupon('${id}')">Edit</button>
+              <button class="btn btn-sm btn-outline" onclick="adminApp.duplicateCoupon('${id}')" title="Create a new coupon from this one">Duplicate</button>
+              <button class="btn btn-sm btn-outline" style="color: var(--accent-rose); border-color: rgba(244, 63, 94, 0.3);" onclick="adminApp.deleteCoupon('${id}')">Delete</button>
             </div>
           </td>
         </tr>
@@ -4223,31 +4459,60 @@ class AdminPortal {
     }).join('');
   }
 
-  openCouponModal(couponToEdit = null) {
+  renderCouponPlanChecks(selected = []) {
+    const box = document.getElementById('couponPlanChecks');
+    if (!box) return;
+    const tiers = (this.plans?.tiers || []).filter(t => t.isActive !== false);
+    box.innerHTML = tiers.length
+      ? tiers.map(t => `
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+            <input type="checkbox" class="coupon-plan-check" value="${this.escapeHtml(t.id)}" ${selected.includes(t.id) ? 'checked' : ''}>
+            ${this.escapeHtml(t.name || t.id)}
+          </label>`).join('')
+      : '<span style="font-size:12px; color:var(--text-muted);">No plans configured.</span>';
+  }
+
+  /** mode: 'create' | 'edit' | 'duplicate' */
+  openCouponModal(couponToEdit = null, mode = couponToEdit ? 'edit' : 'create') {
     const modal = document.getElementById('couponModal');
     const titleEl = document.getElementById('couponModalTitle');
     const submitBtn = document.getElementById('btnSubmitCoupon');
     const form = document.getElementById('couponForm');
+    const codeEl = document.getElementById('couponCode');
 
     form.reset();
+    codeEl.readOnly = false;
+    codeEl.title = '';
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
 
     if (couponToEdit) {
-      titleEl.textContent = `Edit Coupon: ${couponToEdit.code}`;
-      submitBtn.textContent = 'Save Changes';
-      document.getElementById('couponEditId').value = couponToEdit.id;
-      document.getElementById('couponCode').value = couponToEdit.code;
-      document.getElementById('couponTitle').value = couponToEdit.title;
-      document.getElementById('couponType').value = couponToEdit.type;
-      document.getElementById('couponValue').value = couponToEdit.value;
-      document.getElementById('couponMinOrder').value = couponToEdit.minOrderValue;
-      document.getElementById('couponMaxUses').value = couponToEdit.maxUses;
-      document.getElementById('couponExpiry').value = couponToEdit.validUntil;
-      document.getElementById('couponDescription').value = couponToEdit.description || '';
+      const isEdit = mode === 'edit';
+      titleEl.textContent = isEdit ? `Edit Coupon: ${couponToEdit.code}` : `New Coupon (copy of ${couponToEdit.sourceCode || couponToEdit.code})`;
+      submitBtn.textContent = isEdit ? 'Save Changes' : 'Publish Coupon';
+      set('couponEditId', isEdit ? couponToEdit.id : '');
+      set('couponCode', couponToEdit.code);
+      set('couponTitle', couponToEdit.title);
+      set('couponType', couponToEdit.type);
+      set('couponValue', couponToEdit.value);
+      set('couponMinOrder', couponToEdit.minOrderValue ?? couponToEdit.minAmount ?? 0);
+      set('couponMaxUses', couponToEdit.maxUses);
+      set('couponExpiry', couponToEdit.expiryDate || couponToEdit.validUntil || '');
+      set('couponStartDate', couponToEdit.startDate || '');
+      set('couponBillingCycle', couponToEdit.billingCycle || 'any');
+      set('couponDescription', couponToEdit.description || '');
+      this.renderCouponPlanChecks(couponToEdit.planIds || []);
+      // Usage history is stored against the code, so a used code can't be renamed.
+      if (isEdit && Number(couponToEdit.usedCount || 0) > 0) {
+        codeEl.readOnly = true;
+        codeEl.title = 'This code has already been used, so it cannot be renamed. Duplicate it to create a new code.';
+      }
     } else {
       titleEl.textContent = 'Publish New Coupon / Trial Pass';
       submitBtn.textContent = 'Publish Coupon';
-      document.getElementById('couponEditId').value = '';
-      document.getElementById('couponCode').value = 'PROMO' + Math.floor(10 + Math.random() * 90);
+      set('couponEditId', '');
+      set('couponCode', 'PROMO' + Math.floor(10 + Math.random() * 90));
+      set('couponBillingCycle', 'any');
+      this.renderCouponPlanChecks([]);
     }
 
     modal?.classList.add('active');
@@ -4259,7 +4524,7 @@ class AdminPortal {
 
   editCoupon(couponId) {
     const c = this.coupons.find(x => x.id === couponId);
-    if (c) this.openCouponModal(c);
+    if (c) this.openCouponModal(c, 'edit');
   }
 
   async handleSaveCoupon() {
@@ -4268,7 +4533,37 @@ class AdminPortal {
     const type = document.getElementById('couponType').value;
     const value = parseFloat(document.getElementById('couponValue').value);
     const existing = editId ? this.coupons.find(x => x.id === editId) : null;
+    const startDate = document.getElementById('couponStartDate')?.value || null;
+    const expiryDate = document.getElementById('couponExpiry').value || null;
+    const planIds = [...document.querySelectorAll('#couponPlanChecks .coupon-plan-check:checked')].map(el => el.value);
+
+    if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {
+      this.showToast('Coupon code must be 3-32 letters, digits, - or _.', '⚠️', 'warning');
+      return;
+    }
+    if (!Number.isFinite(value) || value <= 0) {
+      this.showToast('Enter a benefit value greater than 0.', '⚠️', 'warning');
+      return;
+    }
+    if (type === 'percentage' && value > 100) {
+      this.showToast('A percentage discount cannot be more than 100%.', '⚠️', 'warning');
+      return;
+    }
+    if (startDate && expiryDate && startDate > expiryDate) {
+      this.showToast('The start date must be on or before the expiry date.', '⚠️', 'warning');
+      return;
+    }
+    if (!existing && this.coupons.some(c => c.code === code)) {
+      this.showToast(`A coupon with code "${code}" already exists.`, '⚠️', 'warning');
+      return;
+    }
+    if (existing && existing.code !== code && Number(existing.usedCount || 0) > 0) {
+      this.showToast('This code has already been used and cannot be renamed. Duplicate it instead.', '⚠️', 'warning');
+      return;
+    }
+
     const payload = {
+      // Keeping the same id makes a rename an in-place update (no delete + re-create).
       id: existing ? existing.id : code,
       code,
       title: document.getElementById('couponTitle').value.trim(),
@@ -4276,23 +4571,15 @@ class AdminPortal {
       value,
       minAmount: parseFloat(document.getElementById('couponMinOrder').value) || 0,
       maxUses: parseInt(document.getElementById('couponMaxUses').value, 10) || 100,
-      expiryDate: document.getElementById('couponExpiry').value || null,
+      expiryDate,
+      startDate,
+      billingCycle: document.getElementById('couponBillingCycle')?.value || 'any',
+      planIds,
       description: document.getElementById('couponDescription').value.trim(),
       isActive: existing ? existing.isActive !== false : true,
     };
-    if (!code || !Number.isFinite(value) || value <= 0) {
-      this.showToast('Enter a coupon code and a benefit value greater than 0.', '⚠️', 'warning');
-      return;
-    }
-    if (existing && existing.code !== code) {
-      // Renaming a code: create the new one, then remove the old one.
-      const ok = await this.apiMutate('/api/platform/coupon', { ...payload, id: code });
-      if (!ok) return;
-      await this.apiMutate(`/api/platform/coupon/${encodeURIComponent(existing.code)}`, null, { method: 'DELETE' });
-    } else {
-      const ok = await this.apiMutate('/api/platform/coupon', payload);
-      if (!ok) return;
-    }
+    const ok = await this.apiMutate('/api/platform/coupon', payload);
+    if (!ok) return;
     this.closeCouponModal();
     await this.fetchPlatformState(true);
     this.showToast(`Coupon "${code}" ${existing ? 'updated' : 'published'}.`, existing ? '✏️' : '🎉');
@@ -4301,16 +4588,19 @@ class AdminPortal {
   async toggleCouponStatus(couponId) {
     const c = this.coupons.find(x => x.id === couponId);
     if (!c) return;
-    const ok = await this.apiMutate('/api/platform/coupon', { ...c, isActive: c.isActive === false, isPaused: c.isActive !== false });
+    const activate = c.isActive === false || c.isPaused === true;
+    const { usedCount, status, ...stored } = c;
+    const ok = await this.apiMutate('/api/platform/coupon', { ...stored, isActive: activate, isPaused: !activate });
     if (!ok) return;
     await this.fetchPlatformState(true);
-    this.showToast(`Coupon "${c.code}" ${c.isActive === false ? 'activated' : 'paused'}.`);
+    this.showToast(`Coupon "${c.code}" ${activate ? 'activated' : 'paused'}.`);
   }
 
   async deleteCoupon(couponId) {
     const c = this.coupons.find(x => x.id === couponId);
     if (!c) return;
-    if (!confirm(`Permanently delete coupon "${c.code}"? Customers will no longer be able to redeem it.`)) return;
+    const usedNote = Number(c.usedCount || 0) > 0 ? ` It has been used ${c.usedCount} time(s); its usage history stays in billing records.` : '';
+    if (!confirm(`Permanently delete coupon "${c.code}"? Customers will no longer be able to redeem it.${usedNote}`)) return;
     const ok = await this.apiMutate(`/api/platform/coupon/${encodeURIComponent(c.code)}`, null, { method: 'DELETE' });
     if (!ok) return;
     await this.fetchPlatformState(true);
@@ -4320,14 +4610,75 @@ class AdminPortal {
   duplicateCoupon(couponId) {
     const c = this.coupons.find(x => x.id === couponId);
     if (!c) return;
-    const clone = {
+    const base = `${c.code}_COPY`.slice(0, 32);
+    let code = base;
+    for (let i = 2; this.coupons.some(x => x.code === code); i++) code = `${base.slice(0, 29)}_${i}`;
+    this.openCouponModal({
       ...c,
       id: '',
-      code: `${c.code}_COPY`,
-      title: `${c.title} (Copy)`,
-      usedCount: 0
-    };
-    this.openCouponModal(clone);
+      code,
+      sourceCode: c.code,
+      title: c.title ? `${c.title} (Copy)` : '',
+      usedCount: 0,
+    }, 'duplicate');
+  }
+
+  async openCouponUsage(code) {
+    const modal = document.getElementById('couponUsageModal');
+    const body = document.getElementById('couponUsageBody');
+    const title = document.getElementById('couponUsageTitle');
+    if (!modal || !body) return;
+    const esc = v => this.escapeHtml(v);
+    if (title) title.textContent = `Usage: ${code}`;
+    body.innerHTML = '<div style="padding:24px; text-align:center; color:var(--text-muted);">Loading…</div>';
+    modal.classList.add('active');
+    try {
+      const res = await fetch(`/api/platform/coupon/${encodeURIComponent(code)}/usage`, { headers: this.getAuthHeaders() });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Could not load usage');
+      const s = data.summary || {};
+      const money = v => (v === null || v === undefined) ? '—' : `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+      const when = v => v ? new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      const STATUS = { paid: 'badge-active', pending: 'badge-warning', expired: 'badge-expired', cancelled: 'badge-expired' };
+      const stat = (label, value) => `
+        <div style="flex:1; min-width:120px; padding:10px 12px; border:1px solid var(--border); border-radius:10px;">
+          <div style="font-size:11px; color:var(--text-muted); font-weight:600;">${label}</div>
+          <div style="font-size:18px; font-weight:800; color:var(--text-main);">${value}</div>
+        </div>`;
+      body.innerHTML = `
+        <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+          ${stat('Redemptions', esc(s.redemptions ?? 0))}
+          ${stat('Agencies', esc(s.agencies ?? 0))}
+          ${stat('Revenue', money(s.revenue))}
+          ${stat('Discount given', money(s.discountGiven))}
+          ${stat('Uses left', s.remaining === null || s.remaining === undefined ? '—' : esc(s.remaining))}
+        </div>
+        ${s.pending ? `<div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">${esc(s.pending)} checkout(s) waiting for payment.</div>` : ''}
+        ${(data.uses || []).length ? `
+          <div class="table-responsive">
+            <table>
+              <thead><tr><th>Agency</th><th>Plan</th><th>Status</th><th>Paid</th><th>Saved</th><th>Date</th></tr></thead>
+              <tbody>
+                ${data.uses.map(u => `
+                  <tr>
+                    <td><strong>${esc(u.tenantName)}</strong></td>
+                    <td>${esc(u.planName || '—')}<div style="font-size:11px; color:var(--text-muted);">${esc(u.billing || '')}</div></td>
+                    <td><span class="badge ${STATUS[u.status] || 'badge-expired'}">${esc(u.status)}</span></td>
+                    <td>${money(u.amountPaid)}</td>
+                    <td>${money(u.discount)}</td>
+                    <td style="font-size:12px;">${when(u.paidAt || u.createdAt)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>` : '<div style="padding:24px; text-align:center; color:var(--text-muted);">This coupon has not been used yet.</div>'}
+      `;
+    } catch (err) {
+      body.innerHTML = `<div style="padding:24px; text-align:center; color:#DC2626;">${esc(err.message)}</div>`;
+    }
+  }
+
+  closeCouponUsage() {
+    document.getElementById('couponUsageModal')?.classList.remove('active');
   }
 
   downloadCSV(headers, rows, filename) {
@@ -4352,16 +4703,20 @@ class AdminPortal {
   }
 
   exportCouponsCSV() {
-    const headers = ['Code', 'Type', 'Value', 'MinOrder', 'UsedCount', 'MaxUses', 'ValidUntil', 'Status'];
-    const rows = this.coupons.map(c => [
-      `"${c.code}"`,
-      `"${c.type}"`,
+    const headers = ['Code', 'Title', 'Type', 'Value', 'MinOrder', 'Plans', 'BillingCycle', 'UsedCount', 'MaxUses', 'StartDate', 'ValidUntil', 'Status'];
+    const rows = (this.coupons || []).map(c => [
+      c.code,
+      c.title || '',
+      c.type,
       c.value,
-      c.minOrderValue,
-      c.usedCount,
+      c.minOrderValue ?? c.minAmount ?? 0,
+      (c.planIds || []).length ? this.couponPlanNames(c.planIds).join(' + ') : 'All plans',
+      c.billingCycle || 'any',
+      c.usedCount || 0,
       c.maxUses,
-      `"${c.validUntil}"`,
-      c.isActive ? 'ACTIVE' : 'INACTIVE'
+      c.startDate || '',
+      c.expiryDate || c.validUntil || 'No expiry',
+      this.couponStatusOf(c).toUpperCase(),
     ]);
     this.downloadCSV(headers, rows, `salesarmy_coupons_${Date.now()}.csv`);
     this.showToast('Coupons CSV exported successfully!', '📥');
@@ -5239,75 +5594,88 @@ class AdminPortal {
   }
 
   // --- VIEW 4: Hardware / Printer Orders ---
+  // Orders page shows subscriber hardware / supply orders only (client spec).
+  switchOrderTab(tab = 'hardware') {
+    const hardware = tab !== 'retail';
+    const paneHw = document.getElementById('paneHardwareOrders');
+    const paneRetail = document.getElementById('paneRetailOrders');
+    if (paneHw) paneHw.style.display = hardware ? '' : 'none';
+    if (paneRetail) paneRetail.style.display = hardware ? 'none' : '';
+    document.getElementById('btnTabHardwareOrders')?.classList.toggle('btn-primary', hardware);
+    document.getElementById('btnTabHardwareOrders')?.classList.toggle('btn-outline', !hardware);
+    if (hardware) this.renderPrintersTable();
+    else this.renderOrdersView();
+  }
+
+  renderHardwareOrderStats() {
+    const orders = this.printerOrders || [];
+    const st = o => String(o.status || '').toLowerCase();
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('statHardwareGMV', this.formatRupees(orders.filter(o => st(o) !== 'cancelled').reduce((a, o) => a + Number(o.price || 0), 0)));
+    setText('statHardwareOrdersCount', orders.length);
+    setText('statHardwareDelivered', orders.filter(o => st(o) === 'delivered').length);
+    setText('statHardwarePending', orders.filter(o => !['delivered', 'cancelled'].includes(st(o))).length);
+  }
+
   renderPrintersTable() {
+    this.renderHardwareOrderStats();
     const tbody = document.getElementById('printerOrdersTableBody');
     if (!tbody) return;
+    const esc = v => this.escapeHtml(v);
 
-    let list = this.printerOrders;
+    let list = this.printerOrders || [];
 
-    if (this.printerFilter !== 'all') {
+    if (this.printerFilter && this.printerFilter !== 'all') {
       list = list.filter(o => o.status === this.printerFilter);
     }
 
     if (this.printerSearch) {
-      list = list.filter(o =>
-        o.id.toLowerCase().includes(this.printerSearch) ||
-        o.customerName.toLowerCase().includes(this.printerSearch) ||
-        o.agencyName.toLowerCase().includes(this.printerSearch) ||
-        String(o.phone || '').toLowerCase().includes(this.printerSearch) ||
-        String(o.trackingNumber || '').toLowerCase().includes(this.printerSearch)
-      );
+      const q = this.printerSearch;
+      list = list.filter(o => [o.id, o.customerName, o.agencyName, o.phone, o.trackingNumber, o.tenantId, o.printerItem, o.shippingAddress]
+        .some(v => String(v || '').toLowerCase().includes(q)));
     }
 
     if (list.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #64748B; padding: 36px;">No hardware orders found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #64748B; padding: 36px;">No subscriber orders found.</td></tr>`;
       return;
     }
 
+    const payBadge = { paid: 'badge-active', cod: 'badge-trial', pending: 'badge-warning', refunded: 'badge-expired' };
     tbody.innerHTML = list.map(order => {
-      const isDelivered = (order.status || '').toLowerCase() === 'delivered';
-      const isDispatched = ['shipped', 'in transit', 'dispatched'].includes((order.status || '').toLowerCase());
-      const isProcessing = (order.status || '').toLowerCase() === 'processing';
-      const statusBadge = isDelivered ? 'badge-delivered' : (isDispatched ? 'badge-active' : (isProcessing ? 'badge-trial' : 'badge-pending'));
-      const initials = (order.customerName || 'SM').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+      const d = order.orderedAt ? new Date(order.orderedAt) : null;
+      const date = d && !isNaN(d) ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+      const phone = String(order.phone || '').replace(/[^0-9]/g, '');
+      const pay = String(order.paymentStatus || 'pending').toLowerCase();
 
       return `
         <tr>
           <td>
-            <span class="code-pill">${this.escapeHtml(order.id)}</span>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">User: <code>${this.escapeHtml(order.userId || 'platform_tenant')}</code></div>
+            <span class="code-pill">${esc(order.id)}</span>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">${esc(date)}</div>
           </td>
           <td>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 32px; height: 32px; border-radius: var(--radius-sm); background: linear-gradient(135deg, #4F46E5, #3B82F6); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;">${this.escapeHtml(initials)}</div>
-              <div>
-                <strong style="color: var(--text-main); font-size: 13.5px; display: block;">${this.escapeHtml(order.customerName || 'Store Manager')}</strong>
-                <div style="font-size: 11.5px; color: var(--text-muted);">${this.escapeHtml(order.agencyName || 'Distributor Agency')}</div>
-                <div style="font-size: 11px; margin-top: 2px;">
-                  <a href="https://wa.me/${(order.phone || '').replace(/[^0-9]/g, '')}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 600;">
-                    💬 ${this.escapeHtml(order.phone || 'N/A')}
-                  </a>
-                </div>
-              </div>
-            </div>
+            <strong style="color: var(--text-main); font-size: 13.5px; display: block;">${esc(order.agencyName || 'Subscriber')}</strong>
+            <div style="font-size: 11.5px; color: var(--text-muted);">${esc(order.customerName || '')}</div>
+            <div style="font-size: 11px; margin-top: 2px;">ID: <code>${esc(order.tenantId || '—')}</code></div>
+            ${phone ? `<a href="https://wa.me/${phone.length === 10 ? '91' + phone : phone}" target="_blank" rel="noopener noreferrer" style="font-size: 11px; color: var(--primary); text-decoration: none; font-weight: 600;">💬 ${esc(order.phone)}</a>` : ''}
           </td>
           <td>
-            <div style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">${this.escapeHtml(order.printerItem || 'Thermal Printer')}</div>
-            <div style="font-size: 11.5px; color: var(--accent-emerald); font-weight: 600;">Plan: ${this.escapeHtml(order.plan || 'Active')}</div>
+            <div style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">${esc(order.printerItem || '—')}</div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">Qty: ${esc(order.quantity || 1)}</div>
           </td>
-          <td style="max-width: 220px; font-size: 12px; color: var(--text-muted);">
-            ${this.escapeHtml(order.shippingAddress || 'Commercial Godown')}
+          <td style="max-width: 240px; font-size: 12px; color: var(--text-muted); white-space: normal;">
+            ${esc(order.shippingAddress || '—')}
           </td>
           <td>
-            <select class="form-control" style="font-size: 11.5px; padding: 4px 8px; height: auto; border-radius: var(--radius-xs); width: auto; font-weight: 700; margin-bottom: 4px;" onchange="adminApp.updatePrinterStatus('${this.escapeHtml(order.id)}', this.value)">
+            <strong style="font-size: 13px; color: var(--text-main);">${esc(this.formatRupees(order.price))}</strong>
+            <div style="margin-top: 4px;"><span class="badge ${payBadge[pay] || 'badge-warning'}">${esc(this.formatRoleLabel(pay))}</span></div>
+          </td>
+          <td>
+            <select class="form-control" style="font-size: 11.5px; padding: 4px 8px; height: auto; border-radius: var(--radius-xs); width: auto; font-weight: 700; margin-bottom: 4px;" onchange="adminApp.updatePrinterStatus('${this.escapeJs(order.id)}', this.value)">
               ${[['Processing', '⚙️'], ['Packed', '📦'], ['Shipped', '🚚'], ['In Transit', '🛣️'], ['Delivered', '✅'], ['Cancelled', '❌']]
                 .map(([st, icon]) => `<option value="${st}" ${order.status === st ? 'selected' : ''}>${icon} ${st}</option>`).join('')}
             </select>
-            <div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(order.orderedAt || '')}</div>
-          </td>
-          <td>
-            <strong style="font-size: 12px; color: var(--text-main);">${this.escapeHtml(order.courierName || 'DTDC')}</strong>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;"><code>${this.escapeHtml(order.trackingNumber || 'Unassigned')}</code></div>
+            <div style="font-size: 11px; color: var(--text-muted);">${esc(order.courierName || 'No courier yet')} • <code>${esc(order.trackingNumber || 'Unassigned')}</code></div>
           </td>
           <td>
             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
@@ -5520,7 +5888,7 @@ class AdminPortal {
         <div style="font-size: 12.5px; color: var(--text-muted); max-width: 380px; margin: 0 auto 16px auto;">
           No agency tenants match your active search terms or filter criteria.
         </div>
-        <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.clearTenantSearch(); adminApp.filterTenantsByPlan('all'); adminApp.filterTenantsByCity('all');">
+        <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.clearTenantSearch(); adminApp.filterTenantsByPlan('all'); adminApp.filterTenantsByCity('all'); adminApp.filterTenantsByState('all');">
           Clear Active Filters
         </button>
       </div>
@@ -5534,6 +5902,10 @@ class AdminPortal {
     if (this.tenantFilter && this.tenantFilter !== 'all') {
       if (this.tenantFilter === 'suspended') {
         list = list.filter(t => t.subscriptionStatus === 'suspended' || t.isSuspended === true);
+      } else if (this.tenantFilter === 'usage_active') {
+        list = list.filter(t => t.usageActive === true);
+      } else if (this.tenantFilter === 'usage_inactive') {
+        list = list.filter(t => t.usageActive !== true);
       } else {
         list = list.filter(t => t.subscriptionStatus === this.tenantFilter && !t.isSuspended);
       }
@@ -5550,6 +5922,11 @@ class AdminPortal {
     // 3. City Filter
     if (this.tenantCityFilter && this.tenantCityFilter !== 'all') {
       list = list.filter(t => (t.city || '').toLowerCase() === this.tenantCityFilter.toLowerCase());
+    }
+
+    // 3b. State Filter
+    if (this.tenantStateFilter && this.tenantStateFilter !== 'all') {
+      list = list.filter(t => (t.state || '').trim().toLowerCase() === this.tenantStateFilter.toLowerCase());
     }
 
     // 4. Search Filter
@@ -5615,11 +5992,8 @@ class AdminPortal {
   renderTenantsView() {
     this.renderTenantsMetrics();
     this.populateTenantCityFilter();
-    if (this.tenantViewMode === 'grid') {
-      this.renderTenantsGrid();
-    } else {
-      this.renderTenantsTable();
-    }
+    this.populateTenantStateFilter();
+    this.setTenantViewMode(this.tenantViewMode); // syncs toggle buttons + renders
     this.updateTenantSortUI();
   }
 
@@ -5654,8 +6028,12 @@ class AdminPortal {
 
     const cAll = document.getElementById('countFilterAll');
     if (cAll) cAll.textContent = total;
+    // Active / Inactive pills = app usage in the last 30 days (not the paid status)
+    const usageActive = tenants.filter(t => t.usageActive === true).length;
     const cActive = document.getElementById('countFilterActive');
-    if (cActive) cActive.textContent = active;
+    if (cActive) cActive.textContent = usageActive;
+    const cInactive = document.getElementById('countFilterInactive');
+    if (cInactive) cInactive.textContent = total - usageActive;
     const cTrial = document.getElementById('countFilterTrial');
     if (cTrial) cTrial.textContent = trial;
     const cFreemium = document.getElementById('countFilterFreemium');
@@ -5678,6 +6056,12 @@ class AdminPortal {
       `<option value="${this.escapeHtml(c)}">${this.escapeHtml(c)}</option>`
     ).join('');
     sel.value = currentVal;
+  }
+
+  // Clicking anywhere on a subscriber card opens the profile (buttons/links keep their own action).
+  onTenantCardClick(event, tenantId) {
+    if (event?.target?.closest('a, button, select, input, label')) return;
+    this.openTenantDetailModal(tenantId);
   }
 
   setTenantViewMode(mode) {
@@ -5707,6 +6091,21 @@ class AdminPortal {
 
   filterTenantsByCity(city) {
     this.tenantCityFilter = city;
+    this.renderTenantsView();
+  }
+
+  populateTenantStateFilter() {
+    const sel = document.getElementById('filterTenantState');
+    if (!sel) return;
+    const currentVal = this.tenantStateFilter || 'all';
+    const states = Array.from(new Set((this.tenants || []).map(t => (t.state || '').trim()).filter(Boolean))).sort();
+    sel.innerHTML = '<option value="all">All States</option>' + states.map(s =>
+      `<option value="${this.escapeHtml(s)}">${this.escapeHtml(s)}</option>`).join('');
+    sel.value = states.includes(currentVal) ? currentVal : 'all';
+  }
+
+  filterTenantsByState(state) {
+    this.tenantStateFilter = state;
     this.renderTenantsView();
   }
 
@@ -5916,7 +6315,7 @@ class AdminPortal {
       const phoneClean = String(t.phone || '').replace(/[^0-9]/g, '');
 
       return `
-        <div class="tenant-card ${isSuspended ? 'suspended' : ''}">
+        <div class="tenant-card ${isSuspended ? 'suspended' : ''}" style="cursor: pointer;" title="Open subscriber profile" onclick="adminApp.onTenantCardClick(event, '${this.escapeJs(t.id)}')">
           <div class="tenant-card-header">
             <div class="tenant-card-avatar" style="background: ${gradient};">${this.escapeHtml(initials)}</div>
             <div class="tenant-card-main">
@@ -5995,6 +6394,12 @@ class AdminPortal {
     const ok = await this.apiMutate('/api/platform/sync-tenant', { id: tenantId, ...patch });
     if (!ok) return false;
     await this.fetchPlatformState(true);
+    // Stay on the agency's profile page and show the updated details there
+    if (this.currentView === 'tenant-profile' && this._tdTenantId === tenantId) {
+      const y = window.scrollY;
+      this.openTenantDetailModal(tenantId);
+      window.scrollTo(0, y);
+    }
     if (successMessage) this.showToast(successMessage, icon);
     return true;
   }
@@ -6210,25 +6615,77 @@ class AdminPortal {
           <div class="tenant-detail-item"><div class="tenant-detail-label">Collected • Market dues</div><div class="tenant-detail-value">${money(t.collected)} • ${money(t.outstanding)}</div></div>
           <div class="tenant-detail-item"><div class="tenant-detail-label">Phone</div><div class="tenant-detail-value" style="font-family: var(--font-mono); font-size: 12px;">${esc(t.phone || 'N/A')}</div></div>
           <div class="tenant-detail-item"><div class="tenant-detail-label">GSTIN</div><div class="tenant-detail-value" style="font-family: var(--font-mono); font-size: 12px;">${esc(t.gstin || 'Unregistered')}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Email</div><div class="tenant-detail-value" style="font-size: 12px;">${esc(t.email || 'N/A')}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">City • State</div><div class="tenant-detail-value">${esc(t.city || '—')} • ${esc(t.state || '—')}</div></div>
+          <div class="tenant-detail-item" style="grid-column: 1 / -1;"><div class="tenant-detail-label">Address</div><div class="tenant-detail-value" style="font-size: 12px;">${esc(t.address || '—')}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">App usage (30 days)</div><div class="tenant-detail-value" style="color: ${t.usageActive ? '#10B981' : '#EF4444'};">${t.usageActive ? 'Active' : 'Inactive'}</div></div>
+          <div class="tenant-detail-item"><div class="tenant-detail-label">Last activity</div><div class="tenant-detail-value">${esc(t.lastActiveAt ? new Date(t.lastActiveAt).toLocaleString('en-IN') : 'None in last 30 days')}</div></div>
+        </div>
+
+        <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 16px 0 10px; text-transform: uppercase; letter-spacing: 0.04em;">Orders (subscriptions &amp; hardware)</h4>
+        <div class="table-responsive" style="max-height: 220px; overflow: auto;">
+          <table>
+            <thead><tr><th>Order Ref</th><th>Date</th><th>Type</th><th>Item</th><th>Amount</th><th>Payment</th><th>Status</th></tr></thead>
+            <tbody id="tdOrdersBody"><tr><td colspan="7" style="text-align:center; padding: 16px; color: var(--text-muted);">Loading…</td></tr></tbody>
+          </table>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 10px; gap: 8px; flex-wrap: wrap;">
+          <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 0; text-transform: uppercase; letter-spacing: 0.04em;">Staff</h4>
+          <select id="tdStaffRoleFilter" class="form-control" style="font-size: 12px; height: 30px; padding: 2px 8px; min-width: 150px;" onchange="adminApp.renderTenantDetailStaff()">
+            <option value="all">All Roles</option>
+          </select>
+        </div>
+        <div class="table-responsive" style="max-height: 220px; overflow: auto;">
+          <table>
+            <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Status</th><th>Last Login</th></tr></thead>
+            <tbody id="tdStaffBody"><tr><td colspan="6" style="text-align:center; padding: 16px; color: var(--text-muted);">Loading…</td></tr></tbody>
+          </table>
+        </div>
+
+        <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 16px 0 10px; text-transform: uppercase; letter-spacing: 0.04em;">Download Reports</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin-bottom: 20px;">
+          ${[
+            ['parties', '', 'Parties'],
+            ['orders', '', 'All Orders'],
+            ['orders', 'party', 'Orders — Party-wise'],
+            ['orders', 'city', 'Orders — City-wise'],
+            ['orders', 'state', 'Orders — State-wise'],
+            ['ledger', '', 'Ledger — All Parties'],
+            ['ledger', 'party', 'Ledger — Party-wise'],
+            ['expenses', '', 'Expenses'],
+            ['purchases', '', 'Purchases'],
+            ['invoices', '', 'Invoices'],
+          ].map(([type, by, label]) => `
+            <div style="display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                <span style="font-size: 12.5px; font-weight: 600;">${label}</span>
+                <span style="display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-outline btn-xs" onclick="adminApp.downloadTenantReport('${jid}', '${type}', 'pdf', '${by}')">PDF</button>
+                  <button type="button" class="btn btn-outline btn-xs" onclick="adminApp.downloadTenantReport('${jid}', '${type}', 'excel', '${by}')">Excel</button>
+                </span>
+              </div>
+              ${by ? `<select class="form-control td-report-filter" id="tdReport-${type}-${by}" data-by="${by}" style="font-size: 12px; height: 30px; padding: 2px 8px;"><option value="">Loading…</option></select>` : ''}
+            </div>`).join('')}
         </div>
 
         <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 16px 0 10px; text-transform: uppercase; letter-spacing: 0.04em;">Assign Plan</h4>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;">
           ${tiers.map(tier => `
-            <button type="button" class="btn ${tier.id === t.subscriptionPlanId ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="adminApp.assignTenantPlan('${jid}', '${this.escapeJs(tier.id)}'); adminApp.closeTenantDetailModal();">
+            <button type="button" class="btn ${tier.id === t.subscriptionPlanId ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="adminApp.assignTenantPlan('${jid}', '${this.escapeJs(tier.id)}');">
               ${esc(tier.name)} (${esc(tier.maxUsers)} users, ${esc(tier.maxShops)} shops)
             </button>`).join('')}
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.expireTenantNow('${jid}'); adminApp.closeTenantDetailModal();">End plan now</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.expireTenantNow('${jid}');">End plan now</button>
         </div>
 
         <h4 style="font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.04em;">Actions</h4>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button type="button" class="btn btn-primary btn-sm" onclick="adminApp.closeTenantDetailModal(); adminApp.openTenantModal('${jid}');">✏️ Edit</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="adminApp.openTenantModal('${jid}');">✏️ Edit</button>
           <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.closeTenantDetailModal(); adminApp.openTenantDrilldown('${jid}');">🔍 Drill-down</button>
           <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.createPaymentLink('${jid}');">💳 Payment link</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${jid}', 7); adminApp.closeTenantDetailModal();">+7 days</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${jid}', 30); adminApp.closeTenantDetailModal();">+30 days</button>
-          <button type="button" class="btn btn-outline btn-sm" style="${isSuspended ? 'color:#10B981;' : 'color:#DC2626;'}" onclick="adminApp.toggleTenantSuspension('${jid}'); adminApp.closeTenantDetailModal();">
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${jid}', 7);">+7 days</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.grantTenantTrialDays('${jid}', 30);">+30 days</button>
+          <button type="button" class="btn btn-outline btn-sm" style="${isSuspended ? 'color:#10B981;' : 'color:#DC2626;'}" onclick="adminApp.toggleTenantSuspension('${jid}');">
             ${isSuspended ? '⚡ Unfreeze' : '🛡️ Freeze'}
           </button>
           ${phoneClean.length === 10 ? `<a class="btn btn-outline btn-sm" href="https://wa.me/91${phoneClean}" target="_blank" rel="noopener noreferrer" style="color: #059669;">💬 WhatsApp</a>` : ''}
@@ -6236,11 +6693,223 @@ class AdminPortal {
         </div>
       `;
     }
-    document.getElementById('tenantDetailModal')?.classList.add('active');
+    this.switchView('tenant-profile');
+    window.scrollTo(0, 0);
+    this.loadTenantDetailExtras(t.id);
   }
 
+  // Orders + staff for the agency detail popup (client spec §2)
+  async loadTenantDetailExtras(tenantId) {
+    this._tdTenantId = tenantId;
+    this._tdStaff = null;
+    this._tdCheckouts = [];
+    try {
+      const res = await fetch(`/api/platform/tenant/${encodeURIComponent(tenantId)}/overview`, { headers: this.getAuthHeaders() });
+      const j = await res.json();
+      if (this._tdTenantId !== tenantId) return; // another agency was opened meanwhile
+      if (j.success) {
+        this._tdStaff = j.staff || [];
+        this._tdCheckouts = (j.checkouts || []).filter(c => c.status === 'paid');
+        this._tdShops = j.shops || [];
+      }
+    } catch (err) {
+      console.warn('Agency detail load error:', err);
+    }
+    if (this._tdTenantId !== tenantId) return;
+    if (!this._tdStaff) this._tdStaff = [];
+
+    // Role filter options from this agency's staff
+    const sel = document.getElementById('tdStaffRoleFilter');
+    if (sel) {
+      const roles = Array.from(new Set(this._tdStaff.map(s => s.role).filter(Boolean))).sort();
+      sel.innerHTML = '<option value="all">All Roles</option>' + roles.map(r =>
+        `<option value="${this.escapeHtml(r)}">${this.escapeHtml(this.formatRoleLabel(r))}</option>`).join('');
+    }
+    this.renderTenantDetailStaff();
+    this.renderTenantDetailOrders();
+    this.renderTenantReportFilters();
+  }
+
+  // Party / city / state pickers for the profile's report downloads.
+  renderTenantReportFilters() {
+    const shops = this._tdShops || [];
+    const esc = v => this.escapeHtml(v);
+    const uniq = arr => [...new Set(arr.map(v => String(v || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const options = {
+      party: shops
+        .map(s => [s.shop_id, s.shop_name || s.shop_id])
+        .sort((a, b) => String(a[1]).localeCompare(String(b[1]))),
+      city: uniq(shops.map(s => s.city)).map(v => [v, v]),
+      state: uniq(shops.map(s => s.state)).map(v => [v, v]),
+    };
+    const hint = { party: 'party', city: 'city', state: 'state' };
+    document.querySelectorAll('.td-report-filter').forEach(sel => {
+      const list = options[sel.dataset.by] || [];
+      sel.innerHTML = list.length
+        ? `<option value="">Select ${hint[sel.dataset.by]}…</option>` + list.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')
+        : `<option value="">No ${hint[sel.dataset.by]} data</option>`;
+    });
+  }
+
+  formatRoleLabel(role) {
+    return String(role || '').split('_').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join(' ');
+  }
+
+  renderTenantDetailStaff() {
+    const tbody = document.getElementById('tdStaffBody');
+    if (!tbody) return;
+    const role = document.getElementById('tdStaffRoleFilter')?.value || 'all';
+    const rows = (this._tdStaff || []).filter(s => role === 'all' || s.role === role);
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 16px; color: var(--text-muted);">No staff found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(s => {
+      const status = s.is_active === false ? 'Suspended' : this.formatRoleLabel(s.account_status || 'active');
+      return `
+        <tr>
+          <td>${this.escapeHtml(s.name || '—')}</td>
+          <td>${this.escapeHtml(this.formatRoleLabel(s.role))}</td>
+          <td>${this.escapeHtml(s.phone || '—')}</td>
+          <td>${this.escapeHtml(s.email || '—')}</td>
+          <td>${this.escapeHtml(status)}</td>
+          <td>${this.escapeHtml(s.last_login_at ? new Date(s.last_login_at).toLocaleString('en-IN') : 'Never')}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  renderTenantDetailOrders() {
+    const tbody = document.getElementById('tdOrdersBody');
+    if (!tbody) return;
+    const tenantId = this._tdTenantId;
+    const subs = (this._tdCheckouts || []).map(c => ({
+      ref: c.id, date: c.paid_at || c.created_at, type: 'Subscription', item: c.quote?.planName || c.quote?.planId || '',
+      amount: (Number(c.amount || 0) - Number(c.quote?.hardwareAmount || 0)) / 100, payment: 'Paid', status: '—',
+    }));
+    const hw = (this.printerOrders || []).filter(o => o.tenantId === tenantId).map(o => ({
+      ref: o.orderId || o.id, date: o.orderedAt, type: 'Hardware', item: o.printerItem, amount: o.price,
+      payment: this.formatRoleLabel(o.paymentStatus), status: o.status,
+    }));
+    const rows = subs.concat(hw).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 16px; color: var(--text-muted);">No orders yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const d = r.date ? new Date(r.date) : null;
+      return `
+        <tr>
+          <td><strong style="font-family: var(--font-mono, monospace); font-size: 11.5px;">${this.escapeHtml(r.ref)}</strong></td>
+          <td>${this.escapeHtml(d && !isNaN(d) ? d.toLocaleDateString('en-IN') : '—')}</td>
+          <td>${this.escapeHtml(r.type)}</td>
+          <td>${this.escapeHtml(r.item || '')}</td>
+          <td><strong>${this.escapeHtml(this.formatRupees(r.amount))}</strong></td>
+          <td>${this.escapeHtml(r.payment || '—')}</td>
+          <td>${this.escapeHtml(r.status || '—')}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  // ---- Agency report downloads (PDF via jsPDF, Excel via SheetJS) ----
+  loadVendorScript(src, globalName) {
+    if (window[globalName]) return Promise.resolve();
+    this._vendorLoads = this._vendorLoads || {};
+    if (!this._vendorLoads[src]) {
+      this._vendorLoads[src] = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = () => resolve();
+        s.onerror = () => { delete this._vendorLoads[src]; reject(new Error(`Could not load ${src}`)); };
+        document.head.appendChild(s);
+      });
+    }
+    return this._vendorLoads[src];
+  }
+
+  async downloadTenantReport(tenantId, type, format, by = '') {
+    try {
+      const params = new URLSearchParams({ type });
+      if (by) {
+        const value = document.getElementById(`tdReport-${type}-${by}`)?.value || '';
+        if (!value) { this.showToast(`Select a ${by} first.`, '⚠️', 'warning'); return; }
+        params.set(by === 'party' ? 'partyId' : by, value);
+      }
+      const res = await fetch(`/api/platform/tenant/${encodeURIComponent(tenantId)}/report?${params}`, { headers: this.getAuthHeaders() });
+      const report = await res.json();
+      if (!report.success) { this.showToast(report.error || 'Could not load report', '⚠️', 'warning'); return; }
+      if (!report.rows.length) { this.showToast(`No ${report.title} records for ${report.agency}.`, 'ℹ️'); return; }
+      const safe = s => String(s || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const fileBase = `${safe(report.agency)}_${safe(report.title)}_${new Date().toISOString().slice(0, 10)}`;
+      if (format === 'excel') await this.writeReportExcel(report, fileBase);
+      else await this.writeReportPdf(report, fileBase);
+      if (report.truncated) this.showToast('Report limited to the first 5,000 rows.', '⚠️', 'warning');
+      else this.showToast(`${report.title} downloaded (${report.rows.length} rows).`, '✓');
+    } catch (err) {
+      console.warn('Report download error:', err);
+      this.showToast(`Report download failed: ${err.message}`, '⚠️', 'warning');
+    }
+  }
+
+  async writeReportExcel(report, fileBase) {
+    await this.loadVendorScript('/vendor/xlsx.full.min.js', 'XLSX');
+    const header = report.columns.map(c => c.label);
+    const data = report.rows.map(r => report.columns.map(c => r[c.key]));
+    const ws = window.XLSX.utils.aoa_to_sheet([
+      [`${report.agency} — ${report.title}`], [`Generated ${new Date().toLocaleString('en-IN')}`], [], header, ...data,
+    ]);
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, report.title.slice(0, 31).replace(/[\\/?*[\]:]/g, ''));
+    window.XLSX.writeFile(wb, `${fileBase}.xlsx`);
+  }
+
+  async writeReportPdf(report, fileBase) {
+    await this.loadVendorScript('/vendor/jspdf.umd.min.js', 'jspdf');
+    const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 32;
+    const cols = report.columns;
+    // Text columns get more room than numbers/dates
+    const WIDE = ['description', 'party', 'supplier', 'notes', 'title', 'category', 'orderId', 'invoiceNo', 'purchaseId', 'salesman', 'agency', 'plan', 'item', 'ref'];
+    const weights = cols.map(c => (c.key === 'description' ? 3 : WIDE.includes(c.key) ? 1.8 : 1));
+    const unit = (pageW - margin * 2) / weights.reduce((a, b) => a + b, 0);
+    const widths = weights.map(w => w * unit);
+    const xs = widths.map((_, i) => margin + widths.slice(0, i).reduce((a, b) => a + b, 0));
+    const rowH = 18;
+    // Built-in PDF fonts have no ₹ glyph, so amounts are written as plain numbers.
+    const cell = v => (typeof v === 'number' ? v.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : String(v ?? ''));
+    const fit = (text, width) => {
+      let t = text;
+      while (t.length > 1 && doc.getTextWidth(t) > width - 8) t = t.slice(0, -1);
+      return t.length < text.length ? t.slice(0, -1) + '…' : t;
+    };
+    let y = margin;
+    const drawHeader = () => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+      doc.setFillColor(226, 232, 240); doc.rect(margin, y, pageW - margin * 2, rowH, 'F');
+      cols.forEach((c, i) => doc.text(fit(c.label, widths[i]), xs[i] + 4, y + 12));
+      y += rowH;
+      doc.setFont('helvetica', 'normal');
+    };
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+    doc.text(`${report.agency} — ${report.title}`, margin, y + 10);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text(`Generated ${new Date().toLocaleString('en-IN')}  •  ${report.rows.length} records  •  Amounts in INR`, margin, y + 26);
+    y += 40;
+    drawHeader();
+    report.rows.forEach((r, idx) => {
+      if (y + rowH > pageH - margin) { doc.addPage(); y = margin; drawHeader(); }
+      if (idx % 2 === 1) { doc.setFillColor(248, 250, 252); doc.rect(margin, y, pageW - margin * 2, rowH, 'F'); }
+      doc.setFontSize(8.5);
+      cols.forEach((c, i) => doc.text(fit(cell(r[c.key]), widths[i]), xs[i] + 4, y + 12));
+      y += rowH;
+    });
+    doc.save(`${fileBase}.pdf`);
+  }
+
+  // The profile is now a page: "closing" it returns to the Agencies list.
   closeTenantDetailModal() {
-    document.getElementById('tenantDetailModal')?.classList.remove('active');
+    if (this.currentView === 'tenant-profile') this.switchView('tenants');
   }
 
   renderRemoteAppControl() {
@@ -6366,7 +7035,12 @@ class AdminPortal {
       this.remoteConfig.maintenance = { active: false, message: '', eta: '' };
     }
     this.remoteConfig.maintenance.active = enabled;
-    
+    // Keep what the admin typed in the message / ETA boxes (they were lost before)
+    const typedMsg = document.getElementById('ctrlMaintenanceMessage')?.value.trim();
+    const typedEta = document.getElementById('ctrlMaintenanceEta')?.value.trim();
+    if (typedMsg) this.remoteConfig.maintenance.message = typedMsg;
+    if (typedEta) this.remoteConfig.maintenance.eta = typedEta;
+
     // Also sync with settings
     this.settings.maintenanceMode = enabled;
     this.saveData(STORAGE_KEYS.SETTINGS, this.settings);
@@ -7036,19 +7710,12 @@ class AdminPortal {
     }).join('');
   }
 
-  async sendQuickTestPush() {
-    const targetTenant = document.getElementById('bcastTargetTenant')?.value || 'all';
-    const audience = targetTenant === 'all' ? 'EVERY agency on the platform' : (this.findTenantById(targetTenant)?.firmName || targetTenant);
-    if (!confirm(`Send a test notification to ${audience}? Real users will see it in their app inbox.`)) return;
-    const ok = await this.apiMutate('/api/platform/notifications', {
-      title: 'Test notification from SalesArmy',
-      message: 'This is a test message from the SalesArmy team. No action is needed.',
-      type: 'system', severity: 'info', targetTenant, targetRole: 'all',
-    });
-    if (!ok) return;
-    await this.fetchPlatformState(true);
-    this.triggerPhonePushSimulation();
-    this.showToast(`Test notification sent to ${audience}.`, '⚡');
+  scrollToBroadcastComposer() {
+    const el = document.getElementById('bcastTitle');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.focus();
+    }
   }
 
   async deleteNotification(id) {
@@ -7158,6 +7825,7 @@ class AdminPortal {
 
   // --- VIEW: Billing & Subscriptions ---
   async renderBilling() {
+    this.loadPlansPurchased();
     const tenants = this.tenants || [];
     const activePaid = tenants.filter(t => (t.subscriptionStatus === 'active' || t.subscription_status === 'active') && (t.subscriptionPlanId || t.planName) && (t.subscriptionPlanId || t.planName).toLowerCase() !== 'free_starter').length;
     const now = Date.now();
@@ -7306,6 +7974,216 @@ class AdminPortal {
   }
 
   refreshBilling() { this.renderBilling(); }
+
+  // ---- Shared: paid subscriptions + hardware orders (from /revenue-summary) ----
+  async fetchRevenueData() {
+    const res = await fetch('/api/platform/revenue-summary', { headers: this.getAuthHeaders() });
+    const j = await res.json();
+    if (!j.success) throw new Error(j.error || 'Could not load revenue data');
+    this.revenueData = j;
+    return j;
+  }
+
+  planPeriodLabel(s) {
+    if (s.trial) return 'Trial (coupon)';
+    if (s.days === 30) return 'Monthly';
+    if (s.days === 365) return 'Yearly';
+    return s.days ? `${s.days} days` : '—';
+  }
+
+  agencyNameOf(tenantId) {
+    const t = (this.tenants || []).find(x => (x.id || x.tenantId) === tenantId);
+    return t ? (t.firmName || t.name) : tenantId;
+  }
+
+  // ---- Revenue Reports page (client spec §3) ----
+  setRevenuePeriod(period) {
+    this.revenuePeriod = period;
+    document.querySelectorAll('.revenue-period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+    const custom = document.getElementById('revenueCustomRange');
+    if (custom) custom.style.display = period === 'custom' ? 'flex' : 'none';
+    this.renderRevenueReports();
+  }
+
+  // Returns { from, to, label } in local time; null bound = open-ended.
+  revenueRange() {
+    const p = this.revenuePeriod || 'this_month';
+    const now = new Date();
+    const fmt = d => d.toLocaleDateString('en-IN');
+    if (p === 'this_month') { const from = new Date(now.getFullYear(), now.getMonth(), 1); return { from, to: null, label: `${fmt(from)} – today` }; }
+    if (p === 'last_month') {
+      const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const to = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { from, to, label: `${fmt(from)} – ${fmt(new Date(to - 1))}` };
+    }
+    if (p === 'this_year') { const from = new Date(now.getFullYear(), 0, 1); return { from, to: null, label: `${fmt(from)} – today` }; }
+    if (p === 'custom') {
+      const fv = document.getElementById('revenueFrom')?.value;
+      const tv = document.getElementById('revenueTo')?.value;
+      const from = fv ? new Date(`${fv}T00:00:00`) : null;
+      const to = tv ? new Date(new Date(`${tv}T00:00:00`).getTime() + 86400000) : null;
+      return { from, to, label: `${from ? fmt(from) : 'start'} – ${to ? fmt(new Date(to - 1)) : 'today'}` };
+    }
+    return { from: null, to: null, label: 'All time' };
+  }
+
+  async loadRevenueReports() {
+    try {
+      await this.fetchRevenueData();
+    } catch (err) {
+      console.warn('Revenue reports error:', err);
+      this.showToast(err.message, '⚠️', 'warning');
+    }
+    this.renderRevenueReports();
+  }
+
+  revenueReportData() {
+    const data = this.revenueData || { subscriptions: [], hardwareOrders: [] };
+    const { from, to, label } = this.revenueRange();
+    const inRange = v => { if (!v) return false; const d = new Date(v); return (!from || d >= from) && (!to || d < to); };
+    const subs = (data.subscriptions || []).filter(s => inRange(s.paidAt));
+    const hw = (data.hardwareOrders || []).filter(h => inRange(h.orderedAt));
+    const hwPaid = hw.filter(h => h.paymentStatus === 'paid');
+    const round2 = n => Math.round(n * 100) / 100;
+    const planRevenue = round2(subs.reduce((s, x) => s + Number(x.amount || 0), 0));
+    const hardwareRevenue = round2(hwPaid.reduce((s, x) => s + Number(x.amount || 0), 0));
+    const cap = v => { const s = String(v || ''); return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'; };
+    const rows = subs.map(s => ({
+      at: s.paidAt, type: 'Subscription', agency: this.agencyNameOf(s.tenantId),
+      item: `${s.planName || ''} (${this.planPeriodLabel(s)})`, amount: Number(s.amount || 0), payment: 'Paid', status: '—',
+    })).concat(hw.map(h => ({
+      at: h.orderedAt, type: 'Hardware', agency: h.agencyName || this.agencyNameOf(h.tenantId),
+      item: `${h.item}${h.quantity > 1 ? ` x${h.quantity}` : ''}`, amount: Number(h.amount || 0), payment: cap(h.paymentStatus), status: cap(h.status),
+    }))).sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+    return {
+      label, rows, planRevenue, hardwareRevenue, totalRevenue: round2(planRevenue + hardwareRevenue),
+      hwOrders: hw.length, hwPaid: hwPaid.length, plansCount: subs.length,
+      subscribers: new Set(subs.map(s => s.tenantId)).size,
+    };
+  }
+
+  renderRevenueReports() {
+    if (!this.revenuePeriod) this.revenuePeriod = 'this_month';
+    const r = this.revenueReportData();
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('revenuePeriodLabel', r.label);
+    setText('revTotal', this.formatRupees(r.totalRevenue));
+    setText('revPlans', this.formatRupees(r.planRevenue));
+    setText('revHardware', this.formatRupees(r.hardwareRevenue));
+    setText('revHwOrders', r.hwOrders);
+    setText('revHwPaid', r.hwPaid);
+    setText('revSubscribers', r.subscribers);
+    setText('revPlansCount', r.plansCount);
+    const tbody = document.getElementById('revenueTableBody');
+    if (!tbody) return;
+    if (!r.rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 24px; color: var(--text-muted);">No subscriptions or hardware orders in this period</td></tr>';
+      return;
+    }
+    tbody.innerHTML = r.rows.map(x => {
+      const d = x.at ? new Date(x.at) : null;
+      return `
+        <tr>
+          <td>${this.escapeHtml(d && !isNaN(d) ? d.toLocaleDateString('en-IN') : '—')}</td>
+          <td>${this.escapeHtml(x.type)}</td>
+          <td>${this.escapeHtml(x.agency)}</td>
+          <td>${this.escapeHtml(x.item)}</td>
+          <td><strong>${this.escapeHtml(this.formatRupees(x.amount))}</strong></td>
+          <td>${this.escapeHtml(x.payment)}</td>
+          <td>${this.escapeHtml(x.status)}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  async downloadRevenueReport(format) {
+    try {
+      if (!this.revenueData) await this.fetchRevenueData();
+      const r = this.revenueReportData();
+      const day = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? d.toLocaleDateString('en-IN') : ''; };
+      const rows = r.rows.map(x => ({ date: day(x.at), type: x.type, agency: x.agency, item: x.item, amount: x.amount, payment: x.payment, status: x.status }));
+      const blank = { date: '', type: '', agency: '', item: '', amount: '', payment: '', status: '' };
+      rows.push(
+        { ...blank },
+        { ...blank, item: 'Subscriptions revenue', amount: r.planRevenue },
+        { ...blank, item: 'Hardware / Printer / Paper Roll revenue', amount: r.hardwareRevenue },
+        { ...blank, item: 'TOTAL REVENUE', amount: r.totalRevenue },
+        { ...blank, item: `Hardware orders: ${r.hwOrders} (paid ${r.hwPaid})` },
+        { ...blank, item: `Paid subscribers: ${r.subscribers} (plans purchased ${r.plansCount})` },
+      );
+      const report = {
+        agency: 'SalesArmy', title: `Revenue Report (${r.label})`,
+        columns: [['date', 'Date'], ['type', 'Type'], ['agency', 'Agency'], ['item', 'Item'], ['amount', 'Amount'], ['payment', 'Payment'], ['status', 'Status']].map(([key, label]) => ({ key, label })),
+        rows,
+      };
+      const fileBase = `SalesArmy_Revenue_Report_${(this.revenuePeriod || 'this_month')}_${new Date().toISOString().slice(0, 10)}`;
+      if (format === 'excel') await this.writeReportExcel(report, fileBase);
+      else await this.writeReportPdf(report, fileBase);
+      this.showToast('Revenue report downloaded.', '✓');
+    } catch (err) {
+      console.warn('Revenue report download error:', err);
+      this.showToast(`Download failed: ${err.message}`, '⚠️', 'warning');
+    }
+  }
+
+  // ---- Subscriptions page: Plans Purchased (client spec §3) ----
+  async loadPlansPurchased() {
+    const tbody = document.getElementById('billPlansPurchasedBody');
+    try {
+      const data = await this.fetchRevenueData();
+      this.renderPlansPurchased(data.subscriptions || []);
+    } catch (err) {
+      console.warn('Plans purchased error:', err);
+      if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-muted);">${this.escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+
+  plansPurchasedRows(subs) {
+    const day = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? d.toLocaleDateString('en-IN') : '—'; };
+    return subs.map(s => ({
+      paidDate: day(s.paidAt), agency: this.agencyNameOf(s.tenantId), plan: s.planName || '', period: this.planPeriodLabel(s),
+      amount: Number(s.amount || 0), validTill: day(s.validTill), ref: s.id,
+    }));
+  }
+
+  renderPlansPurchased(subs) {
+    const tbody = document.getElementById('billPlansPurchasedBody');
+    if (!tbody) return;
+    const rows = this.plansPurchasedRows(subs);
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-muted);">No plans purchased yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${this.escapeHtml(r.paidDate)}</td>
+        <td>${this.escapeHtml(r.agency)}</td>
+        <td>${this.escapeHtml(r.plan)}</td>
+        <td>${this.escapeHtml(r.period)}</td>
+        <td><strong>${this.escapeHtml(this.formatRupees(r.amount))}</strong></td>
+        <td>${this.escapeHtml(r.validTill)}</td>
+        <td style="font-family: var(--font-mono, monospace); font-size: 11px;">${this.escapeHtml(r.ref)}</td>
+      </tr>`).join('');
+  }
+
+  async downloadPlansPurchased(format) {
+    try {
+      const data = await this.fetchRevenueData();
+      const rows = this.plansPurchasedRows(data.subscriptions || []);
+      if (!rows.length) { this.showToast('No plans purchased yet.', 'ℹ️'); return; }
+      const report = {
+        agency: 'SalesArmy', title: 'Plans Purchased',
+        columns: [['paidDate', 'Paid Date'], ['agency', 'Agency'], ['plan', 'Plan'], ['period', 'Period'], ['amount', 'Amount'], ['validTill', 'Valid Till'], ['ref', 'Reference']].map(([key, label]) => ({ key, label })),
+        rows,
+      };
+      const fileBase = `SalesArmy_Plans_Purchased_${new Date().toISOString().slice(0, 10)}`;
+      if (format === 'excel') await this.writeReportExcel(report, fileBase);
+      else await this.writeReportPdf(report, fileBase);
+      this.showToast(`Plans Purchased downloaded (${rows.length} rows).`, '✓');
+    } catch (err) {
+      console.warn('Plans purchased download error:', err);
+      this.showToast(`Download failed: ${err.message}`, '⚠️', 'warning');
+    }
+  }
 
   async manuallySettleCheckout(checkoutId) {
     const paymentReference = prompt('Bank UTR / UPI transaction ID of the payment you received (required):');

@@ -224,6 +224,13 @@ UPDATE public.platform_settings ps
                     SELECT COALESCE(jsonb_agg(DISTINCT f), '[]'::jsonb) FROM (
                       SELECT jsonb_array_elements_text(COALESCE(tier->'allowedFeatures', '[]'::jsonb)) AS f
                       UNION SELECT unnest(public.plan_legacy_features())
+                      -- Pre-v2 plans carry no capability keys: start from the
+                      -- plan's defaults (see 20261126000001_restore_plan_features).
+                      UNION SELECT unnest(CASE lower(COALESCE(tier->>'id', ''))
+                        WHEN 'startup' THEN ARRAY['order_taking','estimate_bills','invoicing','sales_returns','collections','khata_ledger','purchases','expenses','visits','thermal_printer','reports','gst_reports','offline_sync','staff_management']
+                        WHEN 'grow' THEN ARRAY['order_taking','estimate_bills','invoicing','sales_returns','collections','khata_ledger','purchases','expenses','visits','thermal_printer','reports','gst_reports','offline_sync','staff_management','dynamic_upi_qr','live_tracking','van_stock','bulk_import','multi_branch','priority_support']
+                        WHEN 'enterprise' THEN ARRAY['order_taking','estimate_bills','invoicing','sales_returns','collections','khata_ledger','dynamic_upi_qr','purchases','expenses','visits','staff_management','thermal_printer','reports','gst_reports','offline_sync','bulk_import','live_tracking','van_stock','multi_van','multi_branch','custom_branding','custom_tax_slabs','admin_customization','audit_vault','priority_support','dedicated_manager']
+                        ELSE ARRAY[]::text[] END)
                     ) x))
            END ORDER BY ord), '[]'::jsonb)
          FROM jsonb_array_elements(ps.data->'plans'->'tiers') WITH ORDINALITY AS e(tier, ord))),
@@ -251,10 +258,19 @@ BEGIN
   END IF;
 
   -- Upserts of rows that already exist are edits, not new records.
-  IF TG_TABLE_NAME = 'shops' AND EXISTS (SELECT 1 FROM public.shops WHERE tenant_id = NEW.tenant_id AND shop_id = NEW.shop_id) THEN RETURN NEW; END IF;
-  IF TG_TABLE_NAME = 'products' AND EXISTS (SELECT 1 FROM public.products WHERE tenant_id = NEW.tenant_id AND product_id = NEW.product_id) THEN RETURN NEW; END IF;
-  IF TG_TABLE_NAME = 'orders' AND EXISTS (SELECT 1 FROM public.orders WHERE tenant_id = NEW.tenant_id AND order_id = NEW.order_id) THEN RETURN NEW; END IF;
-  IF TG_TABLE_NAME = 'invoices' AND EXISTS (SELECT 1 FROM public.invoices WHERE tenant_id = NEW.tenant_id AND invoice_id = NEW.invoice_id) THEN RETURN NEW; END IF;
+  -- NOTE: each NEW.<column> must only be referenced inside its own table's
+  -- branch — PL/pgSQL does not short-circuit `TG_TABLE_NAME = 'x' AND NEW.col`,
+  -- so a shared condition fails with "record new has no field ..." and
+  -- rejected every insert (see 20261126000002_fix_plan_entitlement_trigger).
+  IF TG_TABLE_NAME = 'shops' THEN
+    IF EXISTS (SELECT 1 FROM public.shops WHERE tenant_id = NEW.tenant_id AND shop_id = NEW.shop_id) THEN RETURN NEW; END IF;
+  ELSIF TG_TABLE_NAME = 'products' THEN
+    IF EXISTS (SELECT 1 FROM public.products WHERE tenant_id = NEW.tenant_id AND product_id = NEW.product_id) THEN RETURN NEW; END IF;
+  ELSIF TG_TABLE_NAME = 'orders' THEN
+    IF EXISTS (SELECT 1 FROM public.orders WHERE tenant_id = NEW.tenant_id AND order_id = NEW.order_id) THEN RETURN NEW; END IF;
+  ELSIF TG_TABLE_NAME = 'invoices' THEN
+    IF EXISTS (SELECT 1 FROM public.invoices WHERE tenant_id = NEW.tenant_id AND invoice_id = NEW.invoice_id) THEN RETURN NEW; END IF;
+  END IF;
 
   state := public.tenant_access_state(NEW.tenant_id);
   IF state = 'suspended' THEN
