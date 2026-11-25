@@ -91,9 +91,11 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
 
     int? navigatedTab;
+    final appState = AppState()..setUniqueUserId('SA-USR-1001');
 
     await tester.pumpWidget(
       createTestWidget(
+        state: appState,
         child: ProfileAndSettingsScreen(
           onNavigateToTab: (tabIdx) => navigatedTab = tabIdx,
         ),
@@ -142,7 +144,7 @@ void main() {
     await tester.tap(find.text('Profile & Business Details'));
     await tester.pumpAndSettle();
     expect(find.text('UNIQUE USER ID / CUSTOMER ID'), findsOneWidget);
-    expect(find.text('SA-USR-8821'), findsWidgets);
+    expect(find.text('SA-USR-1001'), findsWidgets);
     expect(find.text('Company / Firm Name'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();

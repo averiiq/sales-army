@@ -41,10 +41,12 @@ void main() {
     });
 
     test('3. Unique User ID follows SA-USR-XXXX convention used in Web Admin', () {
-      expect(appState.uniqueUserId, startsWith('SA-USR-'));
-      expect(appState.uniqueUserId, 'SA-USR-8821');
+      // No hardcoded ID: until the agency's code (tenants.user_code) is synced
+      // from the cloud, the app shows a placeholder instead of a fake ID.
+      expect(appState.uniqueUserId, 'Not synced yet');
 
       appState.setUniqueUserId('SA-USR-9999');
+      expect(appState.uniqueUserId, startsWith('SA-USR-'));
       expect(appState.uniqueUserId, 'SA-USR-9999');
     });
 

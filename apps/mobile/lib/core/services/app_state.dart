@@ -198,9 +198,11 @@ class AppState extends ChangeNotifier {
   bool _isGstBillingEnabled = true;
   bool get isGstBillingEnabled => _isGstBillingEnabled;
 
-  // 1. Unique User ID Functionality
-  String _uniqueUserId = 'SA-USR-8821';
-  String get uniqueUserId => _uniqueUserId;
+  // 1. Unique User ID (SA-USR-XXXX) — assigned by the database per agency
+  //    (tenants.user_code) and shown identically in the Web Admin. Empty until
+  //    the agency row has been fetched from the cloud.
+  String _uniqueUserId = '';
+  String get uniqueUserId => _uniqueUserId.isNotEmpty ? _uniqueUserId : 'Not synced yet';
   void setUniqueUserId(String id) {
     if (id.trim().isNotEmpty) {
       _uniqueUserId = id.trim();
@@ -3145,6 +3147,7 @@ class AppState extends ChangeNotifier {
       signOutSession();
       return;
     }
+    if (tenantId != (currentTenantId ?? _tenant.tenantId)) _uniqueUserId = ''; // never show another agency's ID
     // Cancel any realtime listeners from the previous session so a rapid
     // tenant switch does not stack a second generation of Firestore / Supabase
     // subscribers on top of the previous one (double writes + leaked streams).
@@ -3241,6 +3244,8 @@ class AppState extends ChangeNotifier {
           // 0. Fetch latest Tenant details & Subscription from Supabase public.tenants
           final tenantData = await sb.fetchTenant(tenantId);
           if (tenantData != null) {
+            final userCode = tenantData['user_code']?.toString().trim() ?? '';
+            if (userCode.isNotEmpty) _uniqueUserId = userCode;
             final cloudTenant = TenantModel.fromMap(tenantData, tenantId);
 
             // Fetch durable JSON config if available
@@ -6862,12 +6867,14 @@ class AppState extends ChangeNotifier {
     }
     if (bundle['tenants'] is List) {
       for (final t in bundle['tenants']) {
-        if (t is Map<String, dynamic> && ((t['id'] ?? t['tenantId']) == (currentTenantId ?? _tenant.tenantId) || t['userId'] == _uniqueUserId)) {
+        if (t is Map<String, dynamic> && ((t['id'] ?? t['tenantId']) == (currentTenantId ?? _tenant.tenantId) || (_uniqueUserId.isNotEmpty && t['userId'] == _uniqueUserId))) {
           _tenant = _tenant.copyWith(
             subscriptionStatus: t['subscriptionStatus']?.toString(),
             subscriptionPlanId: t['subscriptionPlanId']?.toString(),
             subscriptionEndDate: DateTime.tryParse((t['expiryDate'] ?? t['subscriptionEndDate'] ?? '').toString()),
           );
+          final code = t['userCode']?.toString().trim() ?? '';
+          if (code.isNotEmpty) _uniqueUserId = code;
         }
       }
     }

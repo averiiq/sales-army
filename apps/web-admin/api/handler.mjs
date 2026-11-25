@@ -228,7 +228,7 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const suspended = t.subscription_status === 'suspended' || t.is_active === false;
     const status = effectiveStatus(t, graceDays);
     return {
-      id: t.tenant_id, tenantId: t.tenant_id, userId: t.tenant_id,
+      id: t.tenant_id, tenantId: t.tenant_id, userId: t.user_code || t.tenant_id, userCode: t.user_code || null,
       firmName: t.business_name, name: t.business_name, businessName: t.business_name,
       ownerName: t.contact_person || '', ownerUid: t.owner_uid || null,
       phone: t.mobile || '', email: t.email || '', gstin: t.gstin || '', pan: t.pan || '',
@@ -248,9 +248,11 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
       createdAt: t.created_at, updatedAt: t.updated_at,
     };
   }
-  function mapUser(p, tenantNames) {
+  function mapUser(p, tenantNames, tenantCodes = {}) {
     return {
-      id: p.id, uid: p.id, name: p.name || '', email: p.email || '', phone: p.phone || '',
+      id: p.id, uid: p.id,
+      // Agency's Unique User ID (SA-USR-XXXX) — the same code the mobile app shows.
+      userId: p.tenant_id ? (tenantCodes[p.tenant_id] || p.tenant_id) : null, name: p.name || '', email: p.email || '', phone: p.phone || '',
       role: p.role, tenantId: p.tenant_id || null,
       tenantName: p.tenant_id ? (tenantNames[p.tenant_id] || p.tenant_id) : (p.role === 'super_admin' ? 'Platform' : 'No agency'),
       status: p.account_status && p.account_status !== 'active' ? p.account_status : (p.is_active === false ? 'suspended' : 'active'),
@@ -368,10 +370,11 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
     const used = {};
     for (const row of couponUse) { const code = row.couponCode; if (code) used[code] = (used[code] || 0) + 1; }
     const tenantNames = Object.fromEntries(tenants.map(t => [t.tenant_id, t.business_name]));
+    const tenantCodes = Object.fromEntries(tenants.map(t => [t.tenant_id, t.user_code]));
     return {
       tenants: withActivity(tenants.map(t => mapTenant(t, pricing.plans, stats || {}, Number(settings.trialGracePeriodDays || 0))), activity),
       capabilities: CAPABILITIES,
-      users: profiles.map(p => mapUser(p, tenantNames)),
+      users: profiles.map(p => mapUser(p, tenantNames, tenantCodes)),
       plans: pricing.plans,
       printerOptions: pricing.printerOptions,
       subscriptionAddons: pricing.subscriptionAddons,
@@ -615,8 +618,8 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   route('GET', '/api/auth/tenants', async ctx => {
     const user = await requireUser(ctx);
     const filter = user.role === 'super_admin' ? '' : `tenant_id=eq.${enc(user.tenant_id || '__none__')}&`;
-    const rows = await db().select('tenants', `${filter}select=tenant_id,business_name,contact_person,city,plan_id,subscription_status&order=business_name.asc`);
-    return json({ success: true, tenants: rows.map(t => ({ id: t.tenant_id, tenant_id: t.tenant_id, tenantId: t.tenant_id, business_name: t.business_name, businessName: t.business_name, contact_person: t.contact_person, city: t.city, planId: t.plan_id, subscriptionStatus: t.subscription_status })) });
+    const rows = await db().select('tenants', `${filter}select=tenant_id,user_code,business_name,contact_person,city,plan_id,subscription_status&order=business_name.asc`);
+    return json({ success: true, tenants: rows.map(t => ({ id: t.tenant_id, userId: t.user_code || t.tenant_id, tenant_id: t.tenant_id, tenantId: t.tenant_id, business_name: t.business_name, businessName: t.business_name, contact_person: t.contact_person, city: t.city, planId: t.plan_id, subscriptionStatus: t.subscription_status })) });
   });
 
   // ---- Checkout (owners) ---------------------------------------------
@@ -693,10 +696,11 @@ export function createApi(env, { fetchImpl = fetch } = {}) {
   route('GET', '/api/platform/users', async ctx => {
     await requireAdmin(ctx);
     const [profiles, tenants] = await Promise.all([
-      db().select('profiles', 'select=*&order=created_at.desc'), db().select('tenants', 'select=tenant_id,business_name'),
+      db().select('profiles', 'select=*&order=created_at.desc'), db().select('tenants', 'select=tenant_id,business_name,user_code'),
     ]);
     const names = Object.fromEntries(tenants.map(t => [t.tenant_id, t.business_name]));
-    return json({ success: true, users: profiles.map(p => mapUser(p, names)) });
+    const codes = Object.fromEntries(tenants.map(t => [t.tenant_id, t.user_code]));
+    return json({ success: true, users: profiles.map(p => mapUser(p, names, codes)) });
   });
 
   // ---- Admin: tenants ------------------------------------------------

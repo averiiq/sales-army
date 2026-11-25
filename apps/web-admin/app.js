@@ -2019,14 +2019,15 @@ class AdminPortal {
         (u.name && u.name.toLowerCase().includes(q)) ||
         (u.email && u.email.toLowerCase().includes(q)) ||
         (u.phone && u.phone.toLowerCase().includes(q)) ||
-        (u.tenantName && u.tenantName.toLowerCase().includes(q))
+        (u.tenantName && u.tenantName.toLowerCase().includes(q)) ||
+        (u.userId && String(u.userId).toLowerCase().includes(q))
       );
     }
 
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align: center; padding: 36px; color: var(--text-muted);">
+          <td colspan="7" style="text-align: center; padding: 36px; color: var(--text-muted);">
             No users match current filters. Click "+ Add New User" to register a staff or distributor account.
           </td>
         </tr>
@@ -2067,6 +2068,12 @@ class AdminPortal {
                 </div>
               </div>
             </div>
+          </td>
+          <td>
+            ${u.userId ? `<div class="code-pill">
+              <span>${this.escapeHtml(u.userId)}</span>
+              <button onclick="adminApp.copyText('${this.escapeJs(u.userId)}')" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer;" title="Copy User ID">📋</button>
+            </div>` : '<span style="font-size: 12px; color: var(--text-muted);">—</span>'}
           </td>
           <td>
             <span class="${roleBadgeClass}">${this.escapeHtml(roleName)}</span>
@@ -5100,6 +5107,7 @@ class AdminPortal {
     startup.monthlyPrice = parseFloat(document.getElementById('cfgStartupPrice')?.value) || 399;
     startup.yearlyMonthlyEquivalent = parseFloat(document.getElementById('cfgStartupYearlyPrice')?.value) || Math.round(startup.monthlyPrice * 0.8);
     startup.annualPrice = startup.yearlyMonthlyEquivalent * 12;
+    startup.yearlyPrice = startup.annualPrice; // server reads yearlyPrice first — keep both in step
     startup.maxStaff = readLimit('cfgStartupMaxStaff', 2);
     startup.maxUsers = startup.maxStaff;
     startup.maxOrdersPerMonth = readLimit('cfgStartupMaxOrders', 200);
@@ -5119,6 +5127,7 @@ class AdminPortal {
     grow.monthlyPrice = parseFloat(document.getElementById('cfgGrowPrice')?.value) || 599;
     grow.yearlyMonthlyEquivalent = parseFloat(document.getElementById('cfgGrowYearlyPrice')?.value) || Math.round(grow.monthlyPrice * 0.8);
     grow.annualPrice = grow.yearlyMonthlyEquivalent * 12;
+    grow.yearlyPrice = grow.annualPrice; // server reads yearlyPrice first — keep both in step
     grow.maxStaff = readLimit('cfgGrowMaxStaff', 10);
     grow.maxUsers = grow.maxStaff;
     grow.maxOrdersPerMonth = readLimit('cfgGrowMaxOrders', 1000);
@@ -5138,6 +5147,7 @@ class AdminPortal {
     enterprise.monthlyPrice = parseFloat(document.getElementById('cfgEnterprisePrice')?.value) || 899;
     enterprise.yearlyMonthlyEquivalent = parseFloat(document.getElementById('cfgEnterpriseYearlyPrice')?.value) || Math.round(enterprise.monthlyPrice * 0.8);
     enterprise.annualPrice = enterprise.yearlyMonthlyEquivalent * 12;
+    enterprise.yearlyPrice = enterprise.annualPrice; // server reads yearlyPrice first — keep both in step
     enterprise.maxStaff = readLimit('cfgEnterpriseMaxStaff', 999);
     enterprise.maxUsers = enterprise.maxStaff;
     enterprise.maxOrdersPerMonth = readLimit('cfgEnterpriseMaxOrders', 999999);
