@@ -1,0 +1,5 @@
+# Config files are not part of the public website.
+wrangler.jsonc
+vercel.json
+.assetsignore
+.wrangler

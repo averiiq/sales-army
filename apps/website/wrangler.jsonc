@@ -1,0 +1,12 @@
+// Main marketing website (salesarmy.in) — static files only, no server code.
+// Cloudflare Workers project settings: Root directory = apps/website,
+// Build command = (empty), Deploy command = npx wrangler deploy.
+// "name" must match the Worker's name in the Cloudflare dashboard.
+{
+  "name": "salesarmy-website",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": ".",
+    "not_found_handling": "single-page-application"
+  }
+}
