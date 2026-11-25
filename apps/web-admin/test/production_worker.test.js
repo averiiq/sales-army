@@ -1,83 +1,62 @@
+// Smoke test for the Cloudflare Worker entry (_worker.js) against the real
+// Supabase project. NO keys or passwords live in this file: they are read
+// from apps/web-admin/.env (git-ignored). Without them the test is skipped.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
-const env = {
-  SUPABASE_URL: 'https://ivwvqpeivnltshrxjhjx.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2d3ZxcGVpdm5sdHNocnhqaGp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MTcyNTgsImV4cCI6MjEwNzM5MzI1OH0.pkwOLQUyP0Te719UKV5s6wZ_GNXDe9AOMaeqkH0H-iY',
-  SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2d3ZxcGVpdm5sdHNocnhqaGp4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgxNzI1OCwiZXhwIjoyMTA3MzkzMjU4fQ.swVBzLlo-fQ3xc1ezYD_VcPKElnTKa6ZyBMjeU1sjxM',
-  ENABLE_DEMO_AUTH: 'true'
-};
+function loadEnv() {
+  const env = { ...process.env };
+  const file = path.join(__dirname, '..', '.env');
+  if (fs.existsSync(file)) {
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (m && !line.trim().startsWith('#') && env[m[1]] === undefined) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+  }
+  return {
+    SUPABASE_URL: env.SUPABASE_URL,
+    SUPABASE_ANON_KEY: env.SUPABASE_ANON_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY,
+  };
+}
 
-test('Production _worker.js endpoints are functional and return real data from Supabase', async () => {
-  const mod = await import('../_worker.js');
-  const worker = mod.default;
+const env = loadEnv();
+const configured = Boolean(env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.SUPABASE_SERVICE_ROLE_KEY);
 
-  // 1. Supabase Client Discovery
-  const rConfig = await worker.fetch(new Request('http://localhost/api/config/supabase'), env);
-  assert.equal(rConfig.status, 200);
-  const jConfig = await rConfig.json();
-  assert.equal(jConfig.success, true);
-  assert.ok(jConfig.supabaseUrl);
+test('Production _worker.js: public endpoints work, admin endpoints require sign-in', { skip: !configured && 'Supabase keys not in .env' }, async () => {
+  const worker = (await import('../_worker.js')).default;
+  const call = (p, init) => worker.fetch(new Request(`https://admin.example${p}`, init), env);
+
+  const config = await call('/api/config/supabase');
+  assert.equal(config.status, 200);
+  const jConfig = await config.json();
+  assert.equal(jConfig.supabaseUrl, env.SUPABASE_URL);
   assert.ok(jConfig.supabaseAnonKey);
 
-  // 2. Authentication: Super Admin Login
-  const rLogin = await worker.fetch(new Request('http://localhost/api/auth/login', {
+  const health = await call('/api/platform/health');
+  assert.equal(health.status, 200);
+  assert.equal((await health.json()).database, 'reachable');
+
+  const pub = await call('/api/platform/public');
+  assert.equal(pub.status, 200);
+  assert.ok(Array.isArray((await pub.json()).data?.plans?.tiers));
+
+  // Admin data is never served without a Super Admin token.
+  for (const p of ['/api/platform/all', '/api/platform/tenants', '/api/platform/users', '/api/platform/gateway/config']) {
+    assert.equal((await call(p)).status, 401, p);
+  }
+
+  // Wrong password is rejected normally (proves the auth path reaches Supabase).
+  const login = await call('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'superadmin@salesarmy.saas', password: 'Password@123' })
-  }), env);
-  assert.equal(rLogin.status, 200);
-  const jLogin = await rLogin.json();
-  assert.equal(jLogin.success, true);
-  assert.ok(jLogin.token);
-  assert.equal(jLogin.user?.role, 'super_admin');
+    body: JSON.stringify({ email: 'nobody@example.com', password: 'not-a-real-password' }),
+  });
+  assert.equal(login.status, 401);
 
-  // 3. Platform State Aggregation: GET /api/platform/all
-  const rAll = await worker.fetch(new Request('http://localhost/api/platform/all'), env);
-  assert.equal(rAll.status, 200);
-  const jAll = await rAll.json();
-  assert.equal(jAll.success, true);
-  assert.ok(Array.isArray(jAll.data?.tenants));
-  assert.ok(jAll.data.tenants.length >= 1, 'Should load live tenants from Supabase');
-  assert.ok(Array.isArray(jAll.data?.users));
-  assert.ok(jAll.data.users.length >= 1, 'Should load live profiles from Supabase');
-  assert.ok(Array.isArray(jAll.data?.plans?.tiers));
-
-  // 4. Live Tenants: GET /api/platform/tenants
-  const rTenants = await worker.fetch(new Request('http://localhost/api/platform/tenants'), env);
-  assert.equal(rTenants.status, 200);
-  const jTenants = await rTenants.json();
-  assert.equal(jTenants.success, true);
-  assert.ok(Array.isArray(jTenants.tenants));
-  assert.ok(jTenants.tenants.length >= 1);
-
-  // 5. Live Users: GET /api/platform/users
-  const rUsers = await worker.fetch(new Request('http://localhost/api/platform/users'), env);
-  assert.equal(rUsers.status, 200);
-  const jUsers = await rUsers.json();
-  assert.equal(jUsers.success, true);
-  assert.ok(Array.isArray(jUsers.users));
-  assert.ok(jUsers.users.length >= 1);
-
-  // 6. Broadcast Announcement: GET /api/platform/broadcast
-  const rBroadcast = await worker.fetch(new Request('http://localhost/api/platform/broadcast'), env);
-  assert.equal(rBroadcast.status, 200);
-  const jBroadcast = await rBroadcast.json();
-  assert.equal(jBroadcast.success, true);
-  assert.ok(jBroadcast.broadcast);
-
-  // 7. Gateway Settings: GET /api/platform/gateway/config
-  const rGateway = await worker.fetch(new Request('http://localhost/api/platform/gateway/config'), env);
-  assert.equal(rGateway.status, 200);
-  const jGateway = await rGateway.json();
-  assert.equal(jGateway.success, true);
-  assert.ok(jGateway.config);
-
-  // 8. Health Probe: GET /api/platform/health
-  const rHealth = await worker.fetch(new Request('http://localhost/api/platform/health'), env);
-  assert.equal(rHealth.status, 200);
-  const jHealth = await rHealth.json();
-  assert.equal(jHealth.success, true);
-  assert.equal(jHealth.status, 'healthy');
+  // Responses carry the security headers.
+  assert.equal(health.headers.get('X-Frame-Options'), 'DENY');
+  assert.match(health.headers.get('Content-Security-Policy') || '', /default-src 'self'/);
 });
-
